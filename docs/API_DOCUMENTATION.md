@@ -130,15 +130,26 @@ JWT_SECRET_KEY=your-secret-key-change-this-in-production-please
 
 **端点**: `GET /`
 
-**描述**: 返回简化版邮件查看器页面
+**描述**: 返回简化版验证码获取页面 (VerificationPage)
 
 **认证**: 无需认证
 
-**功能**:
-- 输入邮箱地址查看最新邮件
-- 支持临时账户模式
-- 显示邮件发件人、收件人、时间、正文等信息
-- 支持 HTML 邮件渲染
+**功能** (v2.3.0 简化版):
+- 输入邮箱地址（必须是已配置的数据库账户）
+- 自动获取最新 1 封邮件
+- 智能提取 4-6 位验证码（大字号显示）
+- 一键复制验证码到剪贴板
+- 刷新按钮重新获取最新邮件
+- 显示邮件主题、发件人、接收时间、正文
+- 支持 HTML 和纯文本邮件渲染
+- 明确的加载、错误、空状态提示
+
+**设计理念**: 扁平化设计，统一视觉风格，移动端友好
+
+**⚠️ 重要变更 (v2.3.0)**:
+- 已移除临时账户模式（Refresh Token 输入）
+- 仅支持数据库账户模式
+- 固定显示最新 1 封邮件
 
 **示例**:
 ```bash
@@ -151,15 +162,22 @@ curl http://localhost:5001/
 
 **端点**: `GET /admin`
 
-**描述**: 返回管理后台页面
+**描述**: 返回管理后台页面 (AdminDashboardPage)
 
 **认证**: 需要在页面中登录
 
 **功能**:
 - 账户列表查看和管理
+- **增强的分页功能** (v2.3.0):
+  - 每页显示数量选择（10/20/50/100 条）
+  - 智能页码导航（当前页前后显示，中间省略号）
+  - 快速跳转到指定页（输入框 + 验证）
+  - 总记录数统计显示
+  - 移动端响应式布局
 - 批量导入/导出账户
 - 标签管理
 - 系统配置
+- 邮件查看（完整正文 + 验证码提取）
 
 **示例**:
 ```bash
@@ -305,6 +323,12 @@ curl "http://localhost:5001/api/messages?email=user@example.com&folder=Junk&page
 
 **描述**: 无需预先配置账户，直接使用 refresh_token 获取邮件，参数与 `/api/messages` 一致
 
+**⚠️ 重要说明 (v2.3.0)**:
+- 此接口主要供 **API 调用**使用
+- **前端 VerificationPage 已不再使用此接口**（v2.3.0 起）
+- 前端统一使用 `GET /api/messages`（数据库账户模式）
+- API 仍然保持向后兼容，可供第三方集成使用
+
 **请求体**:
 ```json
 {
@@ -323,6 +347,7 @@ curl "http://localhost:5001/api/messages?email=user@example.com&folder=Junk&page
 - 临时查看邮件，不想保存账户配置
 - 测试新账户是否可用
 - 一次性查看邮件
+- 第三方系统集成调用
 
 ---
 
@@ -423,7 +448,7 @@ curl "http://localhost:5001/api/accounts" \
 **查询参数**:
 - `q` (可选): 按邮箱子串搜索（不区分大小写）
 - `page` (可选): 页码（从 1 开始），默认为 1
-- `page_size` (可选): 每页数量（1-100），默认为 10
+- `page_size` (可选): 每页数量（10/20/50/100），默认为 10
 
 **响应**:
 ```json
@@ -442,6 +467,13 @@ curl "http://localhost:5001/api/accounts" \
 }
 ```
 
+**前端增强功能** (v2.3.0):
+- ✅ 页码选择器：显示当前页前后页码，中间用省略号（如 `1 ... 5 6 [7] 8 9 ... 20`）
+- ✅ 每页数量选择器：下拉菜单快速切换（10/20/50/100）
+- ✅ 跳转功能：输入框直接跳转到指定页（带验证）
+- ✅ 总数统计：显示"共 X 条记录"
+- ✅ 移动端响应式布局
+
 **示例**:
 ```bash
 # 获取第一页
@@ -450,6 +482,10 @@ curl "http://localhost:5001/api/accounts/paged?page=1&page_size=10" \
 
 # 搜索包含 "gmail" 的账户
 curl "http://localhost:5001/api/accounts/paged?q=gmail" \
+  -H "Authorization: Bearer {access_token}"
+
+# 获取每页 50 条的第 2 页
+curl "http://localhost:5001/api/accounts/paged?page=2&page_size=50" \
   -H "Authorization: Bearer {access_token}"
 ```
 
