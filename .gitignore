@@ -1,10 +1,26 @@
-.vscode
-4.30caprun-微软注册
-emails
-demo.py
-demo2.py
-__pycache__
-accounts.json
-Task Progress.md
-.gitignore
-PERFORMANCE_OPTIMIZATION.md
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+
+# Environment & secrets
+.env
+backend/.env
+
+# Databases & logs
+data/outlook_manager.db
+data/outlook_manager.db.*
+data/logs/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Build artifacts
+data/static/
+
+# IDE
+.DS_Store
+.vscode/
+.codexgit/
