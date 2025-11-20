@@ -38,6 +38,7 @@ export function extractCodeFromMessage(message) {
 
 const isDevEnv =
   (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.DEV) ||
+  // eslint-disable-next-line no-undef
   (typeof process !== "undefined" && process.env && process.env.NODE_ENV !== "production");
 
 export function logError(message, error) {

@@ -24,8 +24,11 @@ export default function AdminLoginPage() {
       if (response.data.access_token) {
         sessionStorage.setItem('admin_token', response.data.access_token);
         navigate('/admin');
+      } else {
+        setError('登录响应格式错误');
       }
     } catch (err) {
+      console.error('Login error:', err);
       setError('登录失败，请检查用户名或密码');
     } finally {
       setLoading(false);

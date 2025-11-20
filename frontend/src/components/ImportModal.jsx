@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
-import { X, Upload, AlertCircle } from 'lucide-react';
+import { Upload, AlertCircle } from 'lucide-react';
 import api from '../lib/api';
 import { useApiAction } from '../lib/hooks';
+import { Dialog } from './ui/Dialog';
+import { Button } from './ui/Button';
+import { Alert, AlertDescription } from './ui/Alert'; // Note: Alert component needs to be created if used, using simple div for now
+import { Badge } from './ui/Badge';
 
 export default function ImportModal({ isOpen, onClose, onSuccess }) {
   const [text, setText] = useState('');
@@ -12,8 +16,6 @@ export default function ImportModal({ isOpen, onClose, onSuccess }) {
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const apiAction = useApiAction({ showSuccessToast: false });
-
-  if (!isOpen) return null;
 
   const handleParse = async () => {
     if (!text.trim()) return;
@@ -79,21 +81,17 @@ export default function ImportModal({ isOpen, onClose, onSuccess }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
-        {/* Header */}
-        <div className="p-4 border-b flex justify-between items-center">
-          <h3 className="font-semibold text-lg">批量导入账户</h3>
-          <button onClick={reset} className="p-1 hover:bg-gray-100 rounded">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
+    <Dialog 
+      isOpen={isOpen} 
+      onClose={reset}
+      title="批量导入账户"
+      className="max-w-2xl"
+    >
         {/* Content */}
-        <div className="p-6 overflow-y-auto flex-1">
+        <div className="py-2 overflow-y-auto max-h-[70vh]">
           {step === 1 && (
             <div className="space-y-4">
-              <div className="bg-blue-50 text-blue-700 p-4 rounded-lg text-sm flex gap-2">
+              <div className="bg-blue-500/10 text-blue-700 dark:text-blue-300 p-4 rounded-lg text-sm flex gap-2 border border-blue-500/30">
                 <AlertCircle className="w-5 h-5 shrink-0" />
                 <div>
                   <p className="font-bold mb-1">支持格式：</p>
@@ -105,7 +103,7 @@ export default function ImportModal({ isOpen, onClose, onSuccess }) {
               </div>
               
               <textarea
-                className="w-full h-64 border rounded-lg p-4 font-mono text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full h-64 border rounded-lg p-4 font-mono text-sm focus:ring-2 focus:ring-ring outline-none bg-background"
                 placeholder="请粘贴账户数据，每行一条..."
                 value={text}
                 onChange={e => setText(e.target.value)}
@@ -115,19 +113,18 @@ export default function ImportModal({ isOpen, onClose, onSuccess }) {
                 <select 
                   value={mergeMode} 
                   onChange={e => setMergeMode(e.target.value)}
-                  className="border rounded-lg px-3 py-2 text-sm"
+                  className="border rounded-md px-3 py-2 text-sm bg-background focus:ring-2 focus:ring-ring outline-none"
                 >
                   <option value="update">更新现有 (Update)</option>
                   <option value="skip">跳过重复 (Skip)</option>
                   <option value="replace">清空并替换 (Replace)</option>
                 </select>
-                <button
+                <Button
                   onClick={handleParse}
                   disabled={loading || !text.trim()}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
                   {loading ? '解析中...' : '下一步：解析预览'}
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -136,28 +133,26 @@ export default function ImportModal({ isOpen, onClose, onSuccess }) {
             <div className="space-y-4">
                <div className="flex justify-between items-center">
                    <p className="font-medium">
-                       解析成功：{previewData.parsed_count} 条，错误：{previewData.error_count} 条
+                       解析成功：<span className="text-green-600">{previewData.parsed_count}</span> 条，
+                       错误：<span className="text-destructive">{previewData.error_count}</span> 条
                    </p>
-                   {previewData.error_count > 0 && (
-                       <span className="text-red-500 text-sm">请检查下方错误</span>
-                   )}
                </div>
                
-               <div className="max-h-64 overflow-y-auto border rounded-lg bg-gray-50 p-4 space-y-2">
+               <div className="max-h-64 overflow-y-auto border rounded-lg bg-muted/80 p-4 space-y-2">
                    {previewData.accounts.slice(0, 10).map((acc, i) => (
-                       <div key={i} className="text-xs font-mono truncate border-b last:border-0 pb-1">
+                       <div key={i} className="text-xs font-mono truncate border-b border-border last:border-0 pb-1">
                            {acc.email}
                        </div>
                    ))}
                    {previewData.accounts.length > 10 && (
-                       <div className="text-xs text-gray-500 text-center pt-2">
+                       <div className="text-xs text-muted-foreground text-center pt-2">
                            ...还有 {previewData.accounts.length - 10} 条
                        </div>
                    )}
                </div>
 
                {previewData.errors.length > 0 && (
-                   <div className="max-h-32 overflow-y-auto border border-red-200 bg-red-50 rounded-lg p-4 text-xs text-red-600 font-mono">
+                   <div className="max-h-32 overflow-y-auto border border-destructive/40 bg-destructive/15 rounded-lg p-4 text-xs text-destructive dark:text-red-400 font-mono">
                        {previewData.errors.map((err, i) => (
                            <div key={i}>{err}</div>
                        ))}
@@ -165,19 +160,19 @@ export default function ImportModal({ isOpen, onClose, onSuccess }) {
                )}
 
                <div className="flex justify-end gap-3 pt-4">
-                   <button
+                   <Button
+                     variant="outline"
                      onClick={() => setStep(1)}
-                     className="px-4 py-2 border rounded-lg hover:bg-gray-50"
                    >
                        上一步
-                   </button>
-                   <button
+                   </Button>
+                   <Button
                      onClick={handleImport}
                      disabled={loading || previewData.parsed_count === 0}
-                     className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50"
+                     className="bg-green-600 hover:bg-green-700 text-white"
                    >
                        {loading ? '导入中...' : `确认导入 ${previewData.parsed_count} 条账户`}
-                   </button>
+                   </Button>
                </div>
             </div>
           )}
@@ -188,32 +183,30 @@ export default function ImportModal({ isOpen, onClose, onSuccess }) {
                     <Upload className="w-8 h-8" />
                 </div>
                 <div>
-                    <h3 className="text-xl font-bold text-gray-900">导入完成</h3>
-                    <p className="text-gray-500 mt-2">{result.message}</p>
+                    <h3 className="text-xl font-bold text-foreground">导入完成</h3>
+                    <p className="text-muted-foreground mt-2">{result.message}</p>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-4 max-w-sm mx-auto text-sm space-y-1 text-left">
-                    <div className="flex justify-between"><span>新增：</span><span className="font-mono font-bold text-green-600">{result.added_count}</span></div>
-                    <div className="flex justify-between"><span>更新：</span><span className="font-mono font-bold text-blue-600">{result.updated_count}</span></div>
-                    <div className="flex justify-between"><span>跳过：</span><span className="font-mono font-bold text-gray-600">{result.skipped_count}</span></div>
-                    <div className="flex justify-between"><span>错误：</span><span className="font-mono font-bold text-red-600">{result.error_count}</span></div>
+                <div className="bg-muted/80 rounded-lg p-4 max-w-sm mx-auto text-sm space-y-2 text-left border">
+                    <div className="flex justify-between"><span>新增：</span><Badge variant="default" className="bg-green-600">{result.added_count}</Badge></div>
+                    <div className="flex justify-between"><span>更新：</span><Badge variant="default" className="bg-blue-600">{result.updated_count}</Badge></div>
+                    <div className="flex justify-between"><span>跳过：</span><Badge variant="secondary">{result.skipped_count}</Badge></div>
+                    <div className="flex justify-between"><span>错误：</span><Badge variant="destructive">{result.error_count}</Badge></div>
                 </div>
-                <button
+                <Button
                   onClick={reset}
-                  className="bg-gray-900 text-white px-6 py-2 rounded-lg hover:bg-gray-800"
+                  size="lg"
                 >
                     完成
-                </button>
+                </Button>
             </div>
           )}
           
           {error && (
-             <div className="bg-red-50 text-red-600 p-4 rounded-lg mt-4">
+             <div className="bg-destructive/10 border border-destructive/20 text-destructive p-4 rounded-lg mt-4 text-sm">
                  {error}
              </div>
           )}
         </div>
-      </div>
-    </div>
+    </Dialog>
   );
 }
-

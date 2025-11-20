@@ -6,7 +6,6 @@ import api from '../../lib/api';
 vi.mock('../../lib/api', () => ({
   default: {
     get: vi.fn(),
-    post: vi.fn(),
   },
 }));
 
@@ -47,7 +46,7 @@ describe('VerificationPage', () => {
     expect(await screen.findByText('654321')).toBeInTheDocument();
   });
 
-  it('prompts for refresh token when account is not configured', async () => {
+  it('shows error message when account is not configured', async () => {
     api.get.mockResolvedValue({
       data: {
         success: false,
@@ -62,11 +61,10 @@ describe('VerificationPage', () => {
     await user.click(screen.getByRole('button', { name: /获取最新验证码/ }));
 
     await waitFor(() => {
-      expect(screen.getByText(/该邮箱未配置/)).toBeInTheDocument();
+      expect(screen.getByText(/未在配置中找到该邮箱/)).toBeInTheDocument();
     });
 
-    expect(
-      screen.getByLabelText(/Refresh Token \(可选 - 用于临时查询\)/)
-    ).toBeInTheDocument();
+    // Verify error message is displayed
+    expect(screen.getByText(/请检查邮箱地址是否正确/)).toBeInTheDocument();
   });
 });

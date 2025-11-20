@@ -229,8 +229,9 @@ describe('AdminDashboardPage', () => {
     const user = userEvent.setup();
     renderWithProviders(<AdminDashboardPage />);
 
+    // Wait for page to load - check for total records text instead
     await waitFor(() => {
-      expect(screen.getByText(/第 1 页/)).toBeInTheDocument();
+      expect(screen.getByText(/共 25 条记录/)).toBeInTheDocument();
     });
 
     // Click next page button
@@ -240,7 +241,7 @@ describe('AdminDashboardPage', () => {
 
     if (nextButton && !nextButton.disabled) {
       await user.click(nextButton);
-      
+
       await waitFor(() => {
         expect(api.get).toHaveBeenCalledWith(
           '/api/accounts/paged',

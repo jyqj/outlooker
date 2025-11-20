@@ -1,9 +1,25 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from './api';
 import { CONFIG } from './constants';
 import { showError, showSuccess } from './toast';
 import { logError } from './utils';
+
+export function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
 
 export function useAccountsQuery({
   page,
@@ -12,13 +28,14 @@ export function useAccountsQuery({
 } = {}) {
   return useQuery({
     queryKey: ['accounts', page, search, pageSize],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const res = await api.get('/api/accounts/paged', {
         params: { page, page_size: pageSize, q: search },
+        signal, // 添加 AbortSignal 支持请求取消
       });
       return res.data;
     },
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData, // React Query v5 新 API
   });
 }
 

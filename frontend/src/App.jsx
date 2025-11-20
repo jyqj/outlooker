@@ -20,13 +20,13 @@ function App() {
       <Routes>
         <Route path="/" element={<VerificationPage />} />
         <Route path="/admin/login" element={<AdminLoginPage />} />
-        <Route 
-          path="/admin" 
+        <Route
+          path="/admin"
           element={
             <ProtectedRoute>
               <AdminDashboardPage />
             </ProtectedRoute>
-          } 
+          }
         />
       </Routes>
       <ToastContainer />

@@ -27,17 +27,17 @@ const Dialog = ({ isOpen, onClose, title, children, className }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div 
+      <div
         ref={overlayRef}
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity animate-in fade-in duration-200"
+        className="fixed inset-0 bg-black/70 backdrop-blur-md transition-opacity animate-in fade-in duration-200"
         onClick={onClose}
       />
       
       {/* Content */}
-      <div 
+      <div
         ref={contentRef}
         className={cn(
-          "relative z-50 grid w-full max-w-lg scale-100 gap-4 bg-background p-6 shadow-lg duration-200 animate-in fade-in-0 zoom-in-95 sm:rounded-lg md:w-full",
+          "relative z-50 grid w-full max-w-lg scale-100 gap-4 bg-white dark:bg-gray-950 p-6 shadow-2xl duration-200 animate-in fade-in-0 zoom-in-95 sm:rounded-lg md:w-full",
           className
         )}
         role="dialog"
