@@ -416,7 +416,7 @@ async def main():
     print(f"{Colors.BOLD}{Colors.BLUE}")
     print("=" * 60)
     print("  阶段一安全改进测试脚本")
-    print("  Outlook Manager 项目")
+    print("  Outlooker 项目")
     print("=" * 60)
     print(f"{Colors.RESET}")
 

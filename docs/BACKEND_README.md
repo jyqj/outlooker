@@ -1,6 +1,6 @@
-# Outlook Manager
+# Outlooker 后端架构文档
 
-现代化的 Outlook 邮件管理平台，后端采用 FastAPI + SQLite，前端使用 React + Vite。系统提供验证码检索工具、管理员后台（账户导入导出、标签管理、系统配置）、REST API 以及安全运维脚本。
+现代化的 Outlook 邮件管理平台后端系统，采用 FastAPI + SQLite + Python 3.12 构建。系统提供完整的邮件查看、账户管理、验证码提取、安全认证等功能，并内置数据加密、频率限制、审计日志等企业级安全特性。
 
 ## 功能概览
 

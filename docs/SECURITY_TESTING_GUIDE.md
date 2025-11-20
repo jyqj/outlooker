@@ -1,6 +1,6 @@
-# 阶段一安全改进测试指南
+# Outlooker 安全测试完整指南
 
-本文档提供详细的步骤来验证 Outlook Manager 项目阶段一(S1-S6)的所有安全改进。
+本文档提供详细的步骤来验证 **Outlooker** 项目所有安全改进功能（S1-S6），确保系统符合安全标准。
 
 ## 📋 测试清单
 
@@ -412,7 +412,7 @@ cp data/outlook_manager.db data/outlook_manager.db.backup
 cat > test_encryption.py << 'EOF'
 #!/usr/bin/env python3
 import sys
-sys.path.insert(0, 'Outlook Manager')
+sys.path.insert(0, 'backend')
 
 from security import encrypt_value, decrypt_value, is_encrypted
 

@@ -1,4 +1,15 @@
-# Outlook 邮件管理系统 API 文档
+# Outlooker API 文档
+
+<div align="center">
+
+**完整的 REST API 参考文档**
+
+[![API Version](https://img.shields.io/badge/API%20Version-2.2.0-blue.svg)](.)
+[![OpenAPI](https://img.shields.io/badge/OpenAPI-3.0-green.svg)](.)
+
+</div>
+
+---
 
 ## 目录
 
@@ -19,21 +30,33 @@
 
 ## 概述
 
-Outlook 邮件管理系统提供了一套完整的 RESTful API，用于管理 Microsoft Outlook 邮箱账户和查看邮件。
+**Outlooker** 提供了一套完整的 RESTful API，用于管理 Microsoft Outlook 邮箱账户、查看邮件和提取验证码。所有 API 遵循 REST 规范，使用 JSON 格式交换数据。
 
-**基础 URL**: `http://localhost:5001`
+### 基础信息
 
-**API 版本**: 2.1.0
+| 项目 | 说明 |
+|------|------|
+| **基础 URL** | `http://localhost:5001` |
+| **API 版本** | 2.2.0 |
+| **协议** | HTTP/HTTPS |
+| **数据格式** | JSON |
+| **字符编码** | UTF-8 |
 
-**技术栈**:
-- FastAPI (Python 3.12)
-- SQLite 数据库
-- Microsoft OAuth2 认证
-- JWT Token 认证
+### 技术栈
 
-**交互式 API 文档**:
-- Swagger UI: `http://localhost:5001/docs`
-- ReDoc: `http://localhost:5001/redoc`
+- **后端框架**: FastAPI (Python 3.12)
+- **数据库**: SQLite 3
+- **认证方式**: JWT Token + Microsoft OAuth2
+- **API 规范**: OpenAPI 3.0
+
+### 交互式文档
+
+开发环境下，你可以通过以下地址访问交互式 API 文档：
+
+- **Swagger UI**: http://localhost:5001/docs
+- **ReDoc**: http://localhost:5001/redoc
+
+这些页面支持直接测试 API 接口，查看请求/响应示例。
 
 ---
 

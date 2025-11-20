@@ -37,7 +37,7 @@ export default function AdminLoginPage() {
       <div className="w-full max-w-md bg-white rounded-xl shadow-lg overflow-hidden">
         <div className="bg-blue-600 p-6 text-center">
           <h2 className="text-2xl font-bold text-white">管理员登录</h2>
-          <p className="text-blue-100 mt-2">Outlook Manager</p>
+          <p className="text-blue-100 mt-2">Outlooker - 邮件管理平台</p>
         </div>
 
         <form onSubmit={handleLogin} className="p-8 space-y-6">

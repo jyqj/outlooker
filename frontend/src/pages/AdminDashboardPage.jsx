@@ -129,7 +129,7 @@ export default function AdminDashboardPage() {
            <div className="bg-blue-600 p-2 rounded-lg text-white">
                <Inbox className="w-5 h-5" />
            </div>
-           <h1 className="text-xl font-bold text-gray-800">Outlook Manager</h1>
+           <h1 className="text-xl font-bold text-gray-800">Outlooker</h1>
         </div>
         <div className="flex items-center gap-4">
            <button 

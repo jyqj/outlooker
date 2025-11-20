@@ -7,7 +7,7 @@ describe('logError', () => {
     const error = new Error('boom');
     await logError('测试日志', error);
 
-    expect(consoleSpy).toHaveBeenCalledWith('[Outlook Manager] 测试日志', error);
+    expect(consoleSpy).toHaveBeenCalledWith('[Outlooker] 测试日志', error);
     consoleSpy.mockRestore();
   });
 });

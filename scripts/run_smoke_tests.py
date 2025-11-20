@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Quick smoke test script for Outlook Manager backend.
+Quick smoke test script for Outlooker backend.
 
 Usage:
     SMOKE_ADMIN_PASSWORD=your-password python scripts/run_smoke_tests.py

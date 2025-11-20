@@ -75,7 +75,7 @@ export const UI_TEXT = {
   BUTTON_CLOSE: '关闭',
   
   // 标题
-  TITLE_ADMIN_DASHBOARD: 'Outlook Manager',
+  TITLE_ADMIN_DASHBOARD: 'Outlooker',
   TITLE_ADMIN_LOGIN: '管理员登录',
   TITLE_VERIFICATION: 'Outlook 验证码提取',
   TITLE_IMPORT_ACCOUNTS: '批量导入账户',

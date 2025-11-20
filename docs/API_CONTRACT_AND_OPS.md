@@ -1,6 +1,10 @@
-# API 契约与运维说明（草稿）
+# Outlooker API 契约与运维说明
 
-该文档面向需要同时维护前后端的同学，快速对齐接口契约与常见运维操作。若需完整说明，请参考 `docs/API_DOCUMENTATION.md` 和 `docs/BACKEND_QUICKSTART.md`。
+该文档面向需要同时维护前后端的开发者，快速对齐 **Outlooker** 项目的接口契约与常见运维操作。
+
+若需完整 API 说明，请参考：
+- [API 完整文档](./API_DOCUMENTATION.md)
+- [后端快速开始](./BACKEND_QUICKSTART.md)
 
 ## 1. 核心 API 契约
 

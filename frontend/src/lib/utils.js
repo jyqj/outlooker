@@ -45,8 +45,8 @@ export function logError(message, error) {
     return;
   }
   if (error) {
-    console.error(`[Outlook Manager] ${message}`, error);
+    console.error(`[Outlooker] ${message}`, error);
   } else {
-    console.error(`[Outlook Manager] ${message}`);
+    console.error(`[Outlooker] ${message}`);
   }
 }

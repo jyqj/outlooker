@@ -1,4 +1,6 @@
-# Frontend (React + Vite)
+# Outlooker 前端
+
+基于 React 19 + Vite + Tailwind CSS 构建的现代化单页应用，提供邮件查看、账户管理和系统配置界面。
 
 ## 开发
 
