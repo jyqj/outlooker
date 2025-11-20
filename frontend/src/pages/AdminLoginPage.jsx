@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, User } from 'lucide-react';
+import { Lock, User, Inbox, Loader2 } from 'lucide-react';
 import api from '../lib/api';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 
 export default function AdminLoginPage() {
   const [username, setUsername] = useState('admin');
@@ -36,60 +39,86 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-      <div className="w-full max-w-md bg-white rounded-xl shadow-lg overflow-hidden">
-        <div className="bg-blue-600 p-6 text-center">
-          <h2 className="text-2xl font-bold text-white">管理员登录</h2>
-          <p className="text-blue-100 mt-2">Outlooker - 邮件管理平台</p>
+    <div className="min-h-screen flex items-center justify-center bg-muted/60 p-4">
+      <div className="w-full max-w-md">
+        {/* Logo Header */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center gap-3 mb-4">
+            <div className="bg-primary p-3 rounded-lg text-primary-foreground">
+              <Inbox className="w-8 h-8" />
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight">Outlooker</h1>
+          </div>
+          <p className="text-muted-foreground">邮箱验证码管理平台</p>
         </div>
 
-        <form onSubmit={handleLogin} className="p-8 space-y-6">
-          {error && (
-            <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm text-center">
-              {error}
-            </div>
-          )}
+        {/* Login Card */}
+        <Card className="shadow-md">
+          <CardHeader>
+            <CardTitle className="text-center">管理员登录</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleLogin} className="space-y-6">
+              {error && (
+                <div className="bg-destructive/10 text-destructive p-3 rounded-lg text-sm text-center border border-destructive/20">
+                  {error}
+                </div>
+              )}
 
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="username" className="text-sm font-medium text-gray-700 block">用户名</label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  id="username"
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  required
-                />
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label htmlFor="username" className="text-sm font-medium text-foreground flex items-center gap-2">
+                    <User className="w-4 h-4" /> 用户名
+                  </label>
+                  <Input
+                    id="username"
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="请输入用户名"
+                    required
+                    disabled={loading}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="password" className="text-sm font-medium text-foreground flex items-center gap-2">
+                    <Lock className="w-4 h-4" /> 密码
+                  </label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="请输入密码"
+                    required
+                    disabled={loading}
+                  />
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-medium text-gray-700 block">密码</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  required
-                />
-              </div>
-            </div>
-          </div>
+              <Button
+                type="submit"
+                disabled={loading}
+                className="w-full"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    登录中...
+                  </>
+                ) : (
+                  '登 录'
+                )}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg transition-colors disabled:opacity-70"
-          >
-            {loading ? '登录中...' : '登 录'}
-          </button>
-        </form>
+        {/* Footer */}
+        <p className="text-center text-sm text-muted-foreground mt-6">
+          © 2024 Outlooker. All rights reserved.
+        </p>
       </div>
     </div>
   );

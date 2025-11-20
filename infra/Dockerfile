@@ -5,8 +5,8 @@ WORKDIR /app/frontend
 # 复制前端依赖文件
 COPY frontend/package*.json ./
 
-# 安装依赖（仅生产环境依赖）
-RUN npm ci --only=production
+# 安装所有依赖（包括 devDependencies，构建需要）
+RUN npm ci
 
 # 复制前端源码并构建
 COPY frontend/ ./
@@ -36,7 +36,8 @@ COPY backend/ ./
 
 # 准备数据目录并复制前端产物
 RUN mkdir -p /app/data/static /app/data/logs
-COPY --from=frontend-builder /app/frontend/dist /app/data/static
+# Vite 配置中 outDir 是 ../data/static，所以构建产物在 /app/data/static
+COPY --from=frontend-builder /app/data/static /app/data/static
 
 # 创建配置文件（如果不存在）
 RUN touch /app/backend/configs/config.txt
