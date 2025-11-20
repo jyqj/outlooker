@@ -72,7 +72,9 @@ describe('ImportModal', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText(/解析成功：1 条/)).toBeInTheDocument();
+      // 文本被多个元素分割,需要分别查找
+      expect(screen.getByText(/解析成功：/)).toBeInTheDocument();
+      expect(screen.getByText('1')).toBeInTheDocument();
       expect(screen.getByText(/test@example.com/)).toBeInTheDocument();
     });
   });
