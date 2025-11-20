@@ -3,6 +3,8 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .venv/
+venv/
+*.bak
 
 # Environment & secrets
 .env
@@ -12,6 +14,8 @@ backend/.env
 data/outlook_manager.db
 data/outlook_manager.db.*
 data/logs/
+backend/app/logs/
+**/logs/
 
 # Node
 frontend/node_modules/
