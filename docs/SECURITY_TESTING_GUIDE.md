@@ -124,7 +124,7 @@ cd backend
 mv .env .env.backup
 
 # 2. 尝试启动应用 (应该失败)
-python mail_api.py
+python -m app.mail_api web
 
 # 预期结果: 抛出 RuntimeError: "JWT_SECRET_KEY 未配置..."
 ```
@@ -136,9 +136,9 @@ python mail_api.py
 mv .env.backup .env
 
 # 2. 启动应用 (应该成功)
-python mail_api.py
+python -m app.mail_api web
 
-# 预期结果: 应用正常启动,监听 8000 端口
+# 预期结果: 应用正常启动,监听 5001 端口
 ```
 
 #### 验证标准
@@ -171,7 +171,7 @@ sed -i '' '/ADMIN_PASSWORD/d' .env.test
 cd backend
 cp .env .env.backup
 cp .env.test .env
-python mail_api.py
+python -m app.mail_api web
 
 # 预期结果: 应用正常启动,使用默认账号
 ```
@@ -185,7 +185,8 @@ cat .env.backup | grep -v ADMIN >> .env.test
 
 # 2. 尝试启动
 cp .env.test .env
-python mail_api.py
+cd backend
+python -m app.mail_api web
 
 # 预期结果: 抛出 RuntimeError: "生产环境必须设置 ADMIN_USERNAME 和 ADMIN_PASSWORD"
 ```
@@ -221,11 +222,11 @@ grep ENABLE_LEGACY_ADMIN_TOKEN .env
 
 # 2. 启动应用
 cd backend
-python mail_api.py &
+python -m app.mail_api web &
 sleep 3
 
 # 3. 尝试使用 legacy token 访问
-curl -X GET http://localhost:8000/api/accounts \
+curl -X GET http://localhost:5001/api/accounts \
   -H "Authorization: Bearer legacy-token"
 
 # 预期结果: 401 Unauthorized
@@ -242,7 +243,8 @@ echo "ENABLE_LEGACY_ADMIN_TOKEN=true" >> .env
 echo "LEGACY_ADMIN_TOKEN=admin123" >> .env
 
 # 2. 启动应用
-python mail_api.py &
+cd backend
+python -m app.mail_api web &
 sleep 3
 
 # 3. 预期结果: 应用启动失败并输出错误
@@ -275,7 +277,7 @@ sed -i '' '/LEGACY_ADMIN_TOKEN/d' .env
 # 检查 config.py
 grep "ALLOWED_ORIGINS" backend/app/config.py
 
-# 预期输出: ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+# 预期输出: ALLOWED_ORIGINS 来自环境变量 ALLOWED_ORIGINS（例如默认包含 http://localhost:5173）
 
 # 检查 mail_api.py
 grep "allow_origins" backend/app/mail_api.py
@@ -288,11 +290,11 @@ grep "allow_origins" backend/app/mail_api.py
 ```bash
 # 1. 启动应用
 cd backend
-python mail_api.py &
+python -m app.mail_api web &
 sleep 3
 
 # 2. 从非白名单域名访问 (使用 curl 模拟)
-curl -X OPTIONS http://localhost:8000/api/accounts \
+curl -X OPTIONS http://localhost:5001/api/accounts \
   -H "Origin: http://evil.com" \
   -H "Access-Control-Request-Method: GET" \
   -v
@@ -300,7 +302,7 @@ curl -X OPTIONS http://localhost:8000/api/accounts \
 # 预期结果: 响应头中不包含 Access-Control-Allow-Origin: http://evil.com
 
 # 3. 从白名单域名访问
-curl -X OPTIONS http://localhost:8000/api/accounts \
+curl -X OPTIONS http://localhost:5001/api/accounts \
   -H "Origin: http://localhost:5173" \
   -H "Access-Control-Request-Method: GET" \
   -v
@@ -308,7 +310,7 @@ curl -X OPTIONS http://localhost:8000/api/accounts \
 # 预期结果: 响应头包含 Access-Control-Allow-Origin: http://localhost:5173
 
 # 4. 停止应用
-pkill -f mail_api.py
+pkill -f "python -m app.mail_api"
 ```
 
 #### 验证标准
@@ -344,17 +346,17 @@ grep -n "logger.info(request_data)" backend/app/routers/accounts.py
 ```bash
 # 1. 启动应用并查看日志
 cd backend
-python mail_api.py 2>&1 | tee app.log &
+python -m app.mail_api web 2>&1 | tee app.log &
 sleep 3
 
 # 2. 获取 JWT token
-TOKEN=$(curl -X POST http://localhost:8000/api/admin/login \
+TOKEN=$(curl -X POST http://localhost:5001/api/admin/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"your-password"}' \
   | jq -r '.data.access_token')
 
 # 3. 导入测试账户
-curl -X POST http://localhost:8000/api/import \
+curl -X POST http://localhost:5001/api/import \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -373,7 +375,7 @@ grep "SECRET_TOKEN_ABC" app.log
 # 预期结果: 无输出 (密码和 token 不应出现在日志中)
 
 # 5. 清理
-pkill -f mail_api.py
+pkill -f "python -m app.mail_api"
 rm app.log
 ```
 
@@ -522,24 +524,24 @@ EOF
 ```bash
 # 1. 启动应用
 cd backend
-python mail_api.py &
+python -m app.mail_api web &
 sleep 3
 
 # 2. 登录获取 token
-TOKEN=$(curl -s -X POST http://localhost:8000/api/admin/login \
+TOKEN=$(curl -s -X POST http://localhost:5001/api/admin/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"your-password"}' \
   | jq -r '.data.access_token')
 
 # 3. 获取账户列表 (验证能正常读取)
-curl -s http://localhost:8000/api/accounts \
+curl -s http://localhost:5001/api/accounts \
   -H "Authorization: Bearer $TOKEN" \
   | jq '.data | length'
 
 # 预期结果: 返回账户数量 (如 5)
 
 # 4. 导出账户 (验证解密逻辑)
-curl -s http://localhost:8000/api/export \
+curl -s http://localhost:5001/api/export \
   -H "Authorization: Bearer $TOKEN" \
   -o exported.txt
 
@@ -550,7 +552,7 @@ head -20 exported.txt
 # 格式: email----password----refresh_token----client_id
 
 # 6. 清理
-pkill -f mail_api.py
+pkill -f "python -m app.mail_api"
 rm exported.txt
 ```
 
@@ -559,17 +561,17 @@ rm exported.txt
 ```bash
 # 1. 启动应用
 cd backend
-python mail_api.py &
+python -m app.mail_api web &
 sleep 3
 
 # 2. 获取 token
-TOKEN=$(curl -s -X POST http://localhost:8000/api/admin/login \
+TOKEN=$(curl -s -X POST http://localhost:5001/api/admin/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"your-password"}' \
   | jq -r '.data.access_token')
 
 # 3. 导入新账户
-curl -X POST http://localhost:8000/api/import \
+curl -X POST http://localhost:5001/api/import \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -594,7 +596,7 @@ EOF
 # 预期结果: password 和 refresh_token 都以 'gAAAAA' 开头
 
 # 5. 验证能正常使用 (测试连接)
-curl -X POST http://localhost:8000/api/test-email \
+curl -X POST http://localhost:5001/api/test-email \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -604,7 +606,7 @@ curl -X POST http://localhost:8000/api/test-email \
 # 预期结果: 返回连接测试结果 (成功或失败取决于 token 是否有效)
 
 # 6. 清理
-pkill -f mail_api.py
+pkill -f "python -m app.mail_api"
 ```
 
 **测试 6: 验证迁移脚本的幂等性**
@@ -683,7 +685,7 @@ EOF
 
 ```bash
 # 1. 准备环境
-cd /path/to/outlook-manager
+cd /path/to/outlooker
 cp .env.example .env
 
 # 2. 生成并配置密钥
@@ -706,7 +708,7 @@ python scripts/encrypt_existing_accounts.py
 
 # 7. 启动应用并手动测试
 cd backend
-python mail_api.py
+python -m app.mail_api web
 
 # 8. 在另一个终端测试 API
 # (参考上面各个测试的具体步骤)
@@ -728,8 +730,7 @@ python mail_api.py
 - ✅ `config.py` 包含 ENABLE_LEGACY_ADMIN_TOKEN 和 ALLOWED_ORIGINS
 - ✅ `mail_api.py` 使用 ALLOWED_ORIGINS 而非通配符
 - ✅ `routers/accounts.py` 不记录敏感请求数据
-- ✅ `services.py` 集成了加密/解密逻辑
-- ✅ `security.py` 模块存在且功能正常
+- ✅ 服务层与 `security.py` 模块协同集成了加密/解密逻辑
 
 ### 运行时验证
 - ✅ 应用启动时检查必需的环境变量
@@ -753,7 +754,7 @@ python mail_api.py
 
 ```bash
 # 1. 停止应用
-pkill -f mail_api.py
+pkill -f "python -m app.mail_api"
 
 # 2. 恢复数据库备份
 cp data/outlook_manager.db.backup data/outlook_manager.db
@@ -763,7 +764,7 @@ git checkout .env
 
 # 4. 重启应用
 cd backend
-python mail_api.py
+python -m app.mail_api web
 ```
 
 ---

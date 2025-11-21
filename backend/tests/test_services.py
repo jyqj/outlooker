@@ -4,6 +4,7 @@
 import asyncio
 import json
 import sqlite3
+from contextlib import closing
 
 import pytest
 import pytest_asyncio
@@ -18,6 +19,8 @@ from app.services import (
     _normalize_email,
     _parse_account_line,
     _validate_account_info,
+    extract_verification_code,
+    extract_code_from_message,
 )
 from app.database import db_manager
 from app.models import ImportAccountData
@@ -29,14 +32,14 @@ async def reset_services_state():
     db_manager.init_database()
     await db_manager.replace_all_accounts({})
     await email_manager.invalidate_accounts_cache()
-    conn = db_manager.get_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute("DELETE FROM system_metrics")
-    except sqlite3.OperationalError:
-        pass
-    cursor.execute("DELETE FROM system_config")
-    conn.commit()
+    with closing(db_manager.get_connection()) as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute("DELETE FROM system_metrics")
+        except sqlite3.OperationalError:
+            pass
+        cursor.execute("DELETE FROM system_config")
+        conn.commit()
 
 
 class TestAccountParsing:
@@ -272,3 +275,32 @@ class TestSystemMetrics:
         await db_manager.cache_email('stat@example.com', 'mid-1', email_data)
         stats = await db_manager.get_email_cache_stats()
         assert stats["total_messages"] >= 1
+
+
+class TestOtpService:
+    def test_extract_verification_code_from_plain_text(self):
+        text = "Your verification code is 123456. Please do not share it with anyone."
+        code = extract_verification_code(text)
+        assert code == "123456"
+
+    def test_extract_verification_code_with_keywords_and_html(self):
+        html = """
+        <html>
+          <body>
+            <p>尊敬的用户，您的验证码为 <b>987654</b> ，请在 5 分钟内完成验证。</p>
+          </body>
+        </html>
+        """
+        # 通过 extract_code_from_message 间接测试 HTML 清理与提取逻辑
+        message = {
+            "body": {"content": html, "contentType": "html"},
+            "bodyPreview": "",
+        }
+        code = extract_code_from_message(message)
+        assert code == "987654"
+
+    def test_extract_verification_code_avoids_dates_and_amounts(self):
+        text = "订单金额为 $1234.56，订单号 2024 将在 10 分钟内处理。"
+        code = extract_verification_code(text)
+        # 这里没有真正的验证码，应返回 None
+        assert code is None

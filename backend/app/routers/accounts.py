@@ -10,6 +10,7 @@ from ..services import (
     load_accounts_config, merge_accounts_data_to_db, 
     email_manager, db_manager, parse_account_line
 )
+from ..utils.pagination import paginate_items
 
 router = APIRouter(tags=["账户管理"])
 DEFAULT_ACCOUNT_PAGE_SIZE = 10
@@ -56,13 +57,13 @@ async def get_accounts_paged(
             q_lower = q.strip().lower()
             emails = [e for e in emails if q_lower in e.lower()]
 
-        total = len(emails)
-        # 规范分页参数
-        page = max(1, page)
-        page_size = max(1, min(MAX_ACCOUNT_PAGE_SIZE, page_size))
-        start = (page - 1) * page_size
-        end = start + page_size
-        items = [{"email": e} for e in emails[start:end]]
+        # 统一使用通用分页工具，保持逻辑一致性
+        items_page, total = paginate_items(
+            emails,
+            max(1, page),
+            max(1, min(MAX_ACCOUNT_PAGE_SIZE, page_size)),
+        )
+        items = [{"email": e} for e in items_page]
 
         return ApiResponse(
             success=True,
@@ -138,7 +139,7 @@ async def set_account_tags(
             return ApiResponse(success=True, message="标签已保存", data={"email": email, "tags": cleaned_tags})
         return ApiResponse(success=False, message="保存标签失败")
     except HTTPException as e:
-        return ApiResponse(success=False, message=e.detail)
+        raise e
     except Exception as e:
         logger.error(f"保存账户标签失败({email}): {e}")
         return ApiResponse(success=False, message="保存标签失败")

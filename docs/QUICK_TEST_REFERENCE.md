@@ -83,19 +83,19 @@ sqlite3 data/outlook_manager.db \
 
 ```bash
 # 1. 启动应用
-cd backend && python -m app.mail_api &
+cd backend && python -m app.mail_api web &
 
 # 2. 登录
-curl -X POST http://localhost:8000/api/admin/login \
+curl -X POST http://localhost:5001/api/admin/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"your-password"}'
 
 # 3. 获取账户列表
-curl http://localhost:8000/api/accounts \
+curl http://localhost:5001/api/accounts \
   -H "Authorization: Bearer YOUR_TOKEN"
 
 # 4. 停止应用
-pkill -f mail_api.py
+pkill -f "python -m app.mail_api"
 ```
 
 ---
@@ -141,8 +141,8 @@ cp data/outlook_manager.db.backup \
 
 ### 解密失败
 ```bash
-# 检查日志
-tail -f data/logs/app.log | grep "解密"
+# 检查日志（根据实际部署的日志输出位置，例如 stdout 或集中式日志系统）
+# 示例：tail -f data/logs/login_audit.log | grep "解密失败"
 
 # 验证密钥一致性
 grep DATA_ENCRYPTION_KEY .env

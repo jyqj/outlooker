@@ -18,55 +18,74 @@
 
 ## 技术栈
 
-| 技术 | 版本 | 用途 |
-|------|------|------|
-| React | 19.0 | UI 框架 |
-| Vite | 6.0 | 构建工具 |
-| Tailwind CSS | 4.0 | 样式框架 |
-| TanStack Query | 5.0 | 服务端状态管理 |
-| React Router | 7.0 | 客户端路由 |
-| Axios | 1.7 | HTTP 客户端 |
-| Vitest | 2.1 | 测试框架 |
-| Testing Library | 16.1 | 组件测试 |
+| 技术 | 版本（参考 package.json） | 用途 |
+|------|--------------------------|------|
+| React | 19.x | UI 框架 |
+| Vite | 7.x | 构建工具 |
+| Tailwind CSS | 4.1.x | 样式框架 |
+| TanStack Query | 5.x | 服务端状态管理 |
+| React Router | 7.x | 客户端路由 |
+| Axios | 1.13.x | HTTP 客户端 |
+| Vitest | 4.x | 测试框架 |
+| Testing Library | 16.x | 组件测试 |
 
 ---
 
 ## 项目结构
 
+下方结构与当前 `frontend/src` 目录保持同步，便于按图索骥：
+
 ```
 frontend/
 ├── src/
-│   ├── components/          # 组件
-│   │   ├── ui/             # UI 基础组件
+│   ├── components/                  # 业务及复合组件
+│   │   ├── __tests__/               # 组件测试
+│   │   │   └── ImportModal.test.jsx
+│   │   ├── ui/                      # UI 基础组件（Shadcn-like）
+│   │   │   ├── Alert.jsx
+│   │   │   ├── Badge.jsx
 │   │   │   ├── Button.jsx
-│   │   │   ├── Input.jsx
 │   │   │   ├── Card.jsx
 │   │   │   ├── Dialog.jsx
-│   │   │   ├── Badge.jsx
-│   │   │   ├── Skeleton.jsx
-│   │   │   └── Alert.jsx
-│   │   ├── EmailViewModal.jsx      # 邮件查看模态框
-│   │   ├── ImportModal.jsx         # 导入模态框
-│   │   └── TagManageModal.jsx      # 标签管理模态框
-│   ├── pages/              # 页面组件
-│   │   ├── VerificationPage.jsx    # 验证码工具页
-│   │   ├── AdminDashboardPage.jsx  # 管理后台主页
-│   │   └── AdminLoginPage.jsx      # 登录页
-│   ├── lib/                # 工具库
-│   │   ├── api.js          # API 客户端
-│   │   └── utils.js        # 工具函数
-│   ├── hooks/              # 自定义 Hooks
-│   │   └── useDebounce.js  # 防抖 Hook
-│   ├── App.jsx             # 根组件
-│   ├── main.jsx            # 入口文件
-│   └── index.css           # 全局样式
-├── public/                 # 静态资源
-│   └── favicon.svg         # 网站图标
-├── __tests__/              # 测试文件
-├── vite.config.js          # Vite 配置
-├── tailwind.config.js      # Tailwind 配置
-├── vitest.config.js        # Vitest 配置
-└── package.json            # 依赖配置
+│   │   │   ├── Input.jsx
+│   │   │   └── Skeleton.jsx
+│   │   ├── EmailViewModal.jsx       # 邮件查看模态框
+│   │   ├── ImportModal.jsx          # 批量导入模态框
+│   │   ├── TagManageModal.jsx       # 标签管理模态框
+│   │   └── Toast.jsx                # 全局提示容器
+│   ├── pages/                       # 页面组件
+│   │   ├── __tests__/               # 页面测试
+│   │   │   ├── AdminDashboardPage.test.jsx
+│   │   │   ├── AdminLoginPage.test.jsx
+│   │   │   └── VerificationPage.test.jsx
+│   │   ├── AdminDashboardPage.jsx   # 管理后台主页
+│   │   ├── AdminLoginPage.jsx       # 管理后台登录页
+│   │   └── VerificationPage.jsx     # 验证码工具页
+│   ├── lib/                         # 工具库 & 自定义 Hooks
+│   │   ├── __tests__/               # lib 单元测试
+│   │   │   ├── useApiAction.test.jsx
+│   │   │   └── utils.test.js
+│   │   ├── api.js                   # Axios API 客户端
+│   │   ├── constants.js             # 常量配置
+│   │   ├── hooks.js                 # 自定义 Hooks（useDebounce/useApiAction 等）
+│   │   ├── sanitize.js              # HTML 清洗
+│   │   ├── toast.js                 # Toast 调用封装
+│   │   └── utils.js                 # 通用工具函数（包含验证码提取逻辑）
+│   ├── test/
+│   │   └── setup.js                 # Vitest 全局测试配置
+│   ├── assets/                      # 前端静态资源
+│   │   └── react.svg
+│   ├── App.jsx                      # 根组件
+│   ├── App.css                      # 根组件样式
+│   ├── main.jsx                     # 应用入口
+│   └── index.css                    # 全局样式
+├── public/                          # 静态资源
+│   └── favicon.svg                  # 网站图标
+├── eslint.config.js                 # ESLint 配置（flat config）
+├── vite.config.js                   # Vite 配置（含别名、代理、测试）
+├── index.html                       # Vite HTML 模板
+├── package.json                     # 依赖配置
+└── package-lock.json                # 锁定依赖版本
 ```
 
 ---
@@ -94,7 +113,7 @@ npm run dev
 npm run build
 ```
 
-构建产物位于 `dist/` 目录
+构建产物位于项目根目录的 `data/static/` 目录（由 Vite `build.outDir = '../data/static'` 指定），后端会直接挂载并提供这些静态文件。
 
 ### 预览生产版本
 
@@ -560,7 +579,7 @@ npm outdated        # 查看过期依赖
 - [README.md](../README.md) - 项目总览
 - [CHANGELOG.md](../CHANGELOG.md) - 版本历史
 - [API_DOCUMENTATION.md](./API_DOCUMENTATION.md) - API 文档
-- [UI_DESIGN_SYSTEM.md](./UI_DESIGN_SYSTEM.md) - UI 设计系统
+- UI 设计系统：计划拆分为独立文档，目前请参考组件实现与 Tailwind 配置
 
 ---
 

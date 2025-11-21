@@ -5,33 +5,20 @@ from ..models import ApiResponse, TempAccountRequest, TestEmailRequest
 from ..config import logger, DEFAULT_EMAIL_LIMIT, INBOX_FOLDER_NAME, MAX_EMAIL_LIMIT
 from ..services import email_manager, get_system_config_value
 from ..imap_client import IMAPEmailClient
+from ..utils.pagination import filter_messages_by_search, paginate_items
 
 router = APIRouter(tags=["邮件查看"])
 
 def _filter_and_paginate_messages(
     messages: List[dict], page: int, page_size: int, search: Optional[str]
 ) -> Tuple[List[dict], int]:
-    """根据搜索条件过滤邮件并分页。"""
-    filtered = messages
-    if search:
-        kw = search.lower()
-        filtered = []
-        for msg in messages:
-            subject = (msg.get("subject") or "").lower()
-            sender = (
-                msg.get("from", {})
-                .get("emailAddress", {})
-                .get("address", "")
-                .lower()
-            )
-            preview = (msg.get("bodyPreview") or "").lower()
-            if kw in subject or kw in sender or kw in preview:
-                filtered.append(msg)
+    """根据搜索条件过滤邮件并分页。
 
-    total = len(filtered)
-    start = (page - 1) * page_size
-    end = start + page_size
-    return filtered[start:end], total
+    过滤与分页逻辑委托给通用工具函数，避免在路由层重复实现。
+    """
+    filtered = filter_messages_by_search(messages, search)
+    items, total = paginate_items(filtered, page, page_size)
+    return items, total
 
 
 @router.get("/api/messages")
@@ -68,7 +55,7 @@ async def get_messages(
             },
         )
     except HTTPException as e:
-        return ApiResponse(success=False, message=e.detail)
+        raise e
     except Exception as e:
         logger.exception(f"获取邮件列表失败: {e}")
         return ApiResponse(success=False, message="获取邮件列表失败")
@@ -108,7 +95,7 @@ async def get_temp_messages(request: TempAccountRequest) -> ApiResponse:
             await temp_client.cleanup()
 
     except HTTPException as e:
-        return ApiResponse(success=False, message=e.detail)
+        raise e
     except Exception as e:
         logger.exception(f"临时账户获取邮件失败: {e}")
         return ApiResponse(success=False, message=f"获取邮件失败: {str(e)}")
@@ -175,7 +162,7 @@ async def test_email_connection(request: TestEmailRequest) -> ApiResponse:
                 )
                 
     except HTTPException as e:
-        return ApiResponse(success=False, message=e.detail)
+        raise e
     except Exception as e:
         logger.exception(f"测试邮件连接失败: {e}")
         return ApiResponse(success=False, message=f"测试失败: {str(e)}")

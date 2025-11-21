@@ -614,7 +614,7 @@ export default function AdminDashboardPage() {
       </main>
 
       {/* Modals with Suspense */}
-      <Suspense fallback={null}>
+      <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">正在加载资源...</div>}>
         <ImportModal 
           isOpen={showImport} 
           onClose={() => setShowImport(false)} 

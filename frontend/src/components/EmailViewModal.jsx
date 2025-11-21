@@ -1,15 +1,15 @@
-import React, { useState } from 'react';
-import { Mail, Calendar, User, RefreshCw, Copy, Check, AlertCircle, Loader2 } from 'lucide-react';
+import React from 'react';
+import { Mail, Calendar, User, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import api from '../lib/api';
 import { extractCodeFromMessage } from '../lib/utils';
+import { sanitizeHtml } from '../lib/sanitize';
 import { Dialog } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { Skeleton } from './ui/Skeleton';
+import VerificationCodeCard from './VerificationCodeCard';
 
 export default function EmailViewModal({ email, isOpen, onClose }) {
-  const [copied, setCopied] = useState(false);
-
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['email-messages', email],
     queryFn: async () => {
@@ -24,14 +24,6 @@ export default function EmailViewModal({ email, isOpen, onClose }) {
   const payload = data?.data;
   const message = Array.isArray(payload) ? payload[0] : payload?.items?.[0];
   const verificationCode = message ? extractCodeFromMessage(message) : null;
-
-  const copyCode = () => {
-    if (verificationCode) {
-      navigator.clipboard.writeText(verificationCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
 
   return (
     <Dialog
@@ -123,28 +115,7 @@ export default function EmailViewModal({ email, isOpen, onClose }) {
         {message && (
           <div className="space-y-6">
             {/* Verification Code */}
-            {verificationCode && (
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900 dark:to-indigo-900 p-6 rounded-xl border-2 border-primary shadow-lg">
-                <h4 className="text-sm font-bold text-primary dark:text-blue-300 uppercase tracking-wide mb-4 text-center">
-                  🔐 检测到的验证码
-                </h4>
-                <div
-                  className="flex items-center justify-center gap-3 cursor-pointer group bg-white dark:bg-gray-800 p-5 rounded-lg hover:shadow-md transition-all border-2 border-primary dark:border-blue-400"
-                  onClick={copyCode}
-                  title="点击复制验证码"
-                >
-                  <span className="text-5xl md:text-6xl font-mono font-black tracking-wider text-primary dark:text-blue-300 select-all">
-                    {verificationCode}
-                  </span>
-                  <Button variant="ghost" size="icon" className="rounded-full hover:bg-primary/20 shrink-0">
-                    {copied ? <Check className="w-6 h-6 text-green-600" /> : <Copy className="w-6 h-6 text-primary dark:text-blue-300" />}
-                  </Button>
-                </div>
-                {copied && (
-                  <p className="text-center text-sm text-green-600 dark:text-green-400 mt-3 font-semibold animate-in fade-in duration-200">✓ 已复制到剪贴板</p>
-                )}
-              </div>
-            )}
+            {verificationCode && <VerificationCodeCard code={verificationCode} />}
 
             {/* Email Meta */}
             <div className="space-y-4 pb-4 border-b border-gray-200 dark:border-gray-800">
@@ -198,7 +169,7 @@ export default function EmailViewModal({ email, isOpen, onClose }) {
                   {message.body.contentType === 'html' ? (
                     <div
                       className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-foreground prose-p:text-foreground prose-a:text-primary [&_*]:text-foreground"
-                      dangerouslySetInnerHTML={{ __html: message.body.content }}
+                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(message.body.content) }}
                     />
                   ) : (
                     <pre className="whitespace-pre-wrap font-sans text-sm text-foreground leading-relaxed">{message.body.content}</pre>

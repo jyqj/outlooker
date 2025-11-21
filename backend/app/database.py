@@ -8,10 +8,11 @@ import sqlite3
 import json
 import logging
 import re
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, TypeVar
 import asyncio
-import threading
 
 from pathlib import Path
 
@@ -26,6 +27,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 logger = logging.getLogger(__name__)
 
 GUID_PATTERN = re.compile(r"^[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$")
+T = TypeVar("T")
 
 def looks_like_guid(value: str) -> bool:
     if not value:
@@ -41,84 +43,119 @@ class DatabaseManager:
             resolved = PROJECT_ROOT / resolved
         resolved.parent.mkdir(parents=True, exist_ok=True)
         self.db_path = str(resolved)
-        self._local = threading.local()
+        # 专用线程池执行器，用于承载所有同步 SQLite 操作
+        self._executor: Optional[ThreadPoolExecutor] = None
+        self._executor_loop: Optional[asyncio.AbstractEventLoop] = None
         self.init_database()
-    
+
+    def _create_connection(self) -> sqlite3.Connection:
+        """创建新的 SQLite 连接并启用行工厂"""
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        return conn
+
     def get_connection(self) -> sqlite3.Connection:
-        """获取线程本地的数据库连接"""
-        if not hasattr(self._local, 'connection'):
-            self._local.connection = sqlite3.connect(self.db_path)
-            self._local.connection.row_factory = sqlite3.Row
-        return self._local.connection
+        """兼容旧代码的同步连接获取接口，调用方需负责关闭"""
+        return self._create_connection()
+
+    def _get_executor(self) -> ThreadPoolExecutor:
+        """获取或创建数据库专用线程池执行器。
+
+        为了兼容测试环境中可能存在的多个事件循环，
+        当检测到事件循环变化时，会创建新的执行器并关闭旧的。
+        """
+        loop = asyncio.get_running_loop()
+        if self._executor is None or self._executor_loop is not loop:
+            # 关闭旧执行器，避免线程泄露
+            if self._executor is not None:
+                self._executor.shutdown(wait=False)
+            self._executor = ThreadPoolExecutor(
+                max_workers=4,
+                thread_name_prefix="db-worker",
+            )
+            self._executor_loop = loop
+        return self._executor
+
+    async def _run_in_thread(self, handler: Callable[[sqlite3.Connection], T]) -> T:
+        """在后台线程池中运行数据库操作并确保连接被释放"""
+
+        def _runner() -> T:
+            with closing(self._create_connection()) as conn:
+                return handler(conn)
+
+        loop = asyncio.get_running_loop()
+        executor = self._get_executor()
+        return await loop.run_in_executor(executor, _runner)
     
     def init_database(self):
         """初始化数据库表"""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        
-        # 创建账户表
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS accounts (
-                email TEXT PRIMARY KEY,
-                password TEXT DEFAULT '',
-                client_id TEXT DEFAULT '',
-                refresh_token TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        # 创建账户标签表
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS account_tags (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                email TEXT NOT NULL,
-                tags TEXT NOT NULL,  -- JSON格式存储标签数组
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        # 创建邮件缓存表
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS email_cache (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                email TEXT NOT NULL,
-                message_id TEXT NOT NULL,
-                subject TEXT,
-                sender TEXT,
-                received_date TEXT,
-                body_preview TEXT,
-                body_content TEXT,
-                body_type TEXT DEFAULT 'text',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(email, message_id)
-            )
-        ''')
-        
-        # 创建系统配置表
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS system_config (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        # 创建索引
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_accounts_email ON accounts(email)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_account_tags_email ON account_tags(email)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_email_cache_email ON email_cache(email)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_email_cache_message_id ON email_cache(message_id)')
-        
-        conn.commit()
-        apply_migrations(conn)
-        logger.info("数据库初始化完成")
+        with closing(self._create_connection()) as conn:
+            cursor = conn.cursor()
+            
+            # 创建账户表
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS accounts (
+                    email TEXT PRIMARY KEY,
+                    password TEXT DEFAULT '',
+                    client_id TEXT DEFAULT '',
+                    refresh_token TEXT NOT NULL,
+                    is_used INTEGER NOT NULL DEFAULT 0,
+                    last_used_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # 创建账户标签表
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS account_tags (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email TEXT NOT NULL,
+                    tags TEXT NOT NULL,  -- JSON格式存储标签数组
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # 创建邮件缓存表
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS email_cache (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email TEXT NOT NULL,
+                    message_id TEXT NOT NULL,
+                    subject TEXT,
+                    sender TEXT,
+                    received_date TEXT,
+                    body_preview TEXT,
+                    body_content TEXT,
+                    body_type TEXT DEFAULT 'text',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(email, message_id)
+                )
+            ''')
+            
+            # 创建系统配置表
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS system_config (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # 创建索引
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_accounts_email ON accounts(email)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_account_tags_email ON account_tags(email)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_email_cache_email ON email_cache(email)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_email_cache_message_id ON email_cache(message_id)')
+            
+            conn.commit()
+            apply_migrations(conn)
+            logger.info("数据库初始化完成")
     
     async def get_account_tags(self, email: str) -> List[str]:
         """获取账户标签"""
-        def _sync_get():
-            conn = self.get_connection()
+        def _sync_get(conn):
             cursor = conn.cursor()
             cursor.execute('SELECT tags FROM account_tags WHERE email = ?', (email,))
             row = cursor.fetchone()
@@ -129,13 +166,12 @@ class DatabaseManager:
                     return []
             return []
         
-        return await asyncio.to_thread(_sync_get)
+        return await self._run_in_thread(_sync_get)
     
     async def set_account_tags(self, email: str, tags: List[str]) -> bool:
         """设置账户标签"""
-        def _sync_set():
+        def _sync_set(conn):
             try:
-                conn = self.get_connection()
                 cursor = conn.cursor()
                 tags_json = json.dumps(tags, ensure_ascii=False)
                 
@@ -167,12 +203,11 @@ class DatabaseManager:
                 conn.rollback()
                 return False
         
-        return await asyncio.to_thread(_sync_set)
+        return await self._run_in_thread(_sync_set)
     
     async def get_all_tags(self) -> List[str]:
         """获取所有标签"""
-        def _sync_get():
-            conn = self.get_connection()
+        def _sync_get(conn):
             cursor = conn.cursor()
             cursor.execute('SELECT tags FROM account_tags')
             rows = cursor.fetchall()
@@ -187,12 +222,11 @@ class DatabaseManager:
             
             return sorted(list(all_tags))
         
-        return await asyncio.to_thread(_sync_get)
+        return await self._run_in_thread(_sync_get)
     
     async def get_accounts_with_tags(self) -> Dict[str, List[str]]:
         """获取所有账户及其标签"""
-        def _sync_get():
-            conn = self.get_connection()
+        def _sync_get(conn):
             cursor = conn.cursor()
             cursor.execute('SELECT email, tags FROM account_tags')
             rows = cursor.fetchall()
@@ -207,7 +241,7 @@ class DatabaseManager:
             
             return result
         
-        return await asyncio.to_thread(_sync_get)
+        return await self._run_in_thread(_sync_get)
     
     async def cache_email(self, email: str, message_id: str, email_data: Dict) -> bool:
         """缓存邮件数据并进行容量控制
@@ -216,9 +250,8 @@ class DatabaseManager:
         - 旧邮件按创建时间(created_at)从旧到新淘汰
         """
 
-        def _sync_cache():
+        def _sync_cache(conn):
             try:
-                conn = self.get_connection()
                 cursor = conn.cursor()
 
                 # 提取邮件信息
@@ -258,12 +291,11 @@ class DatabaseManager:
                 logger.error(f"缓存邮件失败: {e}")
                 return False
 
-        return await asyncio.to_thread(_sync_cache)
+        return await self._run_in_thread(_sync_cache)
 
     async def get_cached_email(self, email: str, message_id: str) -> Optional[Dict]:
         """获取缓存的邮件数据"""
-        def _sync_get():
-            conn = self.get_connection()
+        def _sync_get(conn):
             cursor = conn.cursor()
             cursor.execute('''
                 SELECT * FROM email_cache 
@@ -283,24 +315,22 @@ class DatabaseManager:
                 }
             return None
         
-        return await asyncio.to_thread(_sync_get)
+        return await self._run_in_thread(_sync_get)
     
     async def get_system_config(self, key: str, default_value: str = None) -> Optional[str]:
         """获取系统配置"""
-        def _sync_get():
-            conn = self.get_connection()
+        def _sync_get(conn):
             cursor = conn.cursor()
             cursor.execute('SELECT value FROM system_config WHERE key = ?', (key,))
             row = cursor.fetchone()
             return row['value'] if row else default_value
         
-        return await asyncio.to_thread(_sync_get)
+        return await self._run_in_thread(_sync_get)
     
     async def set_system_config(self, key: str, value: str) -> bool:
         """设置系统配置"""
-        def _sync_set():
+        def _sync_set(conn):
             try:
-                conn = self.get_connection()
                 cursor = conn.cursor()
                 cursor.execute('''
                     INSERT OR REPLACE INTO system_config (key, value, updated_at)
@@ -312,13 +342,12 @@ class DatabaseManager:
                 logger.error(f"设置系统配置失败: {e}")
                 return False
         
-        return await asyncio.to_thread(_sync_set)
+        return await self._run_in_thread(_sync_set)
 
     async def upsert_system_metric(self, key: str, value) -> bool:
         """写入或更新系统指标"""
-        def _sync_upsert():
+        def _sync_upsert(conn):
             try:
-                conn = self.get_connection()
                 cursor = conn.cursor()
 
                 if isinstance(value, (dict, list)):
@@ -342,12 +371,11 @@ class DatabaseManager:
                 logger.error(f"写入系统指标失败: {e}")
                 return False
 
-        return await asyncio.to_thread(_sync_upsert)
+        return await self._run_in_thread(_sync_upsert)
 
     async def get_all_system_metrics(self) -> Dict[str, str]:
         """读取所有系统指标"""
-        def _sync_get():
-            conn = self.get_connection()
+        def _sync_get(conn):
             cursor = conn.cursor()
             cursor.execute("SELECT key, value, updated_at FROM system_metrics")
             rows = cursor.fetchall()
@@ -358,13 +386,12 @@ class DatabaseManager:
                 }
                 for row in rows
             }
-
-        return await asyncio.to_thread(_sync_get)
+        
+        return await self._run_in_thread(_sync_get)
 
     async def get_email_cache_stats(self) -> Dict[str, int]:
         """返回 email_cache 的聚合统计"""
-        def _sync_stats():
-            conn = self.get_connection()
+        def _sync_stats(conn):
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -378,23 +405,21 @@ class DatabaseManager:
                 "cached_accounts": row["cached_accounts"] if row else 0,
             }
 
-        return await asyncio.to_thread(_sync_stats)
+        return await self._run_in_thread(_sync_stats)
 
     async def reset_email_cache(self) -> None:
         """清空邮件缓存"""
-        def _sync_reset():
-            conn = self.get_connection()
+        def _sync_reset(conn):
             cursor = conn.cursor()
             cursor.execute("DELETE FROM email_cache")
             conn.commit()
 
-        await asyncio.to_thread(_sync_reset)
+        await self._run_in_thread(_sync_reset)
     
     async def cleanup_old_emails(self, days: int = 30) -> int:
         """清理旧的邮件缓存"""
-        def _sync_cleanup():
+        def _sync_cleanup(conn):
             try:
-                conn = self.get_connection()
                 cursor = conn.cursor()
                 cursor.execute('''
                     DELETE FROM email_cache 
@@ -407,14 +432,18 @@ class DatabaseManager:
                 logger.error(f"清理旧邮件失败: {e}")
                 return 0
         
-        return await asyncio.to_thread(_sync_cleanup)
+        return await self._run_in_thread(_sync_cleanup)
     
     async def get_all_accounts(self) -> Dict[str, Dict[str, str]]:
         """获取所有账户"""
-        def _sync_get():
-            conn = self.get_connection()
+        def _sync_get(conn):
             cursor = conn.cursor()
-            cursor.execute('SELECT email, password, client_id, refresh_token FROM accounts')
+            cursor.execute(
+                '''
+                SELECT email, password, client_id, refresh_token, is_used, last_used_at
+                FROM accounts
+                '''
+            )
             rows = cursor.fetchall()
             
             result = {}
@@ -422,16 +451,63 @@ class DatabaseManager:
                 result[row['email']] = {
                     'password': row['password'] or '',
                     'client_id': row['client_id'] or CLIENT_ID,
-                    'refresh_token': row['refresh_token']
-                }
+                    'refresh_token': row['refresh_token'],
+                    'is_used': bool(row['is_used']) if row['is_used'] is not None else False,
+                    'last_used_at': row['last_used_at'],
+            }
             return result
         
-        return await asyncio.to_thread(_sync_get)
+        return await self._run_in_thread(_sync_get)
+    
+    async def get_first_unused_account_email(self) -> Optional[str]:
+        """获取一个未使用的账户邮箱（按创建时间排序）
+
+        如果不存在未使用的账户，则返回 None。
+        """
+
+        def _sync_get(conn):
+            cursor = conn.cursor()
+            cursor.execute(
+                '''
+                SELECT email
+                FROM accounts
+                WHERE is_used = 0
+                ORDER BY created_at ASC
+                LIMIT 1
+                '''
+            )
+            row = cursor.fetchone()
+            return row["email"] if row else None
+
+        return await self._run_in_thread(_sync_get)
+    
+    async def mark_account_used(self, email: str) -> bool:
+        """将账户标记为已使用，并记录最后使用时间"""
+
+        def _sync_mark(conn):
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    '''
+                    UPDATE accounts
+                    SET is_used = 1,
+                        last_used_at = CURRENT_TIMESTAMP,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE email = ?
+                    ''',
+                    (email,),
+                )
+                conn.commit()
+                return cursor.rowcount > 0
+            except Exception as e:
+                logger.error(f"标记账户为已使用失败: {e}")
+                return False
+
+        return await self._run_in_thread(_sync_mark)
     
     async def replace_all_accounts(self, accounts: Dict[str, Dict[str, str]]) -> bool:
         """用提供的数据全集替换账户表"""
-        def _sync_replace():
-            conn = self.get_connection()
+        def _sync_replace(conn):
             cursor = conn.cursor()
             try:
                 cursor.execute('DELETE FROM accounts')
@@ -458,13 +534,12 @@ class DatabaseManager:
                 conn.rollback()
                 return False
         
-        return await asyncio.to_thread(_sync_replace)
+        return await self._run_in_thread(_sync_replace)
     
     async def add_account(self, email: str, password: str = '', client_id: str = '', refresh_token: str = '') -> bool:
         """添加账户"""
-        def _sync_add():
+        def _sync_add(conn):
             try:
-                conn = self.get_connection()
                 cursor = conn.cursor()
                 cursor.execute(
                     '''
@@ -487,13 +562,12 @@ class DatabaseManager:
                 logger.error(f"添加账户失败: {e}")
                 return False
         
-        return await asyncio.to_thread(_sync_add)
+        return await self._run_in_thread(_sync_add)
     
     async def update_account(self, email: str, password: str = None, client_id: str = None, refresh_token: str = None) -> bool:
         """更新账户"""
-        def _sync_update():
+        def _sync_update(conn):
             try:
-                conn = self.get_connection()
                 cursor = conn.cursor()
                 
                 # 构建更新语句
@@ -526,13 +600,12 @@ class DatabaseManager:
                 logger.error(f"更新账户失败: {e}")
                 return False
         
-        return await asyncio.to_thread(_sync_update)
+        return await self._run_in_thread(_sync_update)
     
     async def delete_account(self, email: str) -> bool:
         """删除账户"""
-        def _sync_delete():
+        def _sync_delete(conn):
             try:
-                conn = self.get_connection()
                 cursor = conn.cursor()
                 
                 # 删除账户
@@ -551,44 +624,50 @@ class DatabaseManager:
                 logger.error(f"删除账户失败: {e}")
                 return False
         
-        return await asyncio.to_thread(_sync_delete)
+        return await self._run_in_thread(_sync_delete)
     
     async def account_exists(self, email: str) -> bool:
         """检查账户是否存在"""
-        def _sync_check():
-            conn = self.get_connection()
+        def _sync_check(conn):
             cursor = conn.cursor()
             cursor.execute('SELECT 1 FROM accounts WHERE email = ?', (email,))
             return cursor.fetchone() is not None
         
-        return await asyncio.to_thread(_sync_check)
+        return await self._run_in_thread(_sync_check)
     
     async def get_account(self, email: str) -> Optional[Dict[str, str]]:
         """获取单个账户信息"""
-        def _sync_get():
-            conn = self.get_connection()
+        def _sync_get(conn):
             cursor = conn.cursor()
-            cursor.execute('SELECT password, client_id, refresh_token FROM accounts WHERE email = ?', (email,))
+            cursor.execute(
+                '''
+                SELECT password, client_id, refresh_token, is_used, last_used_at
+                FROM accounts
+                WHERE email = ?
+                ''',
+                (email,),
+            )
             row = cursor.fetchone()
             if row:
                 return {
                     'password': decrypt_if_needed(row['password']) if row['password'] else '',
                     'client_id': row['client_id'] or CLIENT_ID,
-                    'refresh_token': decrypt_if_needed(row['refresh_token']) if row['refresh_token'] else ''
+                    'refresh_token': decrypt_if_needed(row['refresh_token']) if row['refresh_token'] else '',
+                    'is_used': bool(row['is_used']) if row['is_used'] is not None else False,
+                    'last_used_at': row['last_used_at'],
                 }
             return None
         
-        return await asyncio.to_thread(_sync_get)
+        return await self._run_in_thread(_sync_get)
     
     async def migrate_from_config_file(self, config_file_path: str = 'config.txt') -> Tuple[int, int]:
         """从config.txt迁移数据到数据库"""
-        def _sync_migrate():
+        def _sync_migrate(conn):
             try:
                 import os
                 if not os.path.exists(config_file_path):
                     return 0, 0
-                
-                conn = self.get_connection()
+
                 cursor = conn.cursor()
                 
                 added_count = 0
@@ -653,13 +732,19 @@ class DatabaseManager:
                 logger.error(f"迁移配置文件失败: {e}")
                 return 0, 1
         
-        return await asyncio.to_thread(_sync_migrate)
+        return await self._run_in_thread(_sync_migrate)
     
     def close(self):
-        """关闭数据库连接"""
-        if hasattr(self._local, 'connection'):
-            self._local.connection.close()
-            delattr(self._local, 'connection')
+        """关闭与数据库管理器相关的资源。
+
+        目前主要用于关闭内部线程池执行器，兼容旧接口行为。
+        实际的 SQLite 连接在每次调用中已经按粒度自动关闭。
+        """
+        if self._executor is not None:
+            self._executor.shutdown(wait=True)
+            self._executor = None
+            self._executor_loop = None
+        return None
 
 # 全局数据库管理器实例
 db_manager = DatabaseManager()

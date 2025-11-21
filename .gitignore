@@ -23,6 +23,8 @@ frontend/dist/
 
 # Build artifacts
 data/static/
+backend/backend/
+frontend/OutlookManager/
 
 # IDE
 .DS_Store

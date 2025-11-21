@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
-import { Mail, RefreshCw, Copy, Check, Loader2, AlertCircle } from 'lucide-react';
+import { Mail, RefreshCw, Loader2, AlertCircle, Wand2 } from 'lucide-react';
 import api from '../lib/api';
 import { extractCodeFromMessage, logError } from '../lib/utils';
+import { sanitizeHtml } from '../lib/sanitize';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
+import VerificationCodeCard from '../components/VerificationCodeCard';
 
 export default function VerificationPage() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
-  const [copied, setCopied] = useState(false);
 
   const handleSearch = async (e) => {
     if (e) e.preventDefault();
@@ -20,7 +21,6 @@ export default function VerificationPage() {
     setLoading(true);
     setError(null);
     setResult(null);
-    setCopied(false);
 
     try {
       // 只使用数据库账户模式
@@ -54,11 +54,64 @@ export default function VerificationPage() {
     }
   };
 
-  const copyCode = () => {
-    if (result?.extractedCode) {
-      navigator.clipboard.writeText(result.extractedCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+  const handleAutoOtp = async () => {
+    if (loading) return;
+
+    setLoading(true);
+    setError(null);
+    setResult(null);
+
+    try {
+      // 1. 获取一个未使用的邮箱
+      const unusedRes = await api.get('/api/public/account-unused');
+      const unusedPayload = unusedRes.data;
+
+      if (!unusedPayload?.success || !unusedPayload?.data?.email) {
+        setError(unusedPayload?.message || '暂无可用邮箱，请稍后重试');
+        return;
+      }
+
+      const autoEmail = unusedPayload.data.email;
+      setEmail(autoEmail);
+
+      // 2. 调用 OTP 接口获取验证码
+      const otpRes = await api.get(
+        `/api/public/account/${encodeURIComponent(autoEmail)}/otp`,
+      );
+      const otpPayload = otpRes.data;
+
+      if (!otpPayload?.success || !otpPayload?.data?.code) {
+        setError(otpPayload?.message || '未自动识别到验证码');
+        return;
+      }
+
+      const code = otpPayload.data.code;
+
+      // 3. 构造一个简化的 result 供 UI 展示
+      setResult({
+        subject: '(自动接码)',
+        body: { content: '', contentType: 'text' },
+        bodyPreview: '',
+        sender: { emailAddress: { name: 'Outlooker', address: '' } },
+        receivedDateTime: new Date().toISOString(),
+        extractedCode: code,
+      });
+
+      // 4. 标记该邮箱为已使用（失败不影响主流程）
+      try {
+        await api.post(
+          `/api/public/account/${encodeURIComponent(autoEmail)}/used`,
+        );
+      } catch (markErr) {
+        logError('标记邮箱为已使用失败', markErr);
+      }
+    } catch (err) {
+      logError('自动获取验证码失败', err);
+      setError(
+        err.response?.data?.message || '自动获取验证码失败，请稍后重试',
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -100,24 +153,37 @@ export default function VerificationPage() {
                 />
               </div>
 
-              <Button
-                type="submit"
-                disabled={loading}
-                className="w-full gap-2 text-lg font-semibold py-6 border-2 transition-all"
-                size="lg"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-6 h-6 animate-spin" />
-                    获取中...
-                  </>
-                ) : (
-                  <>
-                    <Mail className="w-6 h-6" />
-                    获取最新验证码
-                  </>
-                )}
-              </Button>
+              <div className="flex flex-col md:flex-row gap-3">
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full gap-2 text-lg font-semibold py-6 border-2 transition-all"
+                  size="lg"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                      获取中...
+                    </>
+                  ) : (
+                    <>
+                      <Mail className="w-6 h-6" />
+                      获取最新验证码
+                    </>
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={loading}
+                  onClick={handleAutoOtp}
+                  className="w-full md:w-auto gap-2 text-base font-semibold py-4"
+                  size="lg"
+                >
+                  <Wand2 className="w-5 h-5" />
+                  自动分配邮箱并接码
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>
@@ -176,35 +242,10 @@ export default function VerificationPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               {/* 验证码高亮区 */}
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900 dark:to-indigo-900 p-6 rounded-xl border-2 border-primary shadow-lg">
-                <h4 className="text-sm font-bold text-primary dark:text-blue-300 uppercase tracking-wide mb-4 text-center">
-                  🔐 检测到的验证码
-                </h4>
-                {result.extractedCode ? (
-                  <div
-                    className="flex items-center justify-center gap-3 cursor-pointer group bg-white dark:bg-gray-800 p-5 rounded-lg hover:shadow-md transition-all border-2 border-primary dark:border-blue-400"
-                    onClick={copyCode}
-                    title="点击复制验证码"
-                  >
-                    <span className="text-5xl md:text-6xl font-mono font-black tracking-wider text-primary dark:text-blue-300 select-all">
-                      {result.extractedCode}
-                    </span>
-                    <Button variant="ghost" size="icon" className="rounded-full hover:bg-primary/20 shrink-0">
-                      {copied ? <Check className="w-6 h-6 text-green-600" /> : <Copy className="w-6 h-6 text-primary dark:text-blue-300" />}
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="text-center py-4">
-                    <p className="text-muted-foreground">未自动识别到验证码</p>
-                    <p className="text-sm text-muted-foreground mt-1">请查看下方邮件正文</p>
-                  </div>
-                )}
-                {copied && (
-                  <p className="text-center text-sm text-green-600 dark:text-green-400 mt-3 font-semibold animate-in fade-in duration-200">
-                    ✓ 已复制到剪贴板
-                  </p>
-                )}
-              </div>
+              <VerificationCodeCard
+                code={result.extractedCode}
+                showFallback
+              />
 
               {/* 邮件元信息 */}
               <div className="space-y-3 text-sm bg-gray-50 dark:bg-gray-900 p-4 rounded-lg border border-gray-200 dark:border-gray-800">
@@ -250,7 +291,7 @@ export default function VerificationPage() {
                   {result.body?.contentType === 'html' ? (
                     <div
                       className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-foreground prose-p:text-foreground prose-a:text-primary [&_*]:text-foreground"
-                      dangerouslySetInnerHTML={{ __html: result.body.content }}
+                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(result.body.content) }}
                     />
                   ) : (
                     <pre className="whitespace-pre-wrap font-sans text-sm text-foreground leading-relaxed">

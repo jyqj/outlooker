@@ -10,6 +10,7 @@ from .account_utils import (
 )
 from .constants import SYSTEM_CONFIG_DEFAULTS, SYSTEM_CONFIG_FILE
 from .email_service import EmailManager, email_manager, load_accounts_config
+from .otp_service import extract_verification_code, extract_code_from_message
 from .system_config_service import (
     get_system_config_value,
     load_system_config,
@@ -31,4 +32,6 @@ __all__ = [
     "_validate_account_info",
     "SYSTEM_CONFIG_DEFAULTS",
     "SYSTEM_CONFIG_FILE",
+    "extract_verification_code",
+    "extract_code_from_message",
 ]

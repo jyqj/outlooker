@@ -117,3 +117,43 @@ def _backfill_email_limit(conn: sqlite3.Connection) -> None:
             (str(DEFAULT_EMAIL_LIMIT),),
         )
 
+
+@register_migration("2025012101", "为 accounts 表增加使用状态字段")
+def _add_account_usage_columns(conn: sqlite3.Connection) -> None:
+    """为 accounts 表增加 is_used / last_used_at 字段及索引
+
+    - 兼容老库：仅在字段不存在时执行 ALTER TABLE
+    - 在测试迁移环境中（无 accounts 表）直接跳过
+    """
+    cursor = conn.cursor()
+
+    # 若 accounts 表不存在（例如测试迁移用的临时库），直接返回
+    cursor.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='accounts'"
+    )
+    row = cursor.fetchone()
+    if not row:
+        return
+
+    # 查询已有字段
+    cursor.execute("PRAGMA table_info(accounts)")
+    columns = {col[1] for col in cursor.fetchall()}
+
+    if "is_used" not in columns:
+        cursor.execute(
+            "ALTER TABLE accounts ADD COLUMN is_used INTEGER NOT NULL DEFAULT 0"
+        )
+
+    if "last_used_at" not in columns:
+        cursor.execute(
+            "ALTER TABLE accounts ADD COLUMN last_used_at TIMESTAMP"
+        )
+
+    # 为查询未使用账户添加复合索引
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_accounts_is_used_created_at
+        ON accounts(is_used, created_at)
+        """
+    )
+

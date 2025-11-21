@@ -4,6 +4,8 @@ API测试用例
 基础的smoke test，确保关键接口正常工作
 """
 
+from contextlib import closing
+
 import pytest
 from unittest.mock import patch, AsyncMock
 from fastapi.testclient import TestClient
@@ -18,12 +20,12 @@ def setup_and_teardown():
     """每个测试前后的设置和清理"""
     # 测试前：确保数据库已初始化
     db_manager.init_database()
-    conn = db_manager.get_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM accounts")
-    cursor.execute("DELETE FROM account_tags")
-    cursor.execute("DELETE FROM email_cache")
-    conn.commit()
+    with closing(db_manager.get_connection()) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM accounts")
+        cursor.execute("DELETE FROM account_tags")
+        cursor.execute("DELETE FROM email_cache")
+        conn.commit()
     yield
     # 测试后：可以在这里清理测试数据（如果需要）
     pass
@@ -51,19 +53,10 @@ class TestPublicEndpoints:
 class TestAdminEndpoints:
     """测试需要管理员权限的端点"""
     
-    def test_admin_verify_valid_token(self):
-        """默认禁用 Legacy token"""
+    def test_admin_verify_route_disabled_by_default(self):
+        """默认情况下 Legacy token 接口不可用"""
         response = client.post("/api/admin/verify", json={"token": "legacy-placeholder"})
-        assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is False
-    
-    def test_admin_verify_invalid_token(self):
-        """测试无效管理令牌验证"""
-        response = client.post("/api/admin/verify", json={"token": "invalid_token"})
-        assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is False
+        assert response.status_code == 404
     
     def test_get_accounts_without_auth(self):
         """测试未认证访问账户列表"""
@@ -227,6 +220,63 @@ class TestAccountCrud:
         if not delete_body["success"]:
             raise AssertionError(f"delete_response={delete_body}")
 
+
+class TestPublicAccountEndpoints:
+    """测试公共邮箱账户接口"""
+
+    def test_get_unused_account_when_empty(self):
+        """当没有账户时，应返回暂无未使用邮箱"""
+        response = client.get("/api/public/account-unused")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["success"] is False
+        assert "暂无未使用的邮箱" in body["message"]
+
+    def test_get_unused_account_success(self, jwt_headers):
+        """存在账户时，应返回一个未使用的邮箱"""
+        # 先通过受保护接口创建账户
+        payload = {
+            "email": "unused@example.com",
+            "password": "",
+            "client_id": "",
+            "refresh_token": "token-unused",
+        }
+        create_resp = client.post("/api/accounts", json=payload, headers=jwt_headers)
+        assert create_resp.status_code == 200
+        assert create_resp.json()["success"] is True
+
+        response = client.get("/api/public/account-unused")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["success"] is True
+        assert body["data"]["email"] == "unused@example.com"
+
+    def test_mark_account_used_and_delete_via_public_api(self, jwt_headers):
+        """通过公共接口标记已用并删除账户"""
+        email = "public@example.com"
+        payload = {
+            "email": email,
+            "password": "",
+            "client_id": "",
+            "refresh_token": "token-public",
+        }
+        # 使用受保护接口创建账户
+        create_resp = client.post("/api/accounts", json=payload, headers=jwt_headers)
+        assert create_resp.status_code == 200
+        assert create_resp.json()["success"] is True
+
+        # 公共接口标记为已使用
+        mark_resp = client.post(f"/api/public/account/{email}/used")
+        assert mark_resp.status_code == 200
+        mark_body = mark_resp.json()
+        assert mark_body["success"] is True
+
+        # 公共接口删除账户
+        delete_resp = client.delete(f"/api/public/account/{email}")
+        assert delete_resp.status_code == 200
+        delete_body = delete_resp.json()
+        assert delete_body["success"] is True
+
 class TestDatabase:
     """测试数据库操作"""
     
@@ -333,10 +383,10 @@ class TestEmailEndpoints:
     def test_get_messages_email_not_configured(self):
         """测试邮箱未配置返回错误"""
         response = client.get("/api/messages?email=nonexistent@example.com")
-        assert response.status_code == 200
+        assert response.status_code == 404
         data = response.json()
-        assert data["success"] is False
-        assert "未在配置中找到" in data["message"]
+        assert "detail" in data
+        assert "未在配置中找到" in data["detail"]
 
     @patch('app.routers.emails.IMAPEmailClient')
     def test_temp_messages_success(self, mock_imap_client):
@@ -402,18 +452,24 @@ class TestEmailEndpoints:
         # 清理
         await db_manager.delete_account(test_email)
 
-    def test_test_email_no_messages(self):
+    @patch('app.routers.emails.IMAPEmailClient')
+    def test_test_email_no_messages(self, mock_imap_client):
         """测试邮箱无邮件的情况"""
-        # 不添加账户，让它使用临时token（会失败）
+        mock_instance = AsyncMock()
+        mock_instance.get_messages_with_content = AsyncMock(return_value=[])
+        mock_instance.cleanup = AsyncMock()
+        mock_imap_client.return_value = mock_instance
+
         response = client.post("/api/test-email", json={
             "email": "empty@example.com",
-            "refresh_token": "invalid_token"
+            "refresh_token": "valid_token"
         })
         
-        # 应该返回错误（因为token无效）
         assert response.status_code == 200
         data = response.json()
-        assert data["success"] is False
+        assert data["success"] is True
+        assert data["data"] is None
+        assert "暂无邮件" in data["message"]
 
 
 if __name__ == "__main__":

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """数据库管理器扩展测试"""
 
+from contextlib import closing
+
 import pytest
 import pytest_asyncio
 from app.database import db_manager, looks_like_guid
@@ -11,12 +13,12 @@ async def reset_database():
     """每个测试前重置数据库"""
     db_manager.init_database()
     await db_manager.replace_all_accounts({})
-    conn = db_manager.get_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM account_tags")
-    cursor.execute("DELETE FROM email_cache")
-    cursor.execute("DELETE FROM system_config")
-    conn.commit()
+    with closing(db_manager.get_connection()) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM account_tags")
+        cursor.execute("DELETE FROM email_cache")
+        cursor.execute("DELETE FROM system_config")
+        conn.commit()
     yield
 
 
@@ -185,3 +187,42 @@ class TestAccountOperations:
         assert "new1@example.com" in all_accounts
         assert "new2@example.com" in all_accounts
 
+    @pytest.mark.asyncio
+    async def test_account_usage_default_and_mark_used(self):
+        """测试账户使用状态默认值及标记为已使用"""
+        email = "usage@example.com"
+
+        # 添加账户，默认应为未使用
+        await db_manager.add_account(email, refresh_token="usage_token")
+        account = await db_manager.get_account(email)
+        assert account is not None
+        assert account["is_used"] is False
+        assert account["last_used_at"] is None
+
+        # 标记为已使用
+        success = await db_manager.mark_account_used(email)
+        assert success is True
+
+        updated = await db_manager.get_account(email)
+        assert updated is not None
+        assert updated["is_used"] is True
+        # last_used_at 应被填充为时间字符串
+        assert updated["last_used_at"] is not None
+
+    @pytest.mark.asyncio
+    async def test_get_first_unused_account_email(self):
+        """测试获取未使用账户邮箱"""
+        # 没有账户时应返回 None
+        first = await db_manager.get_first_unused_account_email()
+        assert first is None
+
+        # 添加两个账户
+        await db_manager.add_account("a@example.com", refresh_token="t1")
+        await db_manager.add_account("b@example.com", refresh_token="t2")
+
+        # 标记其中一个为已使用
+        await db_manager.mark_account_used("a@example.com")
+
+        # 应返回未使用的那个
+        unused = await db_manager.get_first_unused_account_email()
+        assert unused == "b@example.com"

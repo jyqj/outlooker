@@ -10,9 +10,9 @@ import asyncio
 import time
 import json
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Deque, Dict, List, Optional, Tuple
 from datetime import datetime
-from collections import defaultdict
+from collections import defaultdict, deque
 import logging
 
 logger = logging.getLogger(__name__)
@@ -211,3 +211,33 @@ class LoginAuditor:
 rate_limiter = LoginRateLimiter()
 auditor = LoginAuditor()
 
+
+class RequestRateLimiter:
+    """用于 API 的简单按 IP 频率限制器"""
+
+    def __init__(self, max_requests: int, window_seconds: int):
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self._records: Dict[str, Deque[float]] = defaultdict(deque)
+        self._lock = asyncio.Lock()
+
+    async def is_allowed(self, key: str) -> Tuple[bool, Optional[int]]:
+        """返回是否允许请求以及建议的重试秒数"""
+        async with self._lock:
+            now = time.time()
+            window_start = now - self.window_seconds
+            hits = self._records[key]
+
+            while hits and hits[0] <= window_start:
+                hits.popleft()
+
+            if len(hits) >= self.max_requests:
+                retry_after = int(self.window_seconds - (now - hits[0]))
+                return False, max(retry_after, 1)
+
+            hits.append(now)
+            return True, None
+
+
+# 公共 API 的缺省限流：每分钟最多 60 次
+public_api_rate_limiter = RequestRateLimiter(max_requests=60, window_seconds=60)

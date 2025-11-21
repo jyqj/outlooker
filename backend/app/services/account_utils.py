@@ -4,11 +4,16 @@ from typing import Dict, List, Optional, Tuple
 
 from ..config import CLIENT_ID, logger
 from ..database import looks_like_guid
+from ..utils.pagination import normalize_email
 from .constants import ACCOUNTS_CONFIG_FILES
 
 
 def _normalize_email(email: str) -> str:
-    return (email or "").strip().lower()
+    """向后兼容的邮箱规范化函数包装。
+
+    实际逻辑委托给通用工具 `normalize_email`，方便在其他模块中复用。
+    """
+    return normalize_email(email)
 
 
 def _validate_account_info(email: str, account_info: Dict[str, str]) -> List[str]:

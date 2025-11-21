@@ -7,7 +7,7 @@ from ..jwt_auth import (
     verify_legacy_token, ACCESS_TOKEN_EXPIRE_MINUTES
 )
 from ..models import AdminLoginRequest, AdminLoginResponse, AdminTokenRequest, ApiResponse
-from ..config import logger
+from ..config import logger, ENABLE_LEGACY_ADMIN_TOKEN
 from ..rate_limiter import rate_limiter, auditor
 
 router = APIRouter(prefix="/api/admin", tags=["管理员认证"])
@@ -116,16 +116,19 @@ async def admin_login(login_request: AdminLoginRequest, request: Request):
         await auditor.log_attempt(client_ip, username, False, f"系统错误: {str(e)}")
         raise HTTPException(status_code=500, detail="登录失败")
 
-@router.post("/verify")
-async def admin_verify(request: AdminTokenRequest) -> ApiResponse:
-    """验证管理令牌（向后兼容旧的固定 token 方式）
-    
-    **已废弃**: 建议使用 `/api/admin/login` 获取 JWT token
-    """
-    try:
-        if verify_admin_token(request.token):
-            return ApiResponse(success=True, message="验证成功")
-        return ApiResponse(success=False, message="令牌无效")
-    except Exception as e:
-        logger.error(f"验证管理令牌失败: {e}")
-        return ApiResponse(success=False, message="验证失败")
+if ENABLE_LEGACY_ADMIN_TOKEN:
+    @router.post("/verify")
+    async def admin_verify(request: AdminTokenRequest) -> ApiResponse:
+        """验证管理令牌（仅在显式启用 Legacy token 时开放）"""
+        try:
+            if verify_admin_token(request.token):
+                return ApiResponse(success=True, message="验证成功")
+            return ApiResponse(success=False, message="令牌无效")
+        except Exception as e:
+            logger.error(f"验证管理令牌失败: {e}")
+            return ApiResponse(success=False, message="验证失败")
+else:
+    @router.post("/verify")
+    async def admin_verify_disabled() -> ApiResponse:
+        """默认禁用 Legacy token 验证接口"""
+        raise HTTPException(status_code=404, detail="Not Found")

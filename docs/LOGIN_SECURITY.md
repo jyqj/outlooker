@@ -160,7 +160,7 @@ async def is_locked_out(self, ip: str, username: str):
 
 ```nginx
 location /api/ {
-    proxy_pass http://localhost:8000;
+    proxy_pass http://localhost:5001;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 }

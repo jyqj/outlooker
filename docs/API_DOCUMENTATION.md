@@ -4,7 +4,7 @@
 
 **完整的 REST API 参考文档**
 
-[![API Version](https://img.shields.io/badge/API%20Version-2.2.0-blue.svg)](.)
+[![API Version](https://img.shields.io/badge/API%20Version-2.3.0-blue.svg)](.)
 [![OpenAPI](https://img.shields.io/badge/OpenAPI-3.0-green.svg)](.)
 
 </div>
@@ -37,7 +37,7 @@
 | 项目 | 说明 |
 |------|------|
 | **基础 URL** | `http://localhost:5001` |
-| **API 版本** | 2.2.0 |
+| **API 版本** | 2.3.0 |
 | **协议** | HTTP/HTTPS |
 | **数据格式** | JSON |
 | **字符编码** | UTF-8 |
@@ -251,6 +251,131 @@ curl -X POST "http://localhost:5001/api/admin/login" \
 {
   "success": true,
   "message": "验证成功"
+}
+```
+
+---
+
+### 公共邮箱 & 自助接码接口
+
+> 以下接口不需要管理员 JWT，可用于前端或第三方服务进行自助接码。
+
+#### 1. 获取未使用的邮箱
+
+**端点**: `GET /api/public/account-unused`
+
+**描述**: 返回一个尚未使用过的邮箱账号（按创建时间最早排序）。
+
+**认证**: 无需认证
+
+**响应示例（成功）**:
+
+```json
+{
+  "success": true,
+  "message": "获取未使用邮箱成功",
+  "data": {
+    "email": "unused@example.com"
+  }
+}
+```
+
+**响应示例（无可用邮箱）**:
+
+```json
+{
+  "success": false,
+  "message": "暂无未使用的邮箱"
+}
+```
+
+#### 2. 标记邮箱为已使用
+
+**端点**: `POST /api/public/account/{email}/used`
+
+**描述**: 将指定邮箱标记为“已使用”，并记录最后使用时间。
+
+**认证**: 无需认证
+
+**路径参数**:
+
+- `email`: 要标记的邮箱地址
+
+**响应示例**:
+
+```json
+{
+  "success": true,
+  "message": "账户已标记为已使用",
+  "data": {
+    "email": "user@example.com"
+  }
+}
+```
+
+#### 3. 删除指定邮箱
+
+**端点**: `DELETE /api/public/account/{email}`
+
+**描述**: 删除指定邮箱账户，同时删除其标签和缓存的邮件。
+
+**认证**: 无需认证
+
+**路径参数**:
+
+- `email`: 要删除的邮箱地址
+
+**响应示例**:
+
+```json
+{
+  "success": true,
+  "message": "账户已删除",
+  "data": {
+    "email": "user@example.com"
+  }
+}
+```
+
+#### 4. 获取指定邮箱最新验证码（接码）
+
+**端点**: `GET /api/public/account/{email}/otp`
+
+**描述**: 读取该邮箱最新一封邮件，使用服务端智能算法提取验证码，只返回验证码本身。
+
+**认证**: 无需认证
+
+**路径参数**:
+
+- `email`: 要接码的邮箱地址（必须已在系统中配置）
+
+**响应示例（成功）**:
+
+```json
+{
+  "success": true,
+  "message": "验证码解析成功",
+  "data": {
+    "code": "654321"
+  }
+}
+```
+
+**响应示例（无邮件或未识别到验证码）**:
+
+```json
+{
+  "success": false,
+  "message": "该邮箱暂无邮件"
+}
+```
+
+或
+
+```json
+{
+  "success": false,
+  "message": "未自动识别到验证码"
 }
 ```
 

@@ -8,7 +8,7 @@
 [![Python](https://img.shields.io/badge/Python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-green.svg)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-19.0-61dafb.svg)](https://reactjs.org/)
-[![Tests](https://img.shields.io/badge/Tests-118%20passed-success.svg)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/Tests-126%20passed-success.svg)](CHANGELOG.md)
 [![Coverage](https://img.shields.io/badge/Coverage-~70%25-yellow.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -355,14 +355,20 @@ Outlooker 实现了多层安全防护：
 - ✅ 系统配置面板
 - ✅ 缓存和指标监控
 
+### 6. 代码复用与异步优化
+
+- ✅ 通用分页与搜索工具：在 `backend/app/utils/pagination.py` 中集中处理分页和邮件搜索逻辑，避免在多个路由中重复实现
+- ✅ 邮箱规范化复用：通过 `normalize_email` 统一账号相关邮箱字符串处理，`_normalize_email` 仅作为向后兼容包装
+- ✅ 数据库异步封装优化：`DatabaseManager` 使用专用 `ThreadPoolExecutor` 统一承载所有同步 SQLite 操作，替代零散的 `asyncio.to_thread` 调用，提升可维护性
+
 ## 🧪 测试
 
 项目拥有完善的测试覆盖,确保代码质量和稳定性:
 
 **测试统计** (v2.3.0):
-- 后端测试: 95个测试 (100% 通过率)
+- 后端测试: 103个测试 (100% 通过率)
 - 前端测试: 23个测试 (100% 通过率)
-- 总测试数: 118个
+- 总测试数: 126个
 - 估计覆盖率: ~70%
 
 **v2.3.0 测试更新**:
@@ -373,7 +379,7 @@ Outlooker 实现了多层安全防护：
 ```bash
 # 后端测试
 cd backend
-pytest                    # 运行所有测试 (95 passed, 1 skipped)
+pytest                    # 运行所有测试 (103 passed)
 pytest -v                 # 详细输出
 pytest tests/test_jwt_auth.py      # JWT认证测试
 pytest tests/test_database.py      # 数据库测试

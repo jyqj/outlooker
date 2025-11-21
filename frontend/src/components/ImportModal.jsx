@@ -4,7 +4,7 @@ import api from '../lib/api';
 import { useApiAction } from '../lib/hooks';
 import { Dialog } from './ui/Dialog';
 import { Button } from './ui/Button';
-import { Alert, AlertDescription } from './ui/Alert'; // Note: Alert component needs to be created if used, using simple div for now
+import { Alert, AlertDescription } from './ui/Alert';
 import { Badge } from './ui/Badge';
 
 export default function ImportModal({ isOpen, onClose, onSuccess }) {
@@ -202,9 +202,9 @@ export default function ImportModal({ isOpen, onClose, onSuccess }) {
           )}
           
           {error && (
-             <div className="bg-destructive/10 border border-destructive/20 text-destructive p-4 rounded-lg mt-4 text-sm">
-                 {error}
-             </div>
+            <Alert variant="destructive" className="mt-4">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
         </div>
     </Dialog>

@@ -19,7 +19,7 @@ from fastapi.exceptions import RequestValidationError
 from .database import db_manager
 from .config import logger, ALLOWED_ORIGINS
 from .services import email_manager, load_accounts_config
-from .routers import auth, accounts, emails, system
+from .routers import auth, accounts, emails, system, public_accounts
 from .settings import get_settings
 
 settings = get_settings()
@@ -36,12 +36,19 @@ async def lifespan(app: FastAPI):
     logger.info("启动邮件管理系统...")
     # 生产环境关键配置安全检查
     if settings.is_production:
-        if settings.jwt_secret_key == "dev-secret-key":
-            logger.warning("[安全警告] 生产环境禁止使用默认 JWT_SECRET_KEY")
-        if settings.data_encryption_key == "dev-encryption-key":
-            logger.warning("[安全警告] 生产环境禁止使用默认 DATA_ENCRYPTION_KEY")
+        insecure = []
+        if (settings.jwt_secret_key or "").endswith("change-me"):
+            insecure.append("JWT_SECRET_KEY")
+        if (settings.data_encryption_key or "").endswith("change-me"):
+            insecure.append("DATA_ENCRYPTION_KEY")
         if settings.client_id == "dbc8e03a-b00c-46bd-ae65-b683e7707cb0":
-            logger.warning("[安全警告] 生产环境禁止使用默认 CLIENT_ID 示例值")
+            insecure.append("CLIENT_ID")
+
+        if insecure:
+            items = ", ".join(insecure)
+            message = f"[安全警告] 生产环境禁止使用默认配置: {items}"
+            logger.error(message)
+            raise RuntimeError(message)
 
     logger.info("初始化数据库...")
     yield
@@ -56,10 +63,10 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Outlook 邮件管理系统",
     description="基于 FastAPI + React 的现代化邮件管理系统",
-    version="2.2.0",
+    version="2.3.0",
     lifespan=lifespan,
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
 )
 
 app.add_middleware(
@@ -75,6 +82,7 @@ app.include_router(auth.router)
 app.include_router(accounts.router)
 app.include_router(emails.router)
 app.include_router(system.router)
+app.include_router(public_accounts.router)
 
 # 添加验证错误处理器
 @app.exception_handler(RequestValidationError)
