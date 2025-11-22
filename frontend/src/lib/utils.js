@@ -91,8 +91,12 @@ export function extractVerificationCode(text) {
       for (const codePattern of codePatterns) {
         const match = searchRange.match(codePattern.pattern);
         if (match && match[1]) {
+          const code = match[1];
+          // 验证码必须包含至少一位数字，避免将普通英文单词（如 "review"）误判为验证码
+          if (!/\d/.test(code)) continue;
+
           candidates.push({
-            code: match[1],
+            code,
             score: keyword.weight + codePattern.weight + 20, // 关键词加成
             source: 'keyword-context'
           });
@@ -107,9 +111,15 @@ export function extractVerificationCode(text) {
       const matches = text.matchAll(new RegExp(codePattern.pattern.source, 'g'));
       for (const match of matches) {
         if (match[1]) {
+          const code = match[1];
+
+          // 验证码必须包含数字，直接过滤掉纯字母片段
+          if (!/\d/.test(code)) {
+            continue;
+          }
+
           // 降低日期和金额的权重
           let score = codePattern.weight;
-          const code = match[1];
 
           // 获取匹配位置的上下文
           const matchIndex = match.index + (match[0].indexOf(code));

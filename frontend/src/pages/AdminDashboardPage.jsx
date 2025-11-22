@@ -430,10 +430,31 @@ export default function AdminDashboardPage() {
                                 </td>
                             </tr>
                         ) : (
-                            data?.data?.items?.map((account) => (
+                            data?.data?.items?.map((account) => {
+                                const isUsed = typeof account.is_used === 'boolean' ? account.is_used : null;
+                                const lastUsedAt = account.last_used_at;
+
+                                return (
                                 <tr key={account.email} className="hover:bg-muted/80 transition-colors">
                                     <td className="px-6 py-4 font-medium">
-                                        {account.email}
+                                        <div className="flex flex-col gap-1">
+                                          <div className="flex items-center gap-2">
+                                            <span>{account.email}</span>
+                                            {isUsed !== null && (
+                                              <Badge
+                                                variant={isUsed ? 'outline' : 'secondary'}
+                                                className="text-[11px] px-2 py-0.5 rounded-full"
+                                              >
+                                                {isUsed ? '已使用(公共池)' : '未使用(公共池)'}
+                                              </Badge>
+                                            )}
+                                          </div>
+                                          {isUsed && lastUsedAt && (
+                                            <span className="text-xs text-muted-foreground">
+                                              最后使用：{lastUsedAt}
+                                            </span>
+                                          )}
+                                        </div>
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex gap-1 flex-wrap">
@@ -470,7 +491,7 @@ export default function AdminDashboardPage() {
                                         </div>
                                     </td>
                                 </tr>
-                            ))
+                            )})
                         )}
                     </tbody>
                 </table>

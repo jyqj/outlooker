@@ -31,7 +31,15 @@ async def get_accounts(authorization: Optional[str] = Header(None)) -> ApiRespon
     try:
         _ = get_current_admin(authorization)
         accounts = await load_accounts_config()
-        account_list = [{"email": email} for email in accounts.keys()]
+        account_list = [
+            {
+                "email": email,
+                # 来自数据库的账户会包含使用状态字段；文件来源则默认为未使用
+                "is_used": bool(info.get("is_used")),
+                "last_used_at": info.get("last_used_at"),
+            }
+            for email, info in accounts.items()
+        ]
         return ApiResponse(success=True, data=account_list, message=f"共 {len(account_list)} 个账户")
     except HTTPException as e:
         raise e
@@ -63,7 +71,18 @@ async def get_accounts_paged(
             max(1, page),
             max(1, min(MAX_ACCOUNT_PAGE_SIZE, page_size)),
         )
-        items = [{"email": e} for e in items_page]
+
+        # 为每个账户附加使用状态，便于前端展示“已使用/未使用”
+        items = []
+        for e in items_page:
+            info = accounts_dict.get(e, {}) or {}
+            items.append(
+                {
+                    "email": e,
+                    "is_used": bool(info.get("is_used")),
+                    "last_used_at": info.get("last_used_at"),
+                }
+            )
 
         return ApiResponse(
             success=True,
@@ -389,5 +408,7 @@ async def get_account_detail(
             "has_refresh_token": bool(account["refresh_token"]),
             "password_preview": _mask_secret(account["password"]),
             "refresh_token_preview": _mask_secret(account["refresh_token"]),
+            "is_used": bool(account.get("is_used")),
+            "last_used_at": account.get("last_used_at"),
         },
     )

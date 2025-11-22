@@ -23,7 +23,7 @@ export default function VerificationCodeCard({ code, showFallback = false }) {
   return (
     <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900 dark:to-indigo-900 p-6 rounded-xl border-2 border-primary shadow-lg">
       <h4 className="text-sm font-bold text-primary dark:text-blue-300 uppercase tracking-wide mb-4 text-center">
-        🔐 检测到的验证码
+        {hasCode ? '🔐 检测到的验证码' : '🔍 暂未检测到验证码'}
       </h4>
       {hasCode ? (
         <div

@@ -120,6 +120,10 @@ def extract_verification_code(text: str) -> Optional[str]:
             m_code = code_pattern.search(search_range)
             if m_code and m_code.group(1):
                 code = m_code.group(1)
+                # 验证码必须包含至少一位数字，避免将普通英文单词（如 "review"）误判为验证码
+                if not re.search(r"\d", code):
+                    continue
+
                 candidates.append(
                     {
                         "code": code,
@@ -134,6 +138,10 @@ def extract_verification_code(text: str) -> Optional[str]:
             for m in code_pattern.finditer(text):
                 code = m.group(1)
                 if not code:
+                    continue
+
+                # 验证码必须包含数字，过滤掉纯字母片段
+                if not re.search(r"\d", code):
                     continue
 
                 score = base_weight
@@ -163,10 +171,6 @@ def extract_verification_code(text: str) -> Optional[str]:
                 # 惩罚：全是相同数字（1111, 0000）
                 if re.fullmatch(r"(.)\1+", code):
                     score -= 4
-
-                # 惩罚：全是字母（可能是单词片段）
-                if re.fullmatch(r"[A-Za-z]+", code):
-                    score -= 10
 
                 # 奖励：包含字母和数字混合（更可能是验证码）
                 if re.search(r"[A-Za-z]", code) and re.search(r"[0-9]", code):
