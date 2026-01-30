@@ -49,8 +49,9 @@ COPY --from=frontend-builder /app/data/static /app/frontend-dist
 # 创建配置文件（如果不存在）
 RUN touch /app/backend/configs/config.txt
 
-# 设置权限
-RUN chmod +x app/mail_api.py
+# 复制启动脚本
+COPY infra/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh app/mail_api.py
 
 # 暴露端口
 EXPOSE 5001
@@ -59,6 +60,6 @@ EXPOSE 5001
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:5001/ || exit 1
 
-# 启动命令：先复制静态文件到挂载目录，再启动服务
+# 启动命令
 ENV PYTHONPATH=/app/backend
-CMD cp -r /app/frontend-dist/* /app/data/static/ 2>/dev/null || true && python -m app.mail_api web
+ENTRYPOINT ["/app/entrypoint.sh"]
