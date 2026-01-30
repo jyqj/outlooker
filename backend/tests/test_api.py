@@ -11,6 +11,8 @@ from unittest.mock import patch, AsyncMock
 from fastapi.testclient import TestClient
 from app.mail_api import app, db_manager
 from app.jwt_auth import create_access_token
+from app.services import email_manager
+from app.settings import get_settings
 
 # 创建测试客户端
 client = TestClient(app)
@@ -25,6 +27,7 @@ def setup_and_teardown():
         cursor.execute("DELETE FROM accounts")
         cursor.execute("DELETE FROM account_tags")
         cursor.execute("DELETE FROM email_cache")
+        cursor.execute("DELETE FROM email_cache_meta")
         conn.commit()
     yield
     # 测试后：可以在这里清理测试数据（如果需要）
@@ -47,16 +50,14 @@ class TestPublicEndpoints:
     
     def test_messages_without_email(self):
         """测试未提供邮箱时的错误处理"""
-        response = client.get("/api/messages")
+        response = client.get(
+            "/api/messages",
+            headers={"X-Public-Token": get_settings().public_api_token},
+        )
         assert response.status_code == 422  # Validation error
 
 class TestAdminEndpoints:
     """测试需要管理员权限的端点"""
-    
-    def test_admin_verify_route_disabled_by_default(self):
-        """默认情况下 Legacy token 接口不可用"""
-        response = client.post("/api/admin/verify", json={"token": "legacy-placeholder"})
-        assert response.status_code == 404
     
     def test_get_accounts_without_auth(self):
         """测试未认证访问账户列表"""
@@ -226,7 +227,10 @@ class TestPublicAccountEndpoints:
 
     def test_get_unused_account_when_empty(self):
         """当没有账户时，应返回暂无未使用邮箱"""
-        response = client.get("/api/public/account-unused")
+        response = client.get(
+            "/api/public/account-unused",
+            headers={"X-Public-Token": get_settings().public_api_token},
+        )
         assert response.status_code == 200
         body = response.json()
         assert body["success"] is False
@@ -245,7 +249,10 @@ class TestPublicAccountEndpoints:
         assert create_resp.status_code == 200
         assert create_resp.json()["success"] is True
 
-        response = client.get("/api/public/account-unused")
+        response = client.get(
+            "/api/public/account-unused",
+            headers={"X-Public-Token": get_settings().public_api_token},
+        )
         assert response.status_code == 200
         body = response.json()
         assert body["success"] is True
@@ -266,13 +273,19 @@ class TestPublicAccountEndpoints:
         assert create_resp.json()["success"] is True
 
         # 公共接口标记为已使用
-        mark_resp = client.post(f"/api/public/account/{email}/used")
+        mark_resp = client.post(
+            f"/api/public/account/{email}/used",
+            headers={"X-Public-Token": get_settings().public_api_token},
+        )
         assert mark_resp.status_code == 200
         mark_body = mark_resp.json()
         assert mark_body["success"] is True
 
         # 公共接口删除账户
-        delete_resp = client.delete(f"/api/public/account/{email}")
+        delete_resp = client.delete(
+            f"/api/public/account/{email}",
+            headers={"X-Public-Token": get_settings().public_api_token},
+        )
         assert delete_resp.status_code == 200
         delete_body = delete_resp.json()
         assert delete_body["success"] is True
@@ -344,6 +357,119 @@ class TestDatabase:
 class TestEmailEndpoints:
     """测试邮件相关接口"""
 
+    @pytest.mark.asyncio
+    async def test_get_messages_uses_cache_when_fresh(self):
+        """缓存足够且未过期时应直接读缓存，不触发 IMAP 客户端创建"""
+        test_email = "cache@example.com"
+        await db_manager.add_account(test_email, refresh_token="test_token")
+        await email_manager.invalidate_accounts_cache()
+
+        max_limit = get_settings().max_email_limit
+        folder = "INBOX"
+
+        with closing(db_manager.get_connection()) as conn:
+            cursor = conn.cursor()
+            for i in range(1, max_limit + 1):
+                cursor.execute(
+                    """
+                    INSERT OR REPLACE INTO email_cache
+                    (email, folder, message_id, subject, sender, received_date, body_preview, body_content, body_type)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        test_email,
+                        folder,
+                        str(i),
+                        f"Cached {i}",
+                        "Tester <tester@example.com>",
+                        "2025-01-01 00:00:00",
+                        "preview",
+                        "body",
+                        "text",
+                    ),
+                )
+            conn.commit()
+
+        await db_manager.mark_email_cache_checked(test_email, folder=folder)
+
+        with patch.object(
+            email_manager,
+            "_get_or_create_client",
+            new=AsyncMock(side_effect=AssertionError("IMAP client should not be created")),
+        ):
+            response = client.get(
+                f"/api/messages?email={test_email}&page=1&page_size=1",
+                headers={"X-Public-Token": get_settings().public_api_token},
+            )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["success"] is True
+        assert payload["data"]["items"][0]["id"] == str(max_limit)
+
+    @pytest.mark.asyncio
+    async def test_get_messages_refresh_bypasses_cache(self):
+        """refresh=true 时应强制触发拉取逻辑（即使缓存未过期）。"""
+        test_email = "cache-refresh@example.com"
+        await db_manager.add_account(test_email, refresh_token="test_token")
+        await email_manager.invalidate_accounts_cache()
+
+        # 预置一条缓存并标记为已检查，确保“非 refresh”路径会命中缓存
+        with closing(db_manager.get_connection()) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT OR REPLACE INTO email_cache
+                (email, folder, message_id, subject, sender, received_date, body_preview, body_content, body_type)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    test_email,
+                    "INBOX",
+                    "1",
+                    "Cached",
+                    "Tester <tester@example.com>",
+                    "2025-01-01 00:00:00",
+                    "preview",
+                    "body",
+                    "text",
+                ),
+            )
+            conn.commit()
+
+        await db_manager.mark_email_cache_checked(test_email, folder="INBOX")
+
+        mock_client = AsyncMock()
+        mock_client.get_messages_with_content = AsyncMock(
+            return_value=[
+                {
+                    "id": "999",
+                    "subject": "Fresh Email",
+                    "from": {
+                        "emailAddress": {"address": "sender@example.com", "name": "Sender"}
+                    },
+                    "receivedDateTime": "2025-01-01T00:00:00",
+                    "bodyPreview": "",
+                    "body": {"content": "body", "contentType": "text"},
+                }
+            ]
+        )
+
+        with patch.object(
+            email_manager,
+            "_get_or_create_client",
+            new=AsyncMock(return_value=mock_client),
+        ):
+            response = client.get(
+                f"/api/messages?email={test_email}&page=1&page_size=1&refresh=true",
+                headers={"X-Public-Token": get_settings().public_api_token},
+            )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["success"] is True
+        assert payload["data"]["items"][0]["id"] == "999"
+
     @patch('app.services.email_manager.get_messages')
     @pytest.mark.asyncio
     async def test_get_messages_success(self, mock_get_messages, jwt_headers):
@@ -366,7 +492,10 @@ class TestEmailEndpoints:
         mock_get_messages.return_value = mock_messages
         
         # 发起请求
-        response = client.get(f"/api/messages?email={test_email}&page=1&page_size=5")
+        response = client.get(
+            f"/api/messages?email={test_email}&page=1&page_size=5",
+            headers={"X-Public-Token": get_settings().public_api_token},
+        )
         
         # 验证响应
         assert response.status_code == 200
@@ -382,7 +511,10 @@ class TestEmailEndpoints:
 
     def test_get_messages_email_not_configured(self):
         """测试邮箱未配置返回错误"""
-        response = client.get("/api/messages?email=nonexistent@example.com")
+        response = client.get(
+            "/api/messages?email=nonexistent@example.com",
+            headers={"X-Public-Token": get_settings().public_api_token},
+        )
         assert response.status_code == 404
         data = response.json()
         assert "detail" in data
@@ -407,12 +539,16 @@ class TestEmailEndpoints:
         mock_imap_client.return_value = mock_instance
         
         # 发起请求
-        response = client.post("/api/temp-messages", json={
-            "email": "temp@example.com",
-            "refresh_token": "temp_token",
-            "page": 1,
-            "page_size": 5
-        })
+        response = client.post(
+            "/api/temp-messages",
+            json={
+                "email": "temp@example.com",
+                "refresh_token": "temp_token",
+                "page": 1,
+                "page_size": 5,
+            },
+            headers={"X-Public-Token": get_settings().public_api_token},
+        )
         
         # 验证响应
         assert response.status_code == 200
@@ -441,7 +577,11 @@ class TestEmailEndpoints:
         ]
         
         # 发起请求
-        response = client.post("/api/test-email", json={"email": test_email})
+        response = client.post(
+            "/api/test-email",
+            json={"email": test_email},
+            headers={"X-Public-Token": get_settings().public_api_token},
+        )
         
         # 验证响应
         assert response.status_code == 200
@@ -460,10 +600,14 @@ class TestEmailEndpoints:
         mock_instance.cleanup = AsyncMock()
         mock_imap_client.return_value = mock_instance
 
-        response = client.post("/api/test-email", json={
-            "email": "empty@example.com",
-            "refresh_token": "valid_token"
-        })
+        response = client.post(
+            "/api/test-email",
+            json={
+                "email": "empty@example.com",
+                "refresh_token": "valid_token",
+            },
+            headers={"X-Public-Token": get_settings().public_api_token},
+        )
         
         assert response.status_code == 200
         data = response.json()

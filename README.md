@@ -4,11 +4,12 @@
 
 **现代化的 Outlook 邮件管理与验证码提取平台**
 
-[![Version](https://img.shields.io/badge/Version-2.3.0-brightgreen.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-2.5.0-brightgreen.svg)](CHANGELOG.md)
 [![Python](https://img.shields.io/badge/Python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-green.svg)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-19.0-61dafb.svg)](https://reactjs.org/)
-[![Tests](https://img.shields.io/badge/Tests-126%20passed-success.svg)](CHANGELOG.md)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178c6.svg)](https://www.typescriptlang.org/)
+[![Tests](https://img.shields.io/badge/Tests-130%2B%20passed-success.svg)](CHANGELOG.md)
 [![Coverage](https://img.shields.io/badge/Coverage-~70%25-yellow.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -23,12 +24,13 @@
 ### ✨ 核心特性
 
 - 🔐 **安全可靠**：JWT 认证、数据加密存储、登录频率限制、审计日志
-- 📧 **邮件管理**：支持多账户、分页查询、文件夹切换、模糊搜索
+- 📧 **邮件管理**：支持多账户、分页查询、文件夹切换、模糊搜索、标记已读、删除
 - 🎯 **验证码提取**：自动识别并提取邮件中的 4-6 位验证码
-- 👥 **账户管理**：批量导入/导出、标签分类、账户搜索
-- 📊 **系统监控**：缓存命中率、IMAP 连接复用、运行指标统计
-- 🎨 **现代 UI**：基于 React 19 + Tailwind CSS 4 + TanStack Query v5，shadcn-like 组件库，响应式布局
+- 👥 **账户管理**：批量导入/导出、标签分类、账户搜索、**批量删除、批量标签**
+- 📊 **系统监控**：缓存命中率、IMAP 连接复用、运行指标统计、健康检查端点
+- 🎨 **现代 UI**：基于 React 19 + **TypeScript** + Tailwind CSS 4 + TanStack Query v5，shadcn-like 组件库，响应式布局
 - 🐳 **容器化部署**：提供 Docker 和 Docker Compose 配置
+- 🔧 **模块化架构**：数据库操作采用 Mixin 模式，统一异常处理，配置可外部化
 
 ### 🏗️ 技术架构
 
@@ -119,20 +121,24 @@ outlooker/
 │   ├── app/             # FastAPI 应用核心
 │   │   ├── routers/     # API 路由（账户、邮件、系统、认证）
 │   │   ├── services/    # 业务逻辑层
+│   │   ├── db/          # 数据库操作模块（Mixin 架构）
 │   │   ├── migrations/  # 数据库迁移脚本
 │   │   ├── models.py    # 数据模型
+│   │   ├── exceptions.py # 统一异常处理
 │   │   ├── security.py  # 加密与安全
 │   │   └── jwt_auth.py  # JWT 认证
 │   ├── configs/         # 配置文件
 │   ├── tests/           # 单元测试和集成测试
 │   └── requirements.txt # Python 依赖
-├── frontend/            # 前端应用
+├── frontend/            # 前端应用 (TypeScript)
 │   ├── src/
 │   │   ├── components/  # React 组件
 │   │   │   ├── ui/      # 基础 UI 组件 (Button, Input, Dialog...)
 │   │   ├── pages/       # 页面组件
 │   │   ├── lib/         # 工具库和 Hooks
-│   │   └── main.jsx     # 应用入口
+│   │   ├── types/       # TypeScript 类型定义
+│   │   └── main.tsx     # 应用入口
+│   ├── tsconfig.json    # TypeScript 配置
 │   └── package.json     # Node.js 依赖
 ├── infra/               # 基础设施
 │   ├── Dockerfile       # 容器镜像
@@ -172,17 +178,14 @@ cd outlooker
 
 ### 2. 配置环境变量
 
+参考 `docs/ENV_SAMPLE.md` 填写 `.env`（或 `backend/.env`），生成安全随机值：
 ```bash
-# 复制环境变量模板
-cp .env.example .env
-
-# 生成必需的密钥
-python -c "import secrets; print('JWT_SECRET_KEY=' + secrets.token_urlsafe(32))" >> .env
-python -c "import secrets; print('DATA_ENCRYPTION_KEY=' + secrets.token_urlsafe(32))" >> .env
-python -c "import secrets; print('ADMIN_PASSWORD=' + secrets.token_urlsafe(16))" >> .env
-
-# 编辑 .env 补充其他配置（CLIENT_ID 等）
-nano .env
+python - <<'PY'
+import secrets
+print("JWT_SECRET_KEY=" + secrets.token_urlsafe(32))
+print("DATA_ENCRYPTION_KEY=" + secrets.token_urlsafe(32))
+print("ADMIN_PASSWORD=" + secrets.token_urlsafe(16))
+PY
 ```
 
 ### 3. 启动后端
@@ -191,6 +194,7 @@ nano .env
 cd backend
 pip install -r requirements.txt
 python -m app.mail_api web
+# 需要热重载：UVICORN_RELOAD=true python -m app.mail_api web
 # 后端将在 http://localhost:5001 启动
 ```
 
@@ -250,8 +254,10 @@ docker-compose up -d
 | 前端构建 | `cd frontend && npm run build` |
 | 后端测试 | `cd backend && pytest` |
 | 前端测试 | `cd frontend && npm run test` |
+| 类型检查 | `cd backend && mypy app` / `cd frontend && npm run typecheck` |
 | 代码检查 | `cd backend && ruff check .` / `cd frontend && npm run lint` |
 | 安全扫描 | `./scripts/security_scan.sh` |
+| 健康检查 | `curl http://localhost:5001/api/health` |
 
 ## 🔒 安全特性
 
@@ -317,6 +323,10 @@ Outlooker 实现了多层安全防护：
 
 - ✅ 批量导入/导出（支持文本格式）
 - ✅ 账户标签分类和过滤
+- ✅ **批量操作**：
+  - 批量选择账户（全选/单选）
+  - 批量删除账户
+  - 批量标签操作（添加/移除/替换）
 - ✅ **增强的分页功能**：
   - 每页显示数量选择（10/20/50/100 条）
   - 智能页码导航（当前页前后显示，中间省略号）
@@ -328,7 +338,7 @@ Outlooker 实现了多层安全防护：
 - ✅ 脱敏预览（密码、Token）
 - ✅ 邮件查看（完整正文 + 验证码提取）
 
-### 3. 邮件查看
+### 3. 邮件查看与管理
 
 **功能**: 点击账户的"查看邮件"按钮
 
@@ -337,6 +347,9 @@ Outlooker 实现了多层安全防护：
 - ✅ 验证码高亮显示（渐变背景 + 大字号）
 - ✅ 邮件元信息（发件人、时间、主题）
 - ✅ 支持 HTML 和纯文本邮件
+- ✅ **邮件管理操作**：
+  - 删除缓存邮件
+  - 标记邮件已读
 - ✅ 明确的加载状态（旋转动画 + 提示文字）
 - ✅ 完善的空状态和错误处理
 
@@ -365,30 +378,32 @@ Outlooker 实现了多层安全防护：
 
 项目拥有完善的测试覆盖,确保代码质量和稳定性:
 
-**测试统计** (v2.3.0):
-- 后端测试: 103个测试 (100% 通过率)
+**测试统计** (v2.4.0):
+- 后端测试: 110+ 个测试 (100% 通过率)
 - 前端测试: 23个测试 (100% 通过率)
-- 总测试数: 126个
+- 总测试数: 130+
 - 估计覆盖率: ~70%
 
-**v2.3.0 测试更新**:
-- ✅ 更新 VerificationPage 测试以匹配简化功能
-- ✅ 更新 AdminDashboardPage 测试以匹配新分页 UI
-- ✅ 所有测试保持 100% 通过率
+**v2.4.0 测试更新**:
+- ✅ 新增 IMAP 客户端单元测试
+- ✅ CI 增强：覆盖率阈值、安全扫描
+- ✅ TypeScript 类型检查集成到 CI
 
 ```bash
 # 后端测试
 cd backend
-pytest                    # 运行所有测试 (103 passed)
+pytest                    # 运行所有测试
 pytest -v                 # 详细输出
+pytest --cov=app          # 带覆盖率报告
 pytest tests/test_jwt_auth.py      # JWT认证测试
 pytest tests/test_database.py      # 数据库测试
-pytest tests/test_migrations.py    # 迁移测试
+pytest tests/test_imap_client.py   # IMAP客户端测试
 
 # 前端测试
 cd frontend
-npm run test              # 运行测试 (23 passed)
-npm run test:watch        # 监听模式
+npm run test              # 运行测试
+npm run test -- --coverage  # 带覆盖率
+npm run typecheck         # TypeScript类型检查
 ```
 
 **测试覆盖的关键领域**:
@@ -399,6 +414,7 @@ npm run test:watch        # 监听模式
 - ✅ 账户导入和合并
 - ✅ 系统配置管理
 - ✅ 数据加密解密
+- ✅ IMAP 客户端连接和令牌管理
 - ✅ React组件渲染
 
 ## 🐛 故障排查
@@ -440,6 +456,7 @@ grep ALLOWED_ORIGINS .env
 JWT_SECRET_KEY=<随机生成的密钥>        # JWT 签名密钥
 DATA_ENCRYPTION_KEY=<随机生成的密钥>   # 数据加密密钥
 CLIENT_ID=<Microsoft OAuth2 客户端ID>  # Azure AD 应用ID
+PUBLIC_API_TOKEN=<随机生成的密钥>      # 公共接口调用口令（生产必填）
 
 # 管理员配置
 ADMIN_USERNAME=admin                    # 管理员用户名
@@ -448,8 +465,11 @@ ADMIN_PASSWORD=<强密码>                # 管理员密码
 # 可选配置
 APP_ENV=development                     # 环境标识（development/production）
 ALLOWED_ORIGINS=http://localhost:5173   # CORS 白名单（逗号分隔）
-ENABLE_LEGACY_ADMIN_TOKEN=false         # 是否启用旧版Token
-DEFAULT_EMAIL_LIMIT=10                  # 默认邮件获取数量
+ENABLE_LEGACY_ADMIN_TOKEN=false         # 是否启用旧版 Token
+LEGACY_ADMIN_TOKEN=<随机生成的密钥>      # 旧版 Token 值（仅在 ENABLE_LEGACY_ADMIN_TOKEN=true 时需要）
+DEFAULT_EMAIL_LIMIT=1                   # 默认邮件获取数量
+ADMIN_REFRESH_COOKIE=true               # 启用 httpOnly 刷新 Cookie（默认开启）
+ADMIN_REFRESH_COOKIE_SECURE=false       # 开发环境设为 false，生产请改为 true
 ```
 
 ## 🤝 贡献指南

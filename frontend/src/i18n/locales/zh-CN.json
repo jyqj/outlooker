@@ -1,0 +1,124 @@
+{
+    "app": {
+        "title": "Outlooker",
+        "description": "邮箱验证码管理"
+    },
+    "nav": {
+        "home": "首页",
+        "admin": "管理后台",
+        "logout": "退出登录"
+    },
+    "verification": {
+        "title": "验证码获取",
+        "emailPlaceholder": "请输入邮箱地址",
+        "fetchButton": "获取验证码",
+        "refreshButton": "刷新",
+        "loading": "正在获取邮件...",
+        "noCode": "暂无验证码",
+        "copySuccess": "已复制到剪贴板",
+        "copyFailed": "复制失败",
+        "error": {
+            "accountNotFound": "未找到该邮箱账户",
+            "fetchFailed": "获取邮件失败",
+            "emptyEmail": "请输入邮箱地址"
+        }
+    },
+    "login": {
+        "title": "管理员登录",
+        "username": "用户名",
+        "usernamePlaceholder": "请输入用户名",
+        "password": "密码",
+        "passwordPlaceholder": "请输入密码",
+        "loginButton": "登录",
+        "loggingIn": "登录中...",
+        "error": {
+            "invalidCredentials": "用户名或密码错误",
+            "rateLimited": "登录尝试过于频繁，请稍后再试",
+            "serverError": "服务器错误，请稍后再试"
+        }
+    },
+    "dashboard": {
+        "title": "账户管理",
+        "accounts": "账户列表",
+        "addAccount": "添加账户",
+        "importAccounts": "批量导入",
+        "exportAccounts": "导出账户",
+        "search": "搜索账户...",
+        "actions": {
+            "view": "查看",
+            "edit": "编辑",
+            "delete": "删除",
+            "viewEmails": "查看邮件"
+        },
+        "pagination": {
+            "totalRecords": "共 {{count}} 条记录",
+            "perPage": "每页",
+            "page": "页",
+            "jumpTo": "跳转到",
+            "go": "跳转",
+            "prev": "上一页",
+            "next": "下一页"
+        },
+        "tags": {
+            "manage": "管理标签",
+            "add": "添加标签",
+            "remove": "移除标签",
+            "replace": "替换标签"
+        },
+        "batch": {
+            "selected": "已选择 {{count}} 项",
+            "delete": "批量删除",
+            "tag": "批量标签"
+        },
+        "confirm": {
+            "delete": "确定要删除该账户吗？",
+            "batchDelete": "确定要删除选中的 {{count}} 个账户吗？"
+        }
+    },
+    "email": {
+        "subject": "主题",
+        "from": "发件人",
+        "date": "时间",
+        "folder": "文件夹",
+        "verificationCode": "验证码",
+        "noEmails": "暂无邮件",
+        "loading": "正在加载...",
+        "actions": {
+            "markRead": "标记已读",
+            "delete": "删除"
+        }
+    },
+    "import": {
+        "title": "批量导入账户",
+        "format": "格式说明",
+        "formatDescription": "每行一个账户，格式：邮箱----密码----refresh_token",
+        "placeholder": "粘贴账户信息...",
+        "preview": "预览",
+        "import": "导入",
+        "cancel": "取消",
+        "success": "成功导入 {{count}} 个账户",
+        "error": {
+            "parseError": "解析错误",
+            "invalidFormat": "格式错误"
+        }
+    },
+    "settings": {
+        "title": "系统设置",
+        "emailLimit": "邮件获取数量",
+        "refreshCache": "刷新缓存",
+        "save": "保存设置"
+    },
+    "common": {
+        "loading": "加载中...",
+        "error": "错误",
+        "success": "成功",
+        "confirm": "确定",
+        "cancel": "取消",
+        "save": "保存",
+        "close": "关闭",
+        "copy": "复制",
+        "copied": "已复制",
+        "retry": "重试",
+        "back": "返回"
+    }
+}

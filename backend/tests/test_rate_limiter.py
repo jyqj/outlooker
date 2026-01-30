@@ -6,6 +6,7 @@
 import asyncio
 import pytest
 from pathlib import Path
+from datetime import datetime, timedelta
 
 from app.rate_limiter import (
     LoginRateLimiter,
@@ -13,6 +14,7 @@ from app.rate_limiter import (
     MAX_LOGIN_ATTEMPTS,
     LOCKOUT_DURATION,
 )
+from app.database import db_manager
 
 
 class TestLoginRateLimiter:
@@ -103,11 +105,8 @@ class TestLoginRateLimiter:
         is_locked, _ = await rate_limiter.is_locked_out(ip, username)
         assert is_locked is True
         
-        # 手动清除锁定（模拟时间过期）
-        # 在实际场景中应该等待 LOCKOUT_DURATION 秒
-        key = (ip, username)
-        if key in rate_limiter._lockouts:
-            rate_limiter._lockouts[key] = 0  # 设置为过期
+        # 模拟时间过期：将 lockout_until 写为过去时间
+        await db_manager.set_lockout(ip, username, datetime.utcnow() - timedelta(seconds=1))
         
         # 应该不再锁定
         is_locked, _ = await rate_limiter.is_locked_out(ip, username)

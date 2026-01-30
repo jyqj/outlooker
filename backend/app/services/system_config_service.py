@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import sys
 from pathlib import Path
 from typing import Any, Dict
 
-from ..config import logger
 from ..database import db_manager
 from .constants import MAX_EMAIL_LIMIT, MIN_EMAIL_LIMIT, SYSTEM_CONFIG_DEFAULTS, SYSTEM_CONFIG_FILE as DEFAULT_SYSTEM_CONFIG_FILE
+
+logger = logging.getLogger(__name__)
 
 _system_config_lock = asyncio.Lock()
 
@@ -56,26 +58,31 @@ def _cast_system_value(key: str, value: Any) -> Any:
 
 
 async def load_system_config() -> Dict[str, Any]:
-    config = dict(SYSTEM_CONFIG_DEFAULTS)
-    config.update(_read_system_config_file())
+    file_config = _read_system_config_file()
+    config: Dict[str, Any] = {}
 
-    for key in SYSTEM_CONFIG_DEFAULTS.keys():
-        db_value = await db_manager.get_system_config(key)
-        if db_value is not None:
-            config[key] = _cast_system_value(key, db_value)
-        else:
-            config[key] = _cast_system_value(key, config.get(key))
+    # DB 作为唯一运行时配置源：当 DB 缺失时，用文件/默认值做一次性初始化写入
+    async with _system_config_lock:
+        for key, default_value in SYSTEM_CONFIG_DEFAULTS.items():
+            db_value = await db_manager.get_system_config(key)
+            if db_value is not None:
+                config[key] = _cast_system_value(key, db_value)
+                continue
+
+            bootstrap_value = file_config.get(key, default_value)
+            casted = _cast_system_value(key, bootstrap_value)
+            config[key] = casted
+            try:
+                await db_manager.set_system_config(key, str(casted))
+            except Exception as exc:
+                logger.warning("写入系统配置到数据库失败(%s): %s", key, exc)
 
     return config
 
 
 async def set_system_config_value(key: str, value: Any) -> bool:
-    config = await load_system_config()
-    config[key] = _cast_system_value(key, value)
-
-    await _write_system_config_file(config)
-    success = await db_manager.set_system_config(key, str(config[key]))
-    return success
+    casted = _cast_system_value(key, value)
+    return await db_manager.set_system_config(key, str(casted))
 
 
 async def get_system_config_value(key: str, default: Any | None = None) -> Any:

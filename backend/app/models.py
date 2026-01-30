@@ -48,20 +48,37 @@ class ImportResult(BaseModel):
     details: List[Dict[str, str]]  # 详细信息
     message: str
 
-class AdminTokenRequest(BaseModel):
-    """管理令牌验证请求（向后兼容）"""
-    token: str
-
 class AdminLoginRequest(BaseModel):
     """管理员登录请求"""
     username: str
     password: str
 
+class AdminProfile(BaseModel):
+    """管理员公开信息"""
+    id: int
+    username: str
+    role: str = "admin"
+    is_active: bool = True
+
+
 class AdminLoginResponse(BaseModel):
     """管理员登录响应"""
     access_token: str
+    refresh_token: Optional[str] = None
     token_type: str = "bearer"
     expires_in: int  # 秒数
+    refresh_expires_in: int
+    user: AdminProfile
+
+
+class TokenRefreshRequest(BaseModel):
+    """刷新令牌请求"""
+    refresh_token: Optional[str] = None
+
+
+class LogoutRequest(BaseModel):
+    """登出请求"""
+    refresh_token: Optional[str] = None
 
 class TempAccountRequest(BaseModel):
     """临时账户请求"""
@@ -99,10 +116,48 @@ class ParseImportTextRequest(BaseModel):
 # 响应模型
 # ============================================================================
 
+class PaginationInfo(BaseModel):
+    """分页信息"""
+    page: int
+    pageSize: int  # 使用 camelCase 以匹配前端
+    total: int
+    totalPages: int
+
+
+class PaginatedResponse(BaseModel):
+    """分页响应模型"""
+    items: List[Dict]
+    pagination: PaginationInfo
+
+
+def create_paginated_response(
+    items: List[Dict],
+    total: int,
+    page: int,
+    page_size: int,
+) -> Dict:
+    """创建统一的分页响应数据结构"""
+    import math
+    total_pages = math.ceil(total / page_size) if page_size > 0 else 0
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "pagination": {
+            "page": page,
+            "pageSize": page_size,  # camelCase for frontend compatibility
+            "total": total,
+            "totalPages": total_pages,
+        }
+    }
+
+
 class ApiResponse(BaseModel):
     success: bool
     message: str = ""
     data: Optional[Union[Dict, List, str]] = None
+    error_code: Optional[str] = None
 
 class EmailMessage(BaseModel):
     """邮件消息模型"""

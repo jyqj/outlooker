@@ -124,6 +124,41 @@ JWT_SECRET_KEY=your-secret-key-change-this-in-production-please
 
 ## API 接口
 
+### 端点分类速览
+
+> 说明：本表用于快速判断某个端点的 **调用方 / 用途 / 是否属于调试接口**。详细字段请继续查看后续章节。
+
+| Endpoint | Method | 认证 | 调用方 | 用途 | 备注 |
+| --- | --- | --- | --- | --- | --- |
+| `/` | GET | - | 浏览器 | 前端页面（验证码获取） | 静态资源入口 |
+| `/admin` | GET | - | 浏览器 | 前端页面（管理后台） | 需先登录 |
+| `/api/admin/login` | POST | - | 管理后台 | 管理员登录换取 `access_token` | 返回 `AdminLoginResponse` |
+| `/api/admin/refresh` | POST | Bearer/Cookie | 管理后台 | 刷新 `access_token` | 依赖 HttpOnly Cookie（推荐） |
+| `/api/admin/logout` | POST | Bearer/Cookie | 管理后台 | 登出并清理 refresh cookie | - |
+| `/api/accounts/paged` | GET | Bearer | 管理后台 | 分页拉取账户列表 | 前端主要使用 |
+| `/api/accounts` | GET/POST | Bearer | 管理后台/内部 | 获取全部/创建单账户 | 前端一般用分页/导入 |
+| `/api/account/{email}` | GET/PUT/DELETE | Bearer | 管理后台/内部 | 单账户读写删 | 批量场景用批量接口 |
+| `/api/accounts/tags` | GET | Bearer | 管理后台 | 拉取标签总表与映射 | - |
+| `/api/account/{email}/tags` | GET/POST | Bearer | 管理后台 | 获取/更新单账户标签 | - |
+| `/api/accounts/batch-delete` | POST | Bearer | 管理后台 | 批量删除账户 | - |
+| `/api/accounts/batch-tags` | POST | Bearer | 管理后台 | 批量标签操作 | - |
+| `/api/import` | POST | Bearer | 管理后台 | 批量导入账户 | - |
+| `/api/parse-import-text` | POST | Bearer | 管理后台 | 导入前文本解析预览 | - |
+| `/api/export` | GET | Bearer | 管理后台 | 导出账户 | - |
+| `/api/system/config` | GET/POST | Bearer | 管理后台 | 读取/更新系统配置 | 运行时以 DB 为准 |
+| `/api/system/metrics` | GET | Bearer | 管理后台/运维 | 获取系统指标 | - |
+| `/api/system/cache/refresh` | POST | Bearer | 管理后台/运维 | 刷新账户缓存并清空邮件缓存 | - |
+| `/api/messages` | GET | `X-Public-Token` | 验证码页面/外部 | 获取指定邮箱邮件列表 | 支持分页/搜索/刷新 |
+| `/api/public/account-unused` | GET | `X-Public-Token` | 验证码页面/外部 | 获取一个未使用账户 | 自动接码流程 |
+| `/api/public/account/{email}/otp` | GET | `X-Public-Token` | 验证码页面/外部 | 获取最新验证码 | 仅返回 code |
+| `/api/public/account/{email}/used` | POST | `X-Public-Token` | 验证码页面/外部 | 标记账户已用 | 自动接码流程 |
+| `/api/public/account/{email}` | DELETE | `X-Public-Token` | 外部/运维 | 删除账户（含标签与缓存） | 前端未使用 |
+| `/api/temp-messages` | POST | `X-Public-Token` | 外部/运维 | 临时使用 refresh_token 拉取邮件 | `debug/internal` |
+| `/api/test-email` | POST | `X-Public-Token` | 运维 | 测试 IMAP 拉取链路 | `debug/internal` |
+| `/api/email/{email}/{message_id}` | DELETE | Bearer | 管理后台 | 删除本地缓存邮件 | 不保证删远端 |
+| `/api/email/{email}/{message_id}/read` | POST | Bearer | 内部 | 标记缓存邮件为已读 | `deprecated/internal` |
+| `/api/health/*` | GET | - | 运维/监控 | 健康检查 | K8s/探针 |
+
 ### 页面路由
 
 #### 1. 主页面
@@ -258,7 +293,10 @@ curl -X POST "http://localhost:5001/api/admin/login" \
 
 ### 公共邮箱 & 自助接码接口
 
-> 以下接口不需要管理员 JWT，可用于前端或第三方服务进行自助接码。
+> 以下接口不需要管理员 JWT，但需要携带公共接口调用口令（`X-Public-Token`），可用于前端或第三方服务进行自助接码。
+>
+> - Header: `X-Public-Token: <PUBLIC_API_TOKEN>`
+> - `PUBLIC_API_TOKEN` 来自后端环境变量（生产环境必须配置）
 
 #### 1. 获取未使用的邮箱
 
@@ -266,7 +304,7 @@ curl -X POST "http://localhost:5001/api/admin/login" \
 
 **描述**: 返回一个尚未使用过的邮箱账号（按创建时间最早排序）。
 
-**认证**: 无需认证
+**认证**: 需要 `X-Public-Token`
 
 **响应示例（成功）**:
 
@@ -295,7 +333,7 @@ curl -X POST "http://localhost:5001/api/admin/login" \
 
 **描述**: 将指定邮箱标记为“已使用”，并记录最后使用时间。
 
-**认证**: 无需认证
+**认证**: 需要 `X-Public-Token`
 
 **路径参数**:
 
@@ -319,7 +357,7 @@ curl -X POST "http://localhost:5001/api/admin/login" \
 
 **描述**: 删除指定邮箱账户，同时删除其标签和缓存的邮件。
 
-**认证**: 无需认证
+**认证**: 需要 `X-Public-Token`
 
 **路径参数**:
 
@@ -343,7 +381,7 @@ curl -X POST "http://localhost:5001/api/admin/login" \
 
 **描述**: 读取该邮箱最新一封邮件，使用服务端智能算法提取验证码，只返回验证码本身。
 
-**认证**: 无需认证
+**认证**: 需要 `X-Public-Token`
 
 **路径参数**:
 
@@ -389,7 +427,7 @@ curl -X POST "http://localhost:5001/api/admin/login" \
 
 **描述**: 获取指定邮箱的最新邮件列表（包含完整正文），支持分页、模糊搜索和文件夹切换
 
-**认证**: 无需认证（邮箱需已在数据库配置）
+**认证**: 需要 `X-Public-Token`（开发环境默认 `dev-public-token-change-me`，生产环境请在 `.env` 配置 `PUBLIC_API_TOKEN`）
 
 **查询参数**:
 - `email` *(必需)*: 邮箱地址
@@ -397,6 +435,7 @@ curl -X POST "http://localhost:5001/api/admin/login" \
 - `page_size` *(可选)*: 每页数量，默认 5，最大 50
 - `folder` *(可选)*: 文件夹名称，默认 `INBOX`
 - `search` *(可选)*: 模糊搜索关键字（匹配主题、发件人、正文预览）
+- `refresh` *(可选)*: 是否强制刷新（`true/1` 时跳过本地缓存并触发 IMAP 拉取，同时更新缓存）
 
 **响应**:
 ```json
@@ -432,13 +471,16 @@ curl -X POST "http://localhost:5001/api/admin/login" \
 **示例**:
 ```bash
 # 分页 + 搜索
-curl "http://localhost:5001/api/messages?email=user@example.com&page=2&page_size=5&search=code"
+curl -H "X-Public-Token: <token>" "http://localhost:5001/api/messages?email=user@example.com&page=2&page_size=5&search=code"
 
 # 切换文件夹
-curl "http://localhost:5001/api/messages?email=user@example.com&folder=Junk&page_size=10"
+curl -H "X-Public-Token: <token>" "http://localhost:5001/api/messages?email=user@example.com&folder=Junk&page_size=10"
+
+# 强制刷新（跳过缓存）
+curl -H "X-Public-Token: <token>" "http://localhost:5001/api/messages?email=user@example.com&page_size=1&refresh=true"
 ```
 
-一次性返回完整正文，前端可直接缓存，查看详情无需二次请求。
+服务端会将邮件写入 SQLite 缓存，默认在 `EMAIL_CACHE_TTL_SECONDS`（开发默认 15 秒）内重复请求会优先返回缓存数据。
 
 ---
 
@@ -447,6 +489,12 @@ curl "http://localhost:5001/api/messages?email=user@example.com&folder=Junk&page
 **端点**: `POST /api/temp-messages`
 
 **描述**: 无需预先配置账户，直接使用 refresh_token 获取邮件，参数与 `/api/messages` 一致
+
+**认证**: 需要 `X-Public-Token`
+
+**调用方 / 状态**:
+- `debug/internal`：主要用于手工调试与第三方集成
+- 管理后台前端当前不使用（仍保留以兼容外部调用）
 
 **⚠️ 重要说明 (v2.3.0)**:
 - 此接口主要供 **API 调用**使用
@@ -482,7 +530,11 @@ curl "http://localhost:5001/api/messages?email=user@example.com&folder=Junk&page
 
 **描述**: 测试指定邮箱账户的连接是否正常，并获取最新的 1 封邮件
 
-**认证**: 无需认证
+**认证**: 需要 `X-Public-Token`
+
+**调用方 / 状态**:
+- `debug/internal`：用于运维/调试验证 refresh_token 与 IMAP 拉取链路
+- 管理后台前端不使用；生产环境建议限制访问（仅对受信任的调用方开放）
 
 **请求体**:
 ```json
@@ -516,6 +568,7 @@ curl "http://localhost:5001/api/messages?email=user@example.com&folder=Junk&page
 **示例**:
 ```bash
 curl -X POST "http://localhost:5001/api/test-email" \
+  -H "X-Public-Token: <token>" \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com"
@@ -526,6 +579,30 @@ curl -X POST "http://localhost:5001/api/test-email" \
 - 验证账户配置是否正确
 - 测试 refresh_token 是否有效
 - 检查 IMAP 连接是否正常
+
+---
+
+#### 4. 邮件管理（管理员接口）
+
+以下接口需要管理员认证（`Authorization: Bearer <token>`），主要用于管理后台。
+
+##### 4.1 删除缓存邮件
+
+**端点**: `DELETE /api/email/{email_account}/{message_id}`
+
+**描述**: 删除 SQLite 缓存中的指定邮件（不保证同步删除远端邮箱）
+
+**调用方 / 状态**:
+- 管理后台：`EmailViewModal` 中的“删除邮件”按钮会调用此接口
+
+##### 4.2 标记缓存邮件为已读
+
+**端点**: `POST /api/email/{email_account}/{message_id}/read`
+
+**描述**: 标记缓存中的邮件为已读（仅影响本地缓存状态）
+
+**调用方 / 状态**:
+- `deprecated/internal`：目前前端未使用，保留供未来扩展或外部工具调用
 
 ---
 

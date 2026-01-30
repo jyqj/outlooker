@@ -242,8 +242,7 @@ class TestSystemConfig:
         config = await load_system_config()
         assert config["email_limit"] == 7
 
-        data = json.loads(temp_config.read_text(encoding="utf-8"))
-        assert data["email_limit"] == 7
+        assert not temp_config.exists()
 
         db_value = await db_manager.get_system_config("email_limit")
         assert db_value == "7"

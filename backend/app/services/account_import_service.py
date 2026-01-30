@@ -3,13 +3,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Tuple
 
-from ..config import CLIENT_ID
-from ..database import db_manager
+from ..database import db_manager, looks_like_guid
 from ..models import ImportAccountData, ImportResult
 from ..security import encrypt_if_needed
+from ..settings import get_settings
 from .account_utils import _normalize_email, _validate_account_info
 from .constants import VALID_MERGE_MODES
 from .email_service import email_manager
+
+_settings = get_settings()
+CLIENT_ID = (_settings.client_id or "").strip()
 
 
 @dataclass
@@ -72,10 +75,13 @@ def _prepare_and_validate_accounts(
 
         entry_email = original_email or normalized_email
         password_plain = (account.password or "").strip()
+        candidate_client_id = (account.client_id or "").strip()
+        if candidate_client_id and not looks_like_guid(candidate_client_id):
+            candidate_client_id = ""
         prepared[normalized_email] = {
             "email": entry_email,
             "password": encrypt_if_needed(password_plain) if password_plain else "",
-            "client_id": (account.client_id or CLIENT_ID).strip() or CLIENT_ID,
+            "client_id": (candidate_client_id or CLIENT_ID).strip() or CLIENT_ID,
             "refresh_token": encrypt_if_needed(refresh_token),
         }
 

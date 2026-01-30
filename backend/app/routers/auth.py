@@ -1,45 +1,57 @@
-from fastapi import APIRouter, HTTPException, Depends, Request
-from pydantic import BaseModel
 from typing import Optional
+import logging
 
-from ..jwt_auth import (
-    authenticate_admin, create_access_token,
-    verify_legacy_token, ACCESS_TOKEN_EXPIRE_MINUTES
+from fastapi import APIRouter, HTTPException, Request, Response, status
+
+from ..database import db_manager
+from ..exceptions import (
+    AccountLockedError,
+    AuthenticationError,
+    InvalidCredentialsError,
 )
-from ..models import AdminLoginRequest, AdminLoginResponse, AdminTokenRequest, ApiResponse
-from ..config import logger, ENABLE_LEGACY_ADMIN_TOKEN
-from ..rate_limiter import rate_limiter, auditor
+from ..jwt_auth import (
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    decode_access_token,
+)
+from ..models import (
+    AdminLoginRequest,
+    AdminLoginResponse,
+    AdminProfile,
+    ApiResponse,
+    LogoutRequest,
+    TokenRefreshRequest,
+)
+from ..rate_limiter import auditor, rate_limiter
+from ..services import admin_auth_service
+from ..settings import get_settings
+from ..utils.request_utils import get_client_ip
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin", tags=["管理员认证"])
+settings = get_settings()
 
-def get_client_ip(request: Request) -> str:
-    """获取客户端真实 IP 地址
+def _set_refresh_cookie(response: Response, refresh_token: str, max_age: int) -> None:
+    """根据配置写入刷新令牌 Cookie（可选）"""
+    if not settings.admin_refresh_cookie_enabled:
+        return
+    response.set_cookie(
+        key=settings.admin_refresh_cookie_name,
+        value=refresh_token,
+        max_age=max_age,
+        httponly=True,
+        secure=settings.admin_refresh_cookie_secure,
+        samesite="strict",
+        path=settings.admin_refresh_cookie_path,
+    )
 
-    优先从 X-Forwarded-For 或 X-Real-IP 头获取(适配反向代理)
-    否则使用直连 IP
-    """
-    # 检查反向代理头
-    forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        # X-Forwarded-For 可能包含多个 IP,取第一个
-        return forwarded.split(",")[0].strip()
-
-    real_ip = request.headers.get("X-Real-IP")
-    if real_ip:
-        return real_ip.strip()
-
-    # 使用直连 IP
-    if request.client:
-        return request.client.host
-
-    return "unknown"
-
-def verify_admin_token(token: str) -> bool:
-    """验证管理令牌（向后兼容旧的固定 token）"""
-    return verify_legacy_token(token)
 
 @router.post("/login", response_model=AdminLoginResponse)
-async def admin_login(login_request: AdminLoginRequest, request: Request):
+async def admin_login(
+    login_request: AdminLoginRequest,
+    request: Request,
+    response: Response,
+) -> AdminLoginResponse:
     """管理员登录
 
     使用用户名和密码登录，返回 JWT token。
@@ -69,66 +81,113 @@ async def admin_login(login_request: AdminLoginRequest, request: Request):
                 client_ip, username, False,
                 f"账户已锁定,剩余{remaining_seconds}秒"
             )
-            raise HTTPException(
-                status_code=429,
-                detail=f"登录失败次数过多,请在 {remaining_seconds} 秒后重试"
+            raise AccountLockedError(
+                message=f"登录失败次数过多,请在 {remaining_seconds} 秒后重试",
+                lockout_remaining=remaining_seconds
             )
 
-        # 2. 验证用户名和密码
-        if not authenticate_admin(username, login_request.password):
-            # 记录失败尝试
-            await rate_limiter.record_attempt(client_ip, username, False)
-            await auditor.log_attempt(client_ip, username, False, "用户名或密码错误")
-
-            # 获取当前失败次数
-            attempt_count = await rate_limiter.get_attempt_count(client_ip, username)
-            remaining_attempts = 5 - attempt_count
-
-            if remaining_attempts > 0:
-                detail = f"用户名或密码错误,剩余尝试次数: {remaining_attempts}"
-            else:
-                detail = "用户名或密码错误,账户已被锁定15分钟"
-
-            raise HTTPException(status_code=401, detail=detail)
+        # 2. 验证用户名和密码（数据库管理员）
+        admin = await admin_auth_service.authenticate(username, login_request.password)
 
         # 3. 认证成功
-        # 记录成功尝试(会清除失败记录)
         await rate_limiter.record_attempt(client_ip, username, True)
         await auditor.log_attempt(client_ip, username, True)
 
-        # 创建 JWT token
-        access_token = create_access_token(
-            data={"sub": username}
+        # 创建 Token 对
+        token_pair = await admin_auth_service.issue_token_pair(
+            admin=admin,
+            user_agent=request.headers.get("user-agent"),
+            ip_address=client_ip,
         )
+
+        _set_refresh_cookie(response, token_pair["refresh_token"], token_pair["refresh_expires_in"])
 
         logger.info(f"管理员登录成功: 用户名={username}, IP={client_ip}")
 
         return AdminLoginResponse(
-            access_token=access_token,
+            access_token=token_pair["access_token"],
+            refresh_token=token_pair["refresh_token"],
             token_type="bearer",
-            expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60
+            expires_in=token_pair["expires_in"],
+            refresh_expires_in=token_pair["refresh_expires_in"],
+            user=AdminProfile(
+                id=admin["id"],
+                username=admin["username"],
+                role=admin.get("role", "admin"),
+                is_active=bool(admin.get("is_active", True)),
+            ),
         )
 
-    except HTTPException:
+    except (HTTPException, AccountLockedError, InvalidCredentialsError):
         raise
     except Exception as e:
         logger.error(f"管理员登录异常: {e}")
         await auditor.log_attempt(client_ip, username, False, f"系统错误: {str(e)}")
-        raise HTTPException(status_code=500, detail="登录失败")
+        raise AuthenticationError(message="登录失败，请稍后重试")
 
-if ENABLE_LEGACY_ADMIN_TOKEN:
-    @router.post("/verify")
-    async def admin_verify(request: AdminTokenRequest) -> ApiResponse:
-        """验证管理令牌（仅在显式启用 Legacy token 时开放）"""
-        try:
-            if verify_admin_token(request.token):
-                return ApiResponse(success=True, message="验证成功")
-            return ApiResponse(success=False, message="令牌无效")
-        except Exception as e:
-            logger.error(f"验证管理令牌失败: {e}")
-            return ApiResponse(success=False, message="验证失败")
-else:
-    @router.post("/verify")
-    async def admin_verify_disabled() -> ApiResponse:
-        """默认禁用 Legacy token 验证接口"""
-        raise HTTPException(status_code=404, detail="Not Found")
+
+@router.post("/refresh", response_model=AdminLoginResponse)
+async def refresh_token(
+    request: Request,
+    response: Response,
+    refresh_request: TokenRefreshRequest,
+) -> AdminLoginResponse:
+    """刷新访问令牌"""
+    refresh_token = refresh_request.refresh_token or request.cookies.get(settings.admin_refresh_cookie_name)
+    if not refresh_token:
+        raise AuthenticationError(message="缺少刷新令牌")
+
+    client_ip = get_client_ip(request)
+    try:
+        token_pair = await admin_auth_service.rotate_refresh_token(
+            refresh_token=refresh_token,
+            user_agent=request.headers.get("user-agent"),
+            ip_address=client_ip,
+        )
+        _set_refresh_cookie(response, token_pair["refresh_token"], token_pair["refresh_expires_in"])
+
+        token_payload = decode_access_token(token_pair["access_token"])
+        if not token_payload:
+            raise AuthenticationError(message="令牌无效")
+
+        admin_id = token_payload.get("admin_id")
+        admin = await db_manager.get_admin_by_id(admin_id) if admin_id is not None else None
+        if not admin:
+            raise AuthenticationError(message="账号不存在或不可用")
+
+        return AdminLoginResponse(
+            access_token=token_pair["access_token"],
+            refresh_token=token_pair["refresh_token"],
+            token_type="bearer",
+            expires_in=token_pair["expires_in"],
+            refresh_expires_in=token_pair["refresh_expires_in"],
+            user=AdminProfile(
+                id=int(admin["id"]),
+                username=admin["username"],
+                role=admin.get("role", "admin"),
+                is_active=bool(admin.get("is_active", True)),
+            ),
+        )
+    except (HTTPException, AuthenticationError):
+        raise
+    except Exception as e:
+        logger.error(f"刷新令牌失败: {e}")
+        raise AuthenticationError(message="刷新失败")
+
+
+@router.post("/logout", response_model=ApiResponse)
+async def admin_logout(request: Request, payload: LogoutRequest, response: Response) -> ApiResponse:
+    """注销并撤销刷新令牌"""
+    refresh_token = payload.refresh_token or request.cookies.get(settings.admin_refresh_cookie_name)
+    if not refresh_token:
+        return ApiResponse(success=True, message="已退出")
+
+    try:
+        await admin_auth_service.revoke_refresh_token(refresh_token)
+    finally:
+        if settings.admin_refresh_cookie_enabled:
+            response.delete_cookie(
+                key=settings.admin_refresh_cookie_name,
+                path=settings.admin_refresh_cookie_path,
+            )
+    return ApiResponse(success=True, message="已退出")

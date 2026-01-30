@@ -6,70 +6,41 @@ IMAP邮件客户端模块
 
 import asyncio
 import imaplib
-import email
 import logging
 import time
-import re
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Dict, List, Optional
-from email.header import decode_header
-from email.errors import MessageError
-from email import utils as email_utils
 from fastapi import HTTPException
 
-from .config import IMAP_SERVER, IMAP_PORT, INBOX_FOLDER_NAME
 from .auth import get_access_token
 from .database import db_manager
+from . import exceptions as _exceptions
+from .imap_parser import (
+    build_message_dict,
+    fetch_and_parse_single_email,
+    parse_email_body,
+    parse_email_header,
+)
+from . import imap_parser as _imap_parser
+from .settings import get_settings
+
+settings = get_settings()
+IMAP_SERVER = settings.imap_server
+IMAP_PORT = settings.imap_port
+INBOX_FOLDER_NAME = settings.inbox_folder_name
 
 logger = logging.getLogger(__name__)
 
-# ============================================================================
-# 辅助函数
-# ============================================================================
-
-def decode_header_value(header_value):
-    """解码邮件头部信息"""
-    if header_value is None:
-        return ""
-    decoded_string = ""
-    try:
-        parts = decode_header(str(header_value))
-        for part, charset in parts:
-            if isinstance(part, bytes):
-                try:
-                    decoded_string += part.decode(charset if charset else 'utf-8', 'replace')
-                except LookupError:
-                    decoded_string += part.decode('utf-8', 'replace')
-            else:
-                decoded_string += str(part)
-    except Exception:
-        if isinstance(header_value, str):
-            return header_value
-        try:
-            return str(header_value, 'utf-8', 'replace') if isinstance(header_value, bytes) else str(header_value)
-        except Exception:
-            return "[Header Decode Error]"
-    return decoded_string
-
-
+# 兼容旧的 import 路径：tests/外部模块可能从 app.imap_client 导入这些符号
+IMAPError = _exceptions.IMAPError
+IMAPConnectionError = _exceptions.IMAPConnectionError
+IMAPAuthenticationError = _exceptions.IMAPAuthenticationError
+decode_header_value = _imap_parser.decode_header_value
 
 # ============================================================================
 # IMAP客户端类
 # ============================================================================
-
-class IMAPError(Exception):
-    """IMAP 操作基础异常"""
-    pass
-
-class IMAPConnectionError(IMAPError):
-    """IMAP 连接失败"""
-    pass
-
-class IMAPAuthenticationError(IMAPError):
-    """IMAP 认证失败"""
-    pass
-
 class IMAPEmailClient:
     """IMAP邮件客户端（按需连接模式）"""
     
@@ -92,7 +63,7 @@ class IMAPEmailClient:
     
     def is_token_expired(self) -> bool:
         """检查access token是否过期或即将过期"""
-        buffer_time = 300  # 5分钟缓冲时间
+        buffer_time = settings.imap_buffer_time_seconds
         return datetime.now().timestamp() + buffer_time >= self.expires_at
     
     async def ensure_token_valid(self):
@@ -106,13 +77,21 @@ class IMAPEmailClient:
         """刷新访问令牌"""
         try:
             logger.info(f"🔑 正在刷新 {self.email} 的访问令牌...")
-            access_token = await get_access_token(self.refresh_token)
-            
+            access_token, new_refresh_token = await get_access_token(self.refresh_token)
+
             if access_token:
                 self.access_token = access_token
-                self.expires_at = time.time() + 3600  # 默认1小时过期
+                self.expires_at = time.time() + settings.imap_token_expire_seconds
                 expires_at_str = datetime.fromtimestamp(self.expires_at).strftime('%Y-%m-%d %H:%M:%S')
                 logger.info(f"✓ Token刷新成功（有效期至: {expires_at_str}）")
+                if new_refresh_token and new_refresh_token != self.refresh_token:
+                    self.refresh_token = new_refresh_token
+                    try:
+                        updated = await db_manager.update_account(self.email, refresh_token=new_refresh_token)
+                        if updated:
+                            logger.info("已将刷新令牌写回数据库: %s", self.email)
+                    except Exception as exc:
+                        logger.warning("刷新令牌回写失败(%s): %s", self.email, exc)
             else:
                 raise HTTPException(status_code=401, detail="Failed to refresh access token")
                 
@@ -128,7 +107,9 @@ class IMAPEmailClient:
         """创建IMAP连接（按需创建，带超时和重试）"""
         await self.ensure_token_valid()
         
-        max_retries = 3
+        max_retries = settings.imap_max_retries
+        timeout = settings.imap_operation_timeout
+        
         for attempt in range(max_retries):
             try:
                 if attempt > 0:
@@ -150,9 +131,9 @@ class IMAPEmailClient:
                         error_message = data[0].decode('utf-8', 'replace') if data and data[0] else "未知认证错误"
                         raise Exception(f"IMAP XOAUTH2 认证失败: {error_message} (Type: {typ})")
                 
-                # 在线程池中执行，带10秒超时
+                # 在线程池中执行，带配置的超时
                 imap_conn = await asyncio.wait_for(
-                    asyncio.to_thread(_sync_connect), timeout=10.0
+                    asyncio.to_thread(_sync_connect), timeout=float(timeout)
                 )
                 logger.info(f"🔌 IMAP连接已建立 → {mailbox_to_select}")
                 return imap_conn
@@ -209,213 +190,24 @@ class IMAPEmailClient:
                 self.close_imap_connection(imap_conn)
 
     # ========================================================================
-    # 邮件解析辅助函数 (重构后提取的独立函数)
+    # 邮件解析辅助函数（委托给 imap_parser）
     # ========================================================================
 
     @staticmethod
     def _parse_email_header(email_message) -> Dict:
-        """解析邮件头部信息
-
-        Args:
-            email_message: email.message.Message 对象
-
-        Returns:
-            包含 subject, from_name, from_email, to_str, date_str 的字典
-        """
-        # 解析基本头部字段
-        subject = decode_header_value(email_message['Subject']) or "(No Subject)"
-        from_str = decode_header_value(email_message['From']) or "(Unknown Sender)"
-        to_str = decode_header_value(email_message['To']) or ""
-        date_str = email_message['Date'] or "(Unknown Date)"
-
-        # 解析From字段,提取姓名和邮箱
-        from_name = "(Unknown)"
-        from_email = ""
-        if '<' in from_str and '>' in from_str:
-            from_name = from_str.split('<')[0].strip().strip('"')
-            from_email = from_str.split('<')[1].split('>')[0].strip()
-        else:
-            from_email = from_str.strip()
-            if '@' in from_email:
-                from_name = from_email.split('@')[0]
-
-        # 解析并格式化日期
-        try:
-            dt_obj = email_utils.parsedate_to_datetime(date_str)
-            if dt_obj:
-                date_str = dt_obj.strftime('%Y-%m-%d %H:%M:%S')
-        except Exception:
-            date_str = date_str[:25] if len(date_str) > 25 else date_str
-
-        return {
-            'subject': subject,
-            'from_name': from_name,
-            'from_email': from_email,
-            'to_str': to_str,
-            'date_str': date_str,
-        }
+        return parse_email_header(email_message)
 
     @staticmethod
     def _parse_email_body(email_message) -> Dict:
-        """解析邮件正文(支持multipart和非multipart)
-
-        Args:
-            email_message: email.message.Message 对象
-
-        Returns:
-            包含 body_content, body_type, body_preview 的字典
-        """
-        body_content = ""
-        body_type = "text"
-        body_preview = ""
-
-        if email_message.is_multipart():
-            # 处理multipart邮件
-            html_content = None
-            text_content = None
-
-            for part in email_message.walk():
-                content_type = part.get_content_type()
-                content_disposition = str(part.get("Content-Disposition"))
-
-                # 跳过附件
-                if 'attachment' not in content_disposition.lower():
-                    try:
-                        charset = part.get_content_charset() or 'utf-8'
-                        payload = part.get_payload(decode=True)
-
-                        if content_type == 'text/html' and not html_content:
-                            html_content = payload.decode(charset, errors='replace')
-                        elif content_type == 'text/plain' and not text_content:
-                            text_content = payload.decode(charset, errors='replace')
-                    except Exception:
-                        continue
-
-            # 优先使用HTML内容
-            if html_content:
-                body_content = html_content
-                body_type = "html"
-                # 生成预览文本(移除HTML标签)
-                import re
-                body_preview = re.sub('<[^<]+?>', '', html_content)[:150]
-            elif text_content:
-                body_content = text_content
-                body_type = "text"
-                body_preview = text_content[:150]
-            else:
-                body_content = "[未找到可读的邮件内容]"
-                body_preview = "[未找到可读的邮件内容]"
-        else:
-            # 处理非multipart邮件
-            try:
-                charset = email_message.get_content_charset() or 'utf-8'
-                payload = email_message.get_payload(decode=True)
-                body_content = payload.decode(charset, errors='replace')
-
-                # 检查是否为HTML内容
-                if '<html' in body_content.lower() or '<body' in body_content.lower():
-                    body_type = "html"
-                    import re
-                    body_preview = re.sub('<[^<]+?>', '', body_content)[:150]
-                else:
-                    body_preview = body_content[:150]
-            except Exception:
-                body_content = "[Failed to decode email body]"
-                body_preview = "[Failed to decode email body]"
-
-        if not body_content:
-            body_content = "[未找到可读的文本内容]"
-            body_preview = "[未找到可读的文本内容]"
-
-        return {
-            'body_content': body_content,
-            'body_type': body_type,
-            'body_preview': body_preview,
-        }
+        return parse_email_body(email_message)
 
     @staticmethod
     def _build_message_dict(uid_bytes: bytes, header_info: Dict, body_info: Dict) -> Dict:
-        """构建完整的消息字典
-
-        Args:
-            uid_bytes: 邮件UID(字节格式)
-            header_info: 头部信息字典
-            body_info: 正文信息字典
-
-        Returns:
-            符合API格式的消息字典
-        """
-        return {
-            'id': uid_bytes.decode('utf-8'),
-            'subject': header_info['subject'],
-            'receivedDateTime': header_info['date_str'],
-            'sender': {
-                'emailAddress': {
-                    'address': header_info['from_email'],
-                    'name': header_info['from_name']
-                }
-            },
-            'from': {
-                'emailAddress': {
-                    'address': header_info['from_email'],
-                    'name': header_info['from_name']
-                }
-            },
-            'toRecipients': [
-                {'emailAddress': {'address': header_info['to_str'], 'name': header_info['to_str']}}
-            ] if header_info['to_str'] else [],
-            'body': {
-                'content': body_info['body_content'],
-                'contentType': body_info['body_type']
-            },
-            'bodyPreview': body_info['body_preview']
-        }
+        return build_message_dict(uid_bytes, header_info, body_info)
 
     @staticmethod
     def _fetch_and_parse_single_email(imap_conn, uid_bytes: bytes) -> Optional[Dict]:
-        """获取并解析单封邮件
-
-        Args:
-            imap_conn: IMAP连接对象
-            uid_bytes: 邮件UID(字节格式)
-
-        Returns:
-            消息字典,失败时返回None
-        """
-        try:
-            # 一次性获取完整邮件内容(RFC822)
-            typ, msg_data = imap_conn.uid('fetch', uid_bytes, '(RFC822)')
-
-            if typ == 'OK' and msg_data and msg_data[0] is not None:
-                raw_email_bytes = None
-                if isinstance(msg_data[0], tuple) and len(msg_data[0]) == 2:
-                    raw_email_bytes = msg_data[0][1]
-
-                if raw_email_bytes:
-                    email_message = email.message_from_bytes(raw_email_bytes)
-
-                    # 解析头部
-                    header_info = IMAPEmailClient._parse_email_header(email_message)
-
-                    # 解析正文
-                    body_info = IMAPEmailClient._parse_email_body(email_message)
-
-                    # 构建消息字典
-                    message = IMAPEmailClient._build_message_dict(uid_bytes, header_info, body_info)
-
-                    return message
-        except imaplib.IMAP4.abort as exc:
-            logger.error(f"IMAP 会话中断（UID: {uid_bytes}）: {exc}")
-            raise IMAPConnectionError(f"IMAP session aborted: {exc}") from exc
-        except imaplib.IMAP4.error as exc:
-            logger.error(f"IMAP 操作失败（UID: {uid_bytes}）: {exc}")
-            raise IMAPConnectionError(f"IMAP fetch failed: {exc}") from exc
-        except (MessageError, UnicodeDecodeError, ValueError) as exc:
-            logger.warning(f"解析邮件（UID: {uid_bytes}）失败，跳过: {exc}")
-        except Exception as exc:
-            logger.exception(f"处理邮件UID {uid_bytes}时出现未知错误: {exc}")
-
-        return None
+        return fetch_and_parse_single_email(imap_conn, uid_bytes)
 
     @staticmethod
     def _scan_email_uids(imap_conn, folder_id: str, top: int) -> List[bytes]:
@@ -450,7 +242,7 @@ class IMAPEmailClient:
 
         return uids
 
-    async def _cache_messages(self, messages: List[Dict]) -> None:
+    async def _cache_messages(self, folder_id: str, messages: List[Dict]) -> None:
         """批量缓存邮件到数据库
 
         Args:
@@ -462,7 +254,7 @@ class IMAPEmailClient:
                 if not msg_id:
                     continue
                 try:
-                    await db_manager.cache_email(self.email, msg_id, msg)
+                    await db_manager.cache_email(self.email, msg_id, msg, folder=folder_id)
                 except Exception as cache_exc:
                     logger.debug(f"缓存邮件失败(忽略): {cache_exc}")
         except Exception as exc:
@@ -513,7 +305,7 @@ class IMAPEmailClient:
                 messages = await asyncio.to_thread(_sync_get_messages_full)
 
                 # 将结果写入本地缓存
-                await self._cache_messages(messages)
+                await self._cache_messages(folder_id, messages)
 
             total_time = (time.time() - start_time) * 1000
             logger.info(f"✅ 完成！总耗时: {total_time:.0f}ms | 获取 {len(messages)} 封完整邮件（已包含正文，前端可缓存）")
@@ -530,6 +322,92 @@ class IMAPEmailClient:
             raise HTTPException(status_code=503, detail=f"Connection failed: {str(e)}")
         except Exception as e:
             logger.error(f"获取邮件失败 {self.email}: {e}")
+            raise HTTPException(status_code=500, detail="Failed to retrieve emails")
+
+    async def get_messages_since_uid(
+        self,
+        folder_id: str = INBOX_FOLDER_NAME,
+        since_uid: int = 0,
+        max_count: int = 50,
+    ) -> List[Dict]:
+        """增量获取指定 UID 之后的新邮件（包含正文），并写入本地缓存。
+
+        - 仅在缓存已有数据且需要刷新时使用
+        - 返回“新邮件列表”（最新在前）；调用方可再从缓存读取组合结果
+        """
+        import time
+
+        try:
+            since_uid_int = int(since_uid or 0)
+        except (TypeError, ValueError):
+            since_uid_int = 0
+        if since_uid_int < 0:
+            since_uid_int = 0
+
+        try:
+            max_count_int = int(max_count or 0)
+        except (TypeError, ValueError):
+            max_count_int = 0
+        max_count_int = max(0, max_count_int)
+        if max_count_int == 0:
+            return []
+
+        start_time = time.time()
+        logger.info(
+            "📨 增量刷新 %s (%s) since_uid=%s",
+            self.email,
+            folder_id,
+            since_uid_int,
+        )
+
+        try:
+            async with self._imap_connection(folder_id) as imap_conn:
+
+                def _sync_fetch_new_messages_full():
+                    uid_range = f"{since_uid_int + 1}:*"
+                    typ, uid_data = imap_conn.uid("search", None, "UID", uid_range)
+                    if typ != "OK":
+                        raise Exception(
+                            f"在 '{folder_id}' 中搜索新邮件失败 (status: {typ})。"
+                        )
+
+                    if not uid_data or not uid_data[0]:
+                        return []
+
+                    uids = uid_data[0].split()
+                    # 只取最新的 max_count 条
+                    if len(uids) > max_count_int:
+                        uids = uids[-max_count_int:]
+
+                    messages: List[Dict] = []
+                    for uid_bytes in reversed(uids):  # 最新在前
+                        msg = self._fetch_and_parse_single_email(imap_conn, uid_bytes)
+                        if msg:
+                            messages.append(msg)
+                    return messages
+
+                messages = await asyncio.to_thread(_sync_fetch_new_messages_full)
+                await self._cache_messages(folder_id, messages)
+
+            total_time = (time.time() - start_time) * 1000
+            logger.info(
+                "✅ 增量刷新完成: 新增 %s 封邮件 (耗时: %.0fms)",
+                len(messages),
+                total_time,
+            )
+            return messages
+
+        except asyncio.CancelledError:
+            logger.warning("增量获取邮件操作被取消 (%s)", self.email)
+            raise
+        except IMAPAuthenticationError as e:
+            logger.error(f"认证失败 {self.email}: {e}")
+            raise HTTPException(status_code=401, detail=f"Authentication failed: {str(e)}")
+        except IMAPConnectionError as e:
+            logger.error(f"连接失败 {self.email}: {e}")
+            raise HTTPException(status_code=503, detail=f"Connection failed: {str(e)}")
+        except Exception as e:
+            logger.error(f"增量获取邮件失败 {self.email}: {e}")
             raise HTTPException(status_code=500, detail="Failed to retrieve emails")
 
     async def cleanup(self):

@@ -22,3 +22,10 @@ def jwt_headers():
     token = create_access_token({"sub": "admin"})
     return {"Authorization": f"Bearer {token}"}
 
+
+@pytest.fixture(autouse=True)
+def reset_public_api_rate_limiter():
+    """重置公共接口限流状态，避免用例间互相影响。"""
+    from app.rate_limiter import public_api_rate_limiter
+
+    public_api_rate_limiter._records.clear()

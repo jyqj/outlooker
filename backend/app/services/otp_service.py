@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 
 def _clean_html(html: str) -> str:
@@ -190,13 +190,15 @@ def extract_verification_code(text: str) -> Optional[str]:
 
     # 过滤掉明显是年份的候选（例如 2024），降低误报概率
     filtered = [
-        c for c in candidates if not re.fullmatch(r"20[0-9]{2}", c["code"])
+        c
+        for c in candidates
+        if not re.fullmatch(r"20[0-9]{2}", cast(str, c["code"]))
     ]
     if not filtered:
         return None
 
     filtered.sort(key=lambda c: c["score"], reverse=True)
-    return filtered[0]["code"]
+    return cast(str, filtered[0]["code"])
 
 
 def extract_code_from_message(message: Dict[str, Any]) -> Optional[str]:
@@ -226,5 +228,4 @@ __all__ = [
     "extract_verification_code",
     "extract_code_from_message",
 ]
-
 

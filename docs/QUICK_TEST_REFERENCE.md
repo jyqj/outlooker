@@ -121,6 +121,20 @@ sqlite3 data/outlook_manager.db \
 
 ---
 
+## 🧩 类型检查（mypy）
+
+用于增量提升后端类型标注质量（初始仅检查 `backend/app/services`，后续可逐步扩展）。
+
+```bash
+# 1) 安装依赖（包含 mypy）
+backend/venv/bin/python -m pip install -r backend/requirements.txt
+
+# 2) 运行 mypy（使用仓库根目录 mypy.ini）
+backend/venv/bin/python -m mypy --config-file mypy.ini
+```
+
+---
+
 ## ⚠️ 故障排查
 
 ### 应用无法启动

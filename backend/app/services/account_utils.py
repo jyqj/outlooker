@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import logging
 from typing import Dict, List, Optional, Tuple
 
-from ..config import CLIENT_ID, logger
 from ..database import looks_like_guid
+from ..settings import get_settings
 from ..utils.pagination import normalize_email
 from .constants import ACCOUNTS_CONFIG_FILES
+
+logger = logging.getLogger(__name__)
+_settings = get_settings()
+CLIENT_ID = (_settings.client_id or "").strip()
 
 
 def _normalize_email(email: str) -> str:
@@ -32,20 +37,33 @@ def _validate_account_info(email: str, account_info: Dict[str, str]) -> List[str
 
 
 def parse_account_line(line: str) -> Optional[Tuple[str, Dict[str, str]]]:
-    """解析配置文件中的账户行 (公共函数)"""
+    """解析配置文件中的账户行 (公共函数)
+    
+    支持的格式：
+    - 2字段: 邮箱----refresh_token
+    - 4字段: 邮箱----密码----refresh_token----client_id
+    - 6字段: 邮箱----密码----client_id----refresh_token----恢复邮箱----恢复密码
+    """
     raw = (line or "").strip()
     if not raw or raw.startswith("#"):
         return None
 
     parts = [p.strip() for p in raw.split("----")]
-    if len(parts) >= 4:
+    num_parts = len(parts)
+    
+    if num_parts >= 6:
+        # 6字段格式: 邮箱----密码----client_id----refresh_token----恢复邮箱----恢复密码
+        email, password, client_id, refresh_token = parts[0], parts[1], parts[2], parts[3]
+    elif num_parts >= 4:
+        # 4字段格式: 邮箱----密码----refresh_token----client_id
         email, password, refresh_token, client_id = parts[:4]
-    elif len(parts) == 2:
+    elif num_parts == 2:
+        # 2字段格式: 邮箱----refresh_token
         email, refresh_token = parts
         password = ""
         client_id = CLIENT_ID
     else:
-        raise ValueError("格式需要2或4个字段")
+        raise ValueError("格式需要2、4或6个字段")
 
     email = email.strip()
     refresh_token = refresh_token.strip()

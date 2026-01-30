@@ -6,8 +6,14 @@ Microsoft邮件管理API
 """
 
 import asyncio
+import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
+
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.starlette import StarletteIntegration
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
@@ -17,12 +23,35 @@ from fastapi.exceptions import RequestValidationError
 
 # 导入自定义模块
 from .database import db_manager
-from .config import logger, ALLOWED_ORIGINS
-from .services import email_manager, load_accounts_config
+from .exceptions import AppException
+from .models import ApiResponse
+from .services import email_manager, load_accounts_config, admin_auth_service
 from .routers import auth, accounts, emails, system, public_accounts
 from .settings import get_settings
+from .version import __version__
+
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
+
+# Initialize Sentry for error tracking (only if DSN is configured)
+sentry_dsn = os.getenv("SENTRY_DSN")
+if sentry_dsn:
+    sentry_sdk.init(
+        dsn=sentry_dsn,
+        environment=settings.app_env,
+        integrations=[
+            StarletteIntegration(),
+            FastApiIntegration(),
+        ],
+        # Performance Monitoring
+        traces_sample_rate=0.1 if settings.is_production else 1.0,
+        # Set profiles_sample_rate to profile requests
+        profiles_sample_rate=0.1 if settings.is_production else 1.0,
+    )
+    logger.info("Sentry error tracking initialized")
+
+ALLOWED_ORIGINS = settings.allowed_origins
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 STATIC_DIR = (PROJECT_ROOT / settings.static_dir).resolve()
 
@@ -51,6 +80,11 @@ async def lifespan(app: FastAPI):
             raise RuntimeError(message)
 
     logger.info("初始化数据库...")
+    # 引导默认管理员（基于环境变量）
+    try:
+        await admin_auth_service.bootstrap_default_admin()
+    except Exception as exc:
+        logger.error("初始化默认管理员失败: %s", exc)
     yield
     logger.info("正在关闭邮件管理系统...")
     try:
@@ -63,7 +97,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Outlook 邮件管理系统",
     description="基于 FastAPI + React 的现代化邮件管理系统",
-    version="2.3.0",
+    version=__version__,
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -90,8 +124,30 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     logger.error(f"Pydantic验证错误: {exc}")
     return JSONResponse(
         status_code=422,
-        content={"detail": exc.errors(), "message": "数据验证失败"}
+        content=ApiResponse(
+            success=False,
+            message="数据验证失败",
+            error_code="VALIDATION_ERROR",
+            data={"details": exc.errors()}
+        ).model_dump()
     )
+
+
+# 添加自定义异常处理器
+@app.exception_handler(AppException)
+async def app_exception_handler(request: Request, exc: AppException):
+    """统一处理应用自定义异常"""
+    logger.warning(f"应用异常: {exc.error_code} - {exc.message}")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=ApiResponse(
+            success=False,
+            message=exc.message,
+            error_code=exc.error_code,
+            data=exc.details if exc.details else None
+        ).model_dump()
+    )
+
 
 # ============================================================================
 # 静态文件与SPA路由
@@ -165,7 +221,15 @@ if __name__ == '__main__':
         # Web模式
         print("启动Web服务器...")
         print("访问 http://localhost:5001 查看前端界面")
-        uvicorn.run("app.mail_api:app", host="0.0.0.0", port=5001, log_level="info", reload=True)
+        reload_flag = os.getenv("UVICORN_RELOAD", "")
+        reload_enabled = reload_flag.strip().lower() in {"1", "true", "yes", "on"}
+        uvicorn.run(
+            "app.mail_api:app",
+            host="0.0.0.0",
+            port=5001,
+            log_level="info",
+            reload=reload_enabled,
+        )
     else:
         # 命令行模式
         asyncio.run(main())

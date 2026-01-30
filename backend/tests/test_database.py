@@ -17,6 +17,7 @@ async def reset_database():
         cursor = conn.cursor()
         cursor.execute("DELETE FROM account_tags")
         cursor.execute("DELETE FROM email_cache")
+        cursor.execute("DELETE FROM email_cache_meta")
         cursor.execute("DELETE FROM system_config")
         conn.commit()
     yield

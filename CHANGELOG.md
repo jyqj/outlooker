@@ -5,6 +5,92 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] - 2026-01-28
+
+### 🚀 新功能
+
+#### E2E 测试 (FUTURE-001)
+- ✅ 引入 Playwright E2E 测试框架
+- ✅ 添加登录流程测试 (`e2e/login.spec.ts`)
+  - 表单显示验证
+  - 空凭据错误处理
+  - 无效凭据错误处理
+  - 成功登录重定向
+  - 安全性测试（频率限制）
+- ✅ 添加验证码获取流程测试 (`e2e/verification.spec.ts`)
+  - 表单显示验证
+  - 邮箱验证
+  - 加载状态测试
+  - 响应式布局测试
+- ✅ 支持多浏览器测试 (Chromium, Firefox, WebKit, Mobile)
+- ✅ 新增 `npm run test:e2e` 和 `npm run test:e2e:ui` 命令
+
+#### 错误监控 APM (FUTURE-002)
+- ✅ 集成 Sentry Browser SDK (前端)
+  - 自动错误捕获
+  - 性能监控 (Browser Tracing)
+  - 会话回放 (Session Replay)
+- ✅ 集成 Sentry Python SDK (后端)
+  - FastAPI 自动集成
+  - 性能追踪
+- ✅ 通过环境变量配置 (`SENTRY_DSN`, `VITE_SENTRY_DSN`)
+- ✅ 开发/生产环境自动调整采样率
+
+#### 国际化 i18n (FUTURE-003)
+- ✅ 引入 react-i18next 国际化框架
+- ✅ 支持中文 (zh-CN) 和英文 (en) 双语
+- ✅ 完整的翻译文件覆盖所有 UI 文案
+- ✅ 语言切换组件 (`LanguageSwitcher`)
+- ✅ 自动检测浏览器语言
+- ✅ 语言偏好持久化 (localStorage)
+
+### 📊 性能优化决策 (PERF-001-C)
+- ✅ 完成 IMAP 连接池化调研结论
+- ✅ 决策：**暂不实现连接池**，采用方案 C（保持现状 + 缓存策略优化）
+- ✅ 原因：当前流量较低，现有客户端复用已足够，实现复杂度高
+- ✅ 更新 `docs/PERF_IMAP_POOLING.md` 文档
+
+### 📦 依赖更新
+
+**前端新增依赖:**
+- `@sentry/react`: ^8.45.0
+- `@playwright/test`: ^1.49.0
+- `i18next`: ^24.2.2
+- `react-i18next`: ^15.4.1
+
+**后端新增依赖:**
+- `sentry-sdk[fastapi]`: ==2.19.2
+
+### 📁 新增文件
+
+```
+frontend/
+├── playwright.config.ts         # Playwright 配置
+├── e2e/
+│   ├── login.spec.ts            # 登录 E2E 测试
+│   └── verification.spec.ts     # 验证码 E2E 测试
+└── src/
+    ├── i18n/
+    │   ├── index.ts             # i18n 配置入口
+    │   └── locales/
+    │       ├── zh-CN.json       # 中文翻译
+    │       └── en.json          # 英文翻译
+    └── components/
+        └── LanguageSwitcher.tsx # 语言切换组件
+```
+
+### 🔧 配置更新
+
+**新增环境变量 (.env.example):**
+- `SENTRY_DSN`: 后端 Sentry DSN
+- `VITE_SENTRY_DSN`: 前端 Sentry DSN
+
+**新增 npm 脚本:**
+- `test:e2e`: 运行 Playwright E2E 测试
+- `test:e2e:ui`: 运行 Playwright UI 模式
+
+---
+
 ## [2.3.0] - 2025-11-20
 
 ### 🎨 前端全面优化和功能增强

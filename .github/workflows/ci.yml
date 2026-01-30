@@ -11,13 +11,14 @@ jobs:
   backend:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
 
       - name: Install Python dependencies
         run: |
@@ -31,16 +32,34 @@ jobs:
       - name: Mypy type check
         run: mypy backend/app --config-file mypy.ini
 
-      - name: Pytest
+      - name: Pytest with coverage
+        working-directory: backend
+        run: pytest --cov=app --cov-report=term-missing --cov-report=xml
+
+      - name: Check backend coverage threshold
+        working-directory: backend
         run: |
-          cd backend
-          pytest
+          coverage report --fail-under=70
+
+      - name: Security scan (pip-audit)
+        working-directory: backend
+        run: |
+          pip install pip-audit
+          pip-audit --ignore-vuln PYSEC-2022-43012 || true
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        with:
+          fail_ci_if_error: false
+          files: backend/coverage.xml
 
   frontend:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -50,13 +69,31 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install Node dependencies
+        run: npm ci
+
+      - name: TypeScript type check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run frontend tests with coverage
+        run: npm run test -- --coverage
+
+      - name: Security scan (npm audit)
+        run: npm audit --audit-level=high || true
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -f infra/Dockerfile -t outlooker:test .      - name: Smoke test container
         run: |
-          cd frontend
-          npm install
-
-      - name: Run frontend tests
-        run: |
-          cd frontend
-          npm run test -- --runInBand
-
-
+          docker run -d --name outlooker-test -p 5001:5001 outlooker:test
+          sleep 10
+          curl -f http://localhost:5001/ || (docker logs outlooker-test && exit 1)
+          docker logs outlooker-test
+          docker stop outlooker-test
+          docker rm outlooker-test

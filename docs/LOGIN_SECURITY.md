@@ -3,9 +3,10 @@
 ## 概述
 
 **Outlooker** 实现了完善的登录安全防护体系，包括:
-- **频率限制**: 基于 IP + 用户名的登录频率限制
+- **频率限制**: 基于 IP + 用户名的登录频率限制（数据持久化到 SQLite）
 - **自动锁定**: 失败次数过多自动锁定账户
-- **审计日志**: 记录所有登录尝试用于安全分析
+- **审计日志**: 记录所有登录尝试用于安全分析（统一保存在 `data/logs/login_audit.log`）
+- **刷新令牌**: 管理员登录返回 access/refresh token，可选 httpOnly Cookie
 
 ## 功能特性
 
@@ -101,8 +102,16 @@ Content-Type: application/json
 ```json
 {
   "access_token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
+  "refresh_token": "rtid.secret",
   "token_type": "bearer",
-  "expires_in": 86400
+  "expires_in": 86400,
+  "refresh_expires_in": 604800,
+  "user": {
+    "id": 1,
+    "username": "admin",
+    "role": "admin",
+    "is_active": true
+  }
 }
 ```
 
@@ -119,6 +128,19 @@ Content-Type: application/json
   "detail": "登录失败次数过多,请在 847 秒后重试"
 }
 ```
+
+### 刷新令牌端点
+
+```http
+POST /api/admin/refresh
+Content-Type: application/json
+
+{
+  "refresh_token": "your-refresh-token" // 若启用 httpOnly，可依赖 Cookie 省略此字段
+}
+```
+
+**成功响应 (200)** 同登录成功的结构，access/refresh 均会轮换。
 
 ## 安全最佳实践
 

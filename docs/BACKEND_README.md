@@ -17,7 +17,7 @@
 .
 ├── backend/
 │   ├── app/              # FastAPI 应用及业务代码
-│   ├── configs/          # system_config.json、token_config 示例等
+│   ├── configs/          # system_config.json（初始化用）、token_config 示例等
 │   └── tests/            # Pytest 用例
 ├── frontend/             # React + Vite 前端
 ├── infra/                # Dockerfile、compose、部署脚本
@@ -32,7 +32,30 @@
 
 - 应用启动、`pytest` 运行或 CLI 执行前会自动检查 `schema_migrations` 表并执行新的迁移。
 - 如需新增字段/索引，请编写 `register_migration` 装饰的函数并提交；避免直接手工执行 SQL。
-- 任何数据库变更前建议备份 `data/outlook_manager.db`，需要回滚时删除对应版本记录后重新启动即可。
+- 任何数据库变更前建议备份 `data/outlook_manager.db`（推荐直接复制一份 db 文件）。
+
+### 迁移版本号约定
+
+- 版本号为 **纯数字字符串**（例如 `2026010901`），按字符串排序即为执行顺序。
+- 建议格式：`YYYYMMDDNN`（同一天内递增 `NN`），避免冲突。
+
+### 如何新增迁移
+
+1. 在 `backend/app/migrations/__init__.py` 末尾新增函数，并使用 `@register_migration("<version>", "<description>")` 装饰。
+2. 迁移函数签名：`def migration(conn: sqlite3.Connection) -> None:`。
+3. 编写 **可重复执行** 的 SQL（推荐 `IF NOT EXISTS` / 先检查列/索引是否存在再执行）。
+4. 本地运行后端或执行 `pytest`，确认启动阶段会自动应用迁移。
+
+### 如何执行迁移
+
+- 自动：后端启动时 `DatabaseManager.init_database()` 会调用 `apply_migrations()`，在写入业务数据前完成迁移检查。
+- 验证：在 SQLite 中查看 `schema_migrations` 表，确认新版本号已记录。
+
+### 回滚与注意事项
+
+- 当前迁移框架仅提供 **向前迁移**（无 down migration）。回滚建议优先使用 **数据库备份恢复**。
+- 如确需回退某次迁移：先回滚代码版本，再从 `schema_migrations` 删除对应版本号记录并重启（需要确保 SQL 变更可逆且不会导致数据损坏）。
+- 对大表/高风险变更：建议先在副本库验证，再用于生产库。
 
 ## 环境准备
 
@@ -75,7 +98,7 @@ cd infra
 ./deploy.sh build
 ./deploy.sh start
 ```
-Compose 会使用根目录 `.env`，同时挂载 `data/` 与 `backend/configs/`。
+Compose 会使用根目录 `.env`，同时挂载 `data/`（必需）与 `backend/configs/`（可选：用于 `system_config.json` 初始化/覆盖）。
 
 ## 管理后台
 

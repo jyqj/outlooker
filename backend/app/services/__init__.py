@@ -16,6 +16,7 @@ from .system_config_service import (
     load_system_config,
     set_system_config_value,
 )
+from .admin_service import admin_auth_service, AdminAuthService
 
 __all__ = [
     "EmailManager",
@@ -34,4 +35,6 @@ __all__ = [
     "SYSTEM_CONFIG_FILE",
     "extract_verification_code",
     "extract_code_from_message",
+    "admin_auth_service",
+    "AdminAuthService",
 ]

@@ -1,0 +1,28 @@
+import { Inbox, LogOut } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
+
+interface DashboardHeaderProps {
+  onLogout: () => void;
+}
+
+export function DashboardHeader({ onLogout }: DashboardHeaderProps) {
+  return (
+    <header className="bg-background border-b px-6 py-4 flex justify-between items-center sticky top-0 z-20 shadow-md backdrop-blur-sm">
+      <div className="flex items-center gap-3">
+        <div className="bg-primary p-2 rounded-lg text-primary-foreground">
+          <Inbox className="w-5 h-5" />
+        </div>
+        <h1 className="text-xl font-bold tracking-tight">Outlooker</h1>
+      </div>
+      <div className="flex items-center gap-4">
+        <Button
+          variant="ghost"
+          onClick={onLogout}
+          className="text-muted-foreground hover:text-destructive flex items-center gap-2"
+        >
+          <LogOut className="w-4 h-4" /> 退出
+        </Button>
+      </div>
+    </header>
+  );
+}

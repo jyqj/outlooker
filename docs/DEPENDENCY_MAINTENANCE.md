@@ -120,7 +120,16 @@ npm run lint           # ESLint 检查
 npm run lint -- --fix  # 自动修复
 ```
 
-## 6. 建议的例行任务
+## 6. CI 校验
+
+仓库提供 `.github/workflows/ci.yml`，在 Push/PR 时自动执行：
+
+- 后端：`ruff check` + `pytest`
+- 前端：`npm run lint` + `npm run test`
+
+本地升级依赖后，请先跑通同等流程再提交。
+
+## 7. 建议的例行任务
 
 | 频率 | 任务 |
 |------|------|
@@ -128,7 +137,7 @@ npm run lint -- --fix  # 自动修复
 | 每月 | 分析 `pip list --outdated` 与 `npm outdated`，规划升级批次 |
 | 每季度 | 编写依赖升级报告，评估技术债与潜在弃用 API；运行 `ruff` 和 `npm run lint` 检查代码质量 |
 
-## 7. 升级检查清单
+## 8. 升级检查清单
 
 在升级依赖前，使用以下清单确保安全：
 

@@ -16,11 +16,14 @@
 | 账户导入 | `/api/import` | POST | Bearer | `{ accounts: ImportAccountData[], merge_mode: "update"\|"skip"\|"replace" }` | `ImportResult`（计数 + details）
 | 文本解析 | `/api/parse-import-text` | POST | Bearer | `{ text }` | `{ parsed_count, error_count, accounts, errors[] }`
 | 配置读取 | `/api/system/config` | GET | Bearer | - | `{ email_limit }`（如需扩展，前后端共用同名字段）
-| 配置更新 | `/api/system/config` | POST | Bearer | `{ email_limit }` | `{ success, message }`；会向 DB + `system_config.json` 双写
+| 配置更新 | `/api/system/config` | POST | Bearer | `{ email_limit }` | `{ success, message }`；写入 DB（首次启动可从 `system_config.json` 引导默认值）
 | 指标获取 | `/api/system/metrics` | GET | Bearer | - | `{ email_manager: { cache_hit_rate, email_cache, ... }, ... }`
 | 缓存刷新 | `/api/system/cache/refresh` | POST | Bearer | - | `{ success, message }`；触发 `EmailManager.invalidate_accounts_cache()` 并清空邮件缓存
-| 邮件列表 | `/api/messages` | GET | Bearer | `email`，分页：`page`，`page_size`，`folder` | `{ items: EmailMessage[], total?, page, page_size }`
-| 临时查询 | `/api/temp-messages` | POST | 无 | `{ email, refresh_token, page, page_size, search }` | 与 `/api/messages` 数据结构一致
+| 邮件列表 | `/api/messages` | GET | `X-Public-Token` | `email`，分页：`page`，`page_size`，`folder`，可选：`search`，`refresh` | `{ items: EmailMessage[], total?, page, page_size }`
+| 临时查询 | `/api/temp-messages` | POST | `X-Public-Token` | `{ email, refresh_token, page, page_size, search }` | 与 `/api/messages` 数据结构一致（`debug/internal`：前端不使用）
+| 连接测试 | `/api/test-email` | POST | `X-Public-Token` | `{ email, refresh_token? }` | 最新 1 封邮件（或 `null`）；`debug/internal`
+| 删除邮件 | `/api/email/{email}/{message_id}` | DELETE | Bearer | - | `{ success, message }`（管理后台使用：删除本地缓存）
+| 标记已读 | `/api/email/{email}/{message_id}/read` | POST | Bearer | - | `{ success, message }`（`deprecated/internal`：前端未使用）
 
 ### ImportAccountData / ImportResult
 
@@ -39,16 +42,15 @@
 ### 2.1 配置存储
 
 - 默认路径：`backend/configs/system_config.json`（可通过 `app.services.SYSTEM_CONFIG_FILE` monkeypatch 覆盖）。
-- 读取优先级：数据库 `system_config` 表 > 文件 > `SYSTEM_CONFIG_DEFAULTS`。
+- 运行时配置源：数据库 `system_config` 表（当 DB 缺失 key 时，才会读取文件/默认值并写回 DB 作为一次性引导）。
 - 所有写入必须调用 `services.set_system_config_value`，该函数会：
   1. 重新计算并校验值（目前仅限制 `email_limit` 范围 1~MAX_EMAIL_LIMIT）。
-  2. 写入 JSON 文件（协程锁 `_system_config_lock` 避免竞态）。
-  3. 同步入库，方便多节点读取。
+  2. 写入数据库，供多节点读取（不再写入 JSON 文件）。
 
 ### 2.2 缓存刷新
 
 - `EmailManager` 缓存：通过 `/api/system/cache/refresh` 或后端 `email_manager.invalidate_accounts_cache()` 触发。
-- 邮件缓存（SQLite `email_cache` 表）：同一端点会调用 `DatabaseManager.reset_email_cache()`；另有脚本 `scripts/cleanup_email_cache.py` 可按天清理。
+- 邮件缓存（SQLite `email_cache` + `email_cache_meta` 表）：`/api/messages` 会优先读取本地缓存，并按 `EMAIL_CACHE_TTL_SECONDS` 控制 IMAP 刷新频率；同一端点会调用 `DatabaseManager.reset_email_cache()` 清空缓存；另有脚本 `scripts/cleanup_email_cache.py` 可按天清理。
 - 指标观测：`email_manager.get_metrics()` 会把快照写入 `system_metrics`，可通过 `/api/system/metrics` 查看命中率、缓存大小等数据。
 
 ### 2.3 常见维护脚本

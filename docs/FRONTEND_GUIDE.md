@@ -514,6 +514,7 @@ describe('VerificationPage', () => {
 - ✅ ESLint：遵循 ESLint 规则
 - ✅ 命名规范：组件用 PascalCase，函数用 camelCase
 - ✅ 文件组织：相关文件放在同一目录
+- ✅ Props 类型位置：局部 Props 就近定义；跨组件复用的 variant/union 类型集中到 `src/types/components.ts`
 - ✅ 注释：复杂逻辑添加注释
 
 ### 4. 错误处理

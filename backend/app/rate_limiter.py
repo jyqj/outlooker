@@ -7,27 +7,31 @@
 """
 
 import asyncio
-import time
 import json
+import logging
+import time
 from pathlib import Path
 from typing import Deque, Dict, List, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timedelta
 from collections import defaultdict, deque
-import logging
 
 logger = logging.getLogger(__name__)
+from .database import db_manager
+from .settings import get_settings
 
 # ============================================================================
 # 配置
 # ============================================================================
 
-# 频率限制配置
-MAX_LOGIN_ATTEMPTS = 5  # 最大失败次数
-LOCKOUT_DURATION = 900  # 锁定时长(秒) - 15分钟
-ATTEMPT_WINDOW = 300  # 统计窗口(秒) - 5分钟
+settings = get_settings()
+
+# 频率限制配置（从 settings 读取，支持环境变量覆盖）
+MAX_LOGIN_ATTEMPTS = settings.max_login_attempts
+LOCKOUT_DURATION = settings.lockout_duration_seconds
+ATTEMPT_WINDOW = settings.login_attempt_window_seconds
 
 # 审计日志配置
-AUDIT_LOG_DIR = Path(__file__).parent / "logs"
+AUDIT_LOG_DIR = Path(settings.logs_dir)
 AUDIT_LOG_FILE = AUDIT_LOG_DIR / "login_audit.log"
 
 
@@ -58,108 +62,44 @@ class LoginAttempt:
 # ============================================================================
 
 class LoginRateLimiter:
-    """登录频率限制器
-    
-    基于 IP 地址和用户名组合进行频率限制
-    使用滑动窗口算法统计失败次数
-    """
-    
+    """登录频率限制器，持久化存储于 SQLite"""
+
     def __init__(self):
-        # 存储登录尝试: {(ip, username): [timestamps]}
-        self._attempts: Dict[Tuple[str, str], List[float]] = defaultdict(list)
-        # 存储锁定状态: {(ip, username): lockout_until_timestamp}
-        self._lockouts: Dict[Tuple[str, str], float] = {}
-        # 线程锁
         self._lock = asyncio.Lock()
-    
+
     async def is_locked_out(self, ip: str, username: str) -> Tuple[bool, Optional[int]]:
-        """检查是否被锁定
-        
-        Args:
-            ip: 客户端 IP 地址
-            username: 用户名
-            
-        Returns:
-            (是否锁定, 剩余锁定秒数)
-        """
         async with self._lock:
-            key = (ip, username)
-            
-            if key not in self._lockouts:
+            lockout_until = await db_manager.get_lockout(ip, username)
+            if not lockout_until:
                 return False, None
-            
-            lockout_until = self._lockouts[key]
-            now = time.time()
-            
-            if now < lockout_until:
-                remaining = int(lockout_until - now)
-                return True, remaining
-            else:
-                # 锁定已过期,清理
-                del self._lockouts[key]
-                return False, None
-    
+            now = datetime.utcnow()
+            if lockout_until > now:
+                remaining = int((lockout_until - now).total_seconds())
+                return True, max(remaining, 1)
+            return False, None
+
     async def record_attempt(self, ip: str, username: str, success: bool) -> None:
-        """记录登录尝试
-        
-        Args:
-            ip: 客户端 IP 地址
-            username: 用户名
-            success: 是否成功
-        """
         async with self._lock:
-            key = (ip, username)
-            now = time.time()
-            
+            await db_manager.record_login_attempt(ip, username, success)
             if success:
-                # 成功登录,清除该用户的失败记录
-                if key in self._attempts:
-                    del self._attempts[key]
-                if key in self._lockouts:
-                    del self._lockouts[key]
-            else:
-                # 失败登录,记录时间戳
-                self._attempts[key].append(now)
-                
-                # 清理过期的尝试记录(超出统计窗口)
-                cutoff = now - ATTEMPT_WINDOW
-                self._attempts[key] = [
-                    ts for ts in self._attempts[key] if ts > cutoff
-                ]
-                
-                # 检查是否超过限制
-                if len(self._attempts[key]) >= MAX_LOGIN_ATTEMPTS:
-                    # 触发锁定
-                    self._lockouts[key] = now + LOCKOUT_DURATION
-                    logger.warning(
-                        f"登录频率限制触发: IP={ip}, 用户名={username}, "
-                        f"失败次数={len(self._attempts[key])}, "
-                        f"锁定时长={LOCKOUT_DURATION}秒"
-                    )
-    
+                await db_manager.clear_lockout(ip, username)
+                return
+
+            failures = await db_manager.count_recent_failures(ip, username, ATTEMPT_WINDOW)
+            if failures >= MAX_LOGIN_ATTEMPTS:
+                lockout_until = datetime.utcnow() + timedelta(seconds=LOCKOUT_DURATION)
+                await db_manager.set_lockout(ip, username, lockout_until)
+                logger.warning(
+                    "登录频率限制触发: IP=%s, 用户名=%s, 失败次数=%s, 锁定时长=%s秒",
+                    ip,
+                    username,
+                    failures,
+                    LOCKOUT_DURATION,
+                )
+
     async def get_attempt_count(self, ip: str, username: str) -> int:
-        """获取当前失败尝试次数
-        
-        Args:
-            ip: 客户端 IP 地址
-            username: 用户名
-            
-        Returns:
-            当前窗口内的失败次数
-        """
         async with self._lock:
-            key = (ip, username)
-            if key not in self._attempts:
-                return 0
-            
-            # 清理过期记录
-            now = time.time()
-            cutoff = now - ATTEMPT_WINDOW
-            self._attempts[key] = [
-                ts for ts in self._attempts[key] if ts > cutoff
-            ]
-            
-            return len(self._attempts[key])
+            return await db_manager.count_recent_failures(ip, username, ATTEMPT_WINDOW)
 
 
 # ============================================================================
