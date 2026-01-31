@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, List, Set
+from typing import List, Set
 
 from ..settings import get_settings
 
@@ -27,7 +28,7 @@ class Migration:
     handler: Callable[[sqlite3.Connection], None]
 
 
-_REGISTRY: List[Migration] = []
+_REGISTRY: list[Migration] = []
 
 
 def register_migration(version: str, description: str):
@@ -40,10 +41,10 @@ def register_migration(version: str, description: str):
     return decorator
 
 
-def _normalize_registry(registry: List[Migration]) -> List[Migration]:
+def _normalize_registry(registry: list[Migration]) -> list[Migration]:
     """按照版本排序并去重"""
-    seen: Set[str] = set()
-    ordered: List[Migration] = []
+    seen: set[str] = set()
+    ordered: list[Migration] = []
     for migration in sorted(registry, key=lambda m: m.version):
         if migration.version in seen:
             logger.warning("检测到重复的迁移版本号 %s，后者将被忽略", migration.version)
@@ -280,7 +281,7 @@ def _upgrade_email_cache_folder(conn: sqlite3.Connection) -> None:
     escaped_folder = default_folder.replace("'", "''")
 
     cursor.execute(
-        f"""
+        """
         CREATE TABLE IF NOT EXISTS email_cache_new (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT NOT NULL,

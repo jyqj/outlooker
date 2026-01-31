@@ -3,7 +3,7 @@ import { VerificationSearchForm } from '@/components/VerificationSearchForm';
 import { VerificationResultCard } from '@/components/VerificationResultCard';
 import { LoadingCard, ErrorCard } from '@/components/StatusCard';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { useVerification } from './useVerification';
+import { useVerification } from '@/hooks/useVerification';
 
 export default function VerificationPage() {
   const {

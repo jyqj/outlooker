@@ -1,18 +1,17 @@
-from typing import Optional
 import logging
 
-from fastapi import APIRouter, HTTPException, Request, Response, status
+from fastapi import APIRouter, HTTPException, Request, Response
 
-from ..database import db_manager
-from ..exceptions import (
+from ..auth.jwt import (
+    decode_access_token,
+)
+from ..core.exceptions import (
     AccountLockedError,
     AuthenticationError,
     InvalidCredentialsError,
 )
-from ..jwt_auth import (
-    ACCESS_TOKEN_EXPIRE_MINUTES,
-    decode_access_token,
-)
+from ..core.rate_limiter import auditor, rate_limiter
+from ..database import db_manager
 from ..models import (
     AdminLoginRequest,
     AdminLoginResponse,
@@ -21,7 +20,6 @@ from ..models import (
     LogoutRequest,
     TokenRefreshRequest,
 )
-from ..rate_limiter import auditor, rate_limiter
 from ..services import admin_auth_service
 from ..settings import get_settings
 from ..utils.request_utils import get_client_ip

@@ -3,17 +3,17 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from fastapi import HTTPException
 
+from ..auth.security import decrypt_if_needed
+from ..core.messages import ERROR_EMAIL_NOT_CONFIGURED, ERROR_EMAIL_NOT_PROVIDED
 from ..database import db_manager
 from ..imap_client import IMAPEmailClient
-from ..messages import ERROR_EMAIL_NOT_CONFIGURED, ERROR_EMAIL_NOT_PROVIDED
-from ..security import decrypt_if_needed
 from ..settings import get_settings
 from .account_utils import _load_accounts_from_files, _normalize_email
-from .constants import MAX_EMAIL_LIMIT, MIN_EMAIL_LIMIT, DEFAULT_EMAIL_LIMIT
+from .constants import DEFAULT_EMAIL_LIMIT, MAX_EMAIL_LIMIT, MIN_EMAIL_LIMIT
 
 logger = logging.getLogger(__name__)
 _settings = get_settings()
@@ -24,17 +24,17 @@ class EmailManager:
     """统一封装邮件获取逻辑和账户缓存"""
 
     def __init__(self) -> None:
-        self._accounts_cache: Optional[Dict[str, Dict[str, str]]] = None
-        self._accounts_lock: Optional[asyncio.Lock] = None
-        self._accounts_lock_loop: Optional[asyncio.AbstractEventLoop] = None
-        self._clients: Dict[str, IMAPEmailClient] = {}
-        self._client_tokens: Dict[str, str] = {}
-        self._clients_lock: Optional[asyncio.Lock] = None
-        self._clients_lock_loop: Optional[asyncio.AbstractEventLoop] = None
-        self._message_refresh_locks: Dict[str, asyncio.Lock] = {}
-        self._message_refresh_locks_loop: Optional[asyncio.AbstractEventLoop] = None
+        self._accounts_cache: dict[str, dict[str, str]] | None = None
+        self._accounts_lock: asyncio.Lock | None = None
+        self._accounts_lock_loop: asyncio.AbstractEventLoop | None = None
+        self._clients: dict[str, IMAPEmailClient] = {}
+        self._client_tokens: dict[str, str] = {}
+        self._clients_lock: asyncio.Lock | None = None
+        self._clients_lock_loop: asyncio.AbstractEventLoop | None = None
+        self._message_refresh_locks: dict[str, asyncio.Lock] = {}
+        self._message_refresh_locks_loop: asyncio.AbstractEventLoop | None = None
         self._accounts_source: str = "unknown"
-        self._metrics: Dict[str, Any] = {
+        self._metrics: dict[str, Any] = {
             "cache_hits": 0,
             "cache_misses": 0,
             "client_reuses": 0,
@@ -70,7 +70,7 @@ class EmailManager:
         return lock
 
     @staticmethod
-    def _is_cache_fresh(last_checked_at: Optional[str], ttl_seconds: int) -> bool:
+    def _is_cache_fresh(last_checked_at: str | None, ttl_seconds: int) -> bool:
         if ttl_seconds <= 0:
             return False
         if not last_checked_at:
@@ -82,7 +82,7 @@ class EmailManager:
         age_seconds = (datetime.utcnow() - checked_at).total_seconds()
         return age_seconds <= ttl_seconds
 
-    async def load_accounts(self, force_refresh: bool = False) -> Dict[str, Dict[str, str]]:
+    async def load_accounts(self, force_refresh: bool = False) -> dict[str, dict[str, str]]:
         if not force_refresh and self._accounts_cache is not None:
             self._metrics["cache_hits"] += 1
             return dict(self._accounts_cache)
@@ -118,7 +118,7 @@ class EmailManager:
         async with self._get_accounts_lock():
             self._accounts_cache = None
 
-    async def _get_account_info(self, email: str) -> Tuple[str, Dict[str, str]]:
+    async def _get_account_info(self, email: str) -> tuple[str, dict[str, str]]:
         accounts = await self.load_accounts()
         lookup = {addr.lower(): addr for addr in accounts.keys()}
         normalized = _normalize_email(email)
@@ -129,7 +129,7 @@ class EmailManager:
 
         return actual_email, accounts[actual_email]
 
-    async def _get_or_create_client(self, email: str, account_info: Dict[str, str]) -> IMAPEmailClient:
+    async def _get_or_create_client(self, email: str, account_info: dict[str, str]) -> IMAPEmailClient:
         """复用或创建 IMAP 客户端"""
 
         async with self._get_clients_lock():
@@ -155,10 +155,10 @@ class EmailManager:
     async def get_messages(
         self,
         email: str,
-        top: Optional[int] = None,
-        folder: Optional[str] = None,
+        top: int | None = None,
+        folder: str | None = None,
         force_refresh: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         if not email or not email.strip():
             raise HTTPException(status_code=400, detail=ERROR_EMAIL_NOT_PROVIDED)
 
@@ -236,7 +236,7 @@ class EmailManager:
             except Exception as exc:
                 logger.warning(f"清理IMAP客户端失败: {exc}")
 
-    async def get_metrics(self) -> Dict[str, Any]:
+    async def get_metrics(self) -> dict[str, Any]:
         """返回当前性能指标快照并落盘"""
         hits = self._metrics.get("cache_hits", 0)
         misses = self._metrics.get("cache_misses", 0)
@@ -265,7 +265,7 @@ class EmailManager:
         return True
 
     @staticmethod
-    def _normalize_limit(top: Optional[int]) -> int:
+    def _normalize_limit(top: int | None) -> int:
         if top is None:
             value = DEFAULT_EMAIL_LIMIT
         else:
@@ -280,6 +280,6 @@ class EmailManager:
 email_manager = EmailManager()
 
 
-async def load_accounts_config(force_refresh: bool = False) -> Dict[str, Dict[str, str]]:
+async def load_accounts_config(force_refresh: bool = False) -> dict[str, dict[str, str]]:
     """提供给路由的账户加载入口"""
     return await email_manager.load_accounts(force_refresh=force_refresh)

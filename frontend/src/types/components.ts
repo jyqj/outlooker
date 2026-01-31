@@ -11,4 +11,4 @@ export type ButtonSize = 'default' | 'sm' | 'lg' | 'icon';
 
 export type AlertVariant = 'default' | 'destructive' | 'success' | 'warning' | 'info';
 
-export type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline';
+export type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' | 'info';

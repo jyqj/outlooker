@@ -53,7 +53,7 @@ export function EmailMetadata({
 
   return (
     <div
-      className={`space-y-3 text-sm bg-gray-50 dark:bg-gray-900 p-4 rounded-lg border border-gray-200 dark:border-gray-800 ${className || ''}`}
+      className={`space-y-3 text-sm bg-muted p-4 rounded-lg border border-border ${className || ''}`}
     >
       {showSubject && (
         <div>
@@ -67,20 +67,20 @@ export function EmailMetadata({
           layout === 'grid'
             ? 'grid grid-cols-1 md:grid-cols-2 gap-3'
             : 'space-y-3',
-          showSubject && 'pt-3 border-t border-gray-200 dark:border-gray-800'
+          showSubject && 'pt-3 border-t border-border'
         )}
       >
         {/* 发件人 */}
         <div className="flex items-start gap-3">
-          <div className="bg-blue-100 dark:bg-blue-900 p-1.5 rounded">
-            <User className="w-4 h-4 text-primary dark:text-blue-300 shrink-0" />
+          <div className="bg-primary/10 p-1.5 rounded">
+            <User className="w-4 h-4 text-primary shrink-0" />
           </div>
           <div className="flex-1 min-w-0">
             <span className="font-semibold text-foreground block mb-1">发件人</span>
             <div className="text-foreground">
               <span className="font-medium">{senderName}</span>
               <br />
-              <span className="text-xs break-all text-gray-600 dark:text-gray-400">
+              <span className="text-xs break-all text-muted-foreground">
                 {senderAddress}
               </span>
             </div>
@@ -89,8 +89,8 @@ export function EmailMetadata({
 
         {/* 接收时间 */}
         <div className="flex items-start gap-3">
-          <div className="bg-blue-100 dark:bg-blue-900 p-1.5 rounded">
-            <Calendar className="w-4 h-4 text-primary dark:text-blue-300 shrink-0" />
+          <div className="bg-primary/10 p-1.5 rounded">
+            <Calendar className="w-4 h-4 text-primary shrink-0" />
           </div>
           <div className="flex-1">
             <span className="font-semibold text-foreground block mb-1">接收时间</span>

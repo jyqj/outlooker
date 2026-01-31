@@ -6,6 +6,7 @@ import { Dialog } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { Alert, AlertDescription } from './ui/Alert';
 import { Badge } from './ui/Badge';
+import { Label } from './ui/Label';
 import type { ApiResponse } from '@/types';
 
 interface ImportModalProps {
@@ -122,8 +123,8 @@ export default function ImportModal({ isOpen, onClose, onSuccess }: ImportModalP
       <div className="py-2 overflow-y-auto max-h-[70vh]">
         {step === 1 && (
           <div className="space-y-4">
-            <div className="bg-blue-500/10 text-blue-700 dark:text-blue-300 p-4 rounded-lg text-sm flex gap-2 border border-blue-500/30">
-              <AlertCircle className="w-5 h-5 shrink-0" />
+            <div className="bg-primary/10 text-primary p-4 rounded-lg text-sm flex gap-2 border border-primary/30" role="note">
+              <AlertCircle className="w-5 h-5 shrink-0" aria-hidden="true" />
               <div>
                 <p className="font-bold mb-1">支持格式：</p>
                 <ul className="list-disc pl-4 space-y-1">
@@ -134,23 +135,36 @@ export default function ImportModal({ isOpen, onClose, onSuccess }: ImportModalP
               </div>
             </div>
 
-            <textarea
-              className="w-full h-64 border rounded-lg p-4 font-mono text-sm focus:ring-2 focus:ring-ring outline-none bg-background"
-              placeholder="请粘贴账户数据，每行一条..."
-              value={text}
-              onChange={e => setText(e.target.value)}
-            />
+            <div className="space-y-2">
+              <Label htmlFor="import-text" className="sr-only">账户数据</Label>
+              <textarea
+                id="import-text"
+                className="w-full h-64 border rounded-lg p-4 font-mono text-sm focus:ring-2 focus:ring-ring outline-none bg-background"
+                placeholder="请粘贴账户数据，每行一条..."
+                value={text}
+                onChange={e => setText(e.target.value)}
+                aria-describedby="import-format-hint"
+              />
+              <p id="import-format-hint" className="sr-only">
+                每行一条账户数据，使用四个连字符分隔各字段
+              </p>
+            </div>
 
             <div className="flex justify-end gap-3">
-              <select
-                value={mergeMode}
-                onChange={e => setMergeMode(e.target.value as MergeMode)}
-                className="border rounded-md px-3 py-2 text-sm bg-background focus:ring-2 focus:ring-ring outline-none"
-              >
-                <option value="update">更新现有 (Update)</option>
-                <option value="skip">跳过重复 (Skip)</option>
-                <option value="replace">清空并替换 (Replace)</option>
-              </select>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="merge-mode" className="sr-only">合并模式</Label>
+                <select
+                  id="merge-mode"
+                  value={mergeMode}
+                  onChange={e => setMergeMode(e.target.value as MergeMode)}
+                  className="border rounded-md px-3 py-2 text-sm bg-background focus:ring-2 focus:ring-ring outline-none"
+                  aria-label="选择合并模式"
+                >
+                  <option value="update">更新现有 (Update)</option>
+                  <option value="skip">跳过重复 (Skip)</option>
+                  <option value="replace">清空并替换 (Replace)</option>
+                </select>
+              </div>
               <Button
                 onClick={handleParse}
                 disabled={loading || !text.trim()}
@@ -165,7 +179,7 @@ export default function ImportModal({ isOpen, onClose, onSuccess }: ImportModalP
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <p className="font-medium">
-                解析成功：<span className="text-green-600">{previewData.parsed_count}</span> 条，
+                解析成功：<span className="text-success">{previewData.parsed_count}</span> 条，
                 错误：<span className="text-destructive">{previewData.error_count}</span> 条
               </p>
             </div>
@@ -184,7 +198,7 @@ export default function ImportModal({ isOpen, onClose, onSuccess }: ImportModalP
             </div>
 
             {previewData.errors.length > 0 && (
-              <div className="max-h-32 overflow-y-auto border border-destructive/40 bg-destructive/15 rounded-lg p-4 text-xs text-destructive dark:text-red-400 font-mono">
+              <div className="max-h-32 overflow-y-auto border border-destructive/40 bg-destructive/15 rounded-lg p-4 text-xs text-destructive font-mono">
                 {previewData.errors.map((err, i) => (
                   <div key={i}>{err}</div>
                 ))}
@@ -201,7 +215,7 @@ export default function ImportModal({ isOpen, onClose, onSuccess }: ImportModalP
               <Button
                 onClick={handleImport}
                 disabled={loading || previewData.parsed_count === 0}
-                className="bg-green-600 hover:bg-green-700 text-white"
+                className="bg-success hover:bg-success/90 text-success-foreground"
               >
                 {loading ? '导入中...' : `确认导入 ${previewData.parsed_count} 条账户`}
               </Button>
@@ -211,7 +225,7 @@ export default function ImportModal({ isOpen, onClose, onSuccess }: ImportModalP
 
         {step === 3 && result && (
           <div className="text-center space-y-6 py-8">
-            <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto">
+            <div className="w-16 h-16 bg-success/10 text-success rounded-full flex items-center justify-center mx-auto">
               <Upload className="w-8 h-8" />
             </div>
             <div>
@@ -219,8 +233,8 @@ export default function ImportModal({ isOpen, onClose, onSuccess }: ImportModalP
               <p className="text-muted-foreground mt-2">{result.message}</p>
             </div>
             <div className="bg-muted/80 rounded-lg p-4 max-w-sm mx-auto text-sm space-y-2 text-left border">
-              <div className="flex justify-between"><span>新增：</span><Badge variant="default" className="bg-green-600">{result.added_count}</Badge></div>
-              <div className="flex justify-between"><span>更新：</span><Badge variant="default" className="bg-blue-600">{result.updated_count}</Badge></div>
+              <div className="flex justify-between"><span>新增：</span><Badge variant="default" className="bg-success text-success-foreground">{result.added_count}</Badge></div>
+              <div className="flex justify-between"><span>更新：</span><Badge variant="default" className="bg-primary">{result.updated_count}</Badge></div>
               <div className="flex justify-between"><span>跳过：</span><Badge variant="secondary">{result.skipped_count}</Badge></div>
               <div className="flex justify-between"><span>错误：</span><Badge variant="destructive">{result.error_count}</Badge></div>
             </div>

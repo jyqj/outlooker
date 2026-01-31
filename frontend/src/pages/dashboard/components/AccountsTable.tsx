@@ -61,15 +61,19 @@ export function AccountsTable({
 
   return (
     <Card className="overflow-hidden">
-      <div className="overflow-x-auto" role="region" aria-label="账户列表">
-        <table className="w-full text-left text-sm" role="grid" aria-label="邮箱账户列表">
+      {/* 水平滚动容器，带有渐变遮罩提示 */}
+      <div className="relative">
+        {/* 右侧渐变遮罩提示可滚动 - 仅在移动端显示 */}
+        <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-card to-transparent pointer-events-none z-10 md:hidden" aria-hidden="true" />
+        <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent" role="region" aria-label="账户列表，可水平滚动查看更多内容">
+          <table className="w-full text-left text-sm" role="grid" aria-label="邮箱账户列表">
           <thead className="bg-muted text-muted-foreground font-medium border-b">
             <tr role="row">
               <th className="px-4 py-4 w-12" scope="col">
                 <button
                   onClick={toggleSelectAll}
                   className="p-1 hover:bg-muted-foreground/10 rounded focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-                  title={isAllSelected ? '取消全选' : '全选'}
+                  title={isAllSelected ? '取消全选当前页' : `全选当前页 (${accounts.length} 个账户)`}
                   aria-label={isAllSelected ? '取消全选所有账户' : '全选所有账户'}
                   aria-pressed={isAllSelected}
                   type="button"
@@ -147,6 +151,7 @@ export function AccountsTable({
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       <Pagination

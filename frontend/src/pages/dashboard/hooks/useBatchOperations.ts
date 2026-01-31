@@ -4,6 +4,7 @@ import { batchDeleteAccounts, batchUpdateTags } from '@/lib/api';
 import { showSuccess, showError } from '@/lib/toast';
 import { handleApiError } from '@/lib/error';
 import { MESSAGES } from '@/lib/constants';
+import { queryKeys } from '@/lib/queryKeys';
 
 export type BatchTagMode = 'add' | 'remove' | 'set';
 
@@ -61,8 +62,8 @@ export function useBatchOperations(
       if (result.success) {
         showSuccess(result.message);
         onSuccess();
-        queryClient.invalidateQueries({ queryKey: ['accounts'] });
-        queryClient.invalidateQueries({ queryKey: ['tags'] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.accounts() });
+        queryClient.invalidateQueries({ queryKey: queryKeys.tags() });
       } else {
         showError(result.message || MESSAGES.ERROR_BATCH_DELETE_FAILED);
       }
@@ -95,7 +96,7 @@ export function useBatchOperations(
       if (result.success) {
         showSuccess(result.message);
         closeBatchTagModal();
-        queryClient.invalidateQueries({ queryKey: ['tags'] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.tags() });
       } else {
         showError(result.message || MESSAGES.ERROR_BATCH_TAG_OPERATION_FAILED);
       }

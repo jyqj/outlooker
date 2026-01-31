@@ -37,7 +37,7 @@ fix = true
 
 [tool.ruff.per-file-ignores]
 # 测试文件可以有未使用的导入和较长的行
-"tests/**/*.py" = ["F401", "E501"]
+"../tests/backend/**/*.py" = ["F401", "E501"]
 # __init__.py 可以有未使用的导入
 "**/__init__.py" = ["F401"]
 

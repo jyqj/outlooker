@@ -1,10 +1,13 @@
-import React, { type ReactNode } from 'react';
+import React, { Suspense, type ReactNode } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import VerificationPage from './pages/VerificationPage';
 import AdminLoginPage from './pages/AdminLoginPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import NotFoundPage from './pages/NotFoundPage';
 import ToastContainer from './components/Toast';
+
+// Lazy load TagsPage for better performance
+const TagsPage = React.lazy(() => import('./pages/TagsPage'));
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -30,6 +33,16 @@ function App() {
           element={
             <ProtectedRoute>
               <AdminDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/tags"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<div className="min-h-screen flex items-center justify-center">加载中...</div>}>
+                <TagsPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />

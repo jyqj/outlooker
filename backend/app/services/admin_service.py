@@ -4,13 +4,12 @@ import hashlib
 import logging
 import secrets
 import uuid
-from datetime import datetime, timedelta, timezone
-from typing import Optional, Tuple
+from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
 
+from ..auth.jwt import create_access_token, get_password_hash, verify_password
 from ..database import db_manager
-from ..jwt_auth import create_access_token, get_password_hash, verify_password
 from ..settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -69,11 +68,11 @@ class AdminAuthService:
     async def issue_token_pair(
         self,
         admin: dict,
-        user_agent: Optional[str],
-        ip_address: Optional[str],
+        user_agent: str | None,
+        ip_address: str | None,
     ) -> dict:
         """生成 access/refresh token 对"""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         access_expires = now + timedelta(minutes=self.settings.access_token_expire_minutes)
         refresh_expires = now + timedelta(days=self.settings.refresh_token_expire_days)
 
@@ -100,8 +99,8 @@ class AdminAuthService:
     async def rotate_refresh_token(
         self,
         refresh_token: str,
-        user_agent: Optional[str],
-        ip_address: Optional[str],
+        user_agent: str | None,
+        ip_address: str | None,
     ) -> dict:
         """刷新访问令牌"""
         token_id, secret = self._split_refresh_token(refresh_token)
@@ -114,7 +113,7 @@ class AdminAuthService:
         expires_at = record.get("expires_at")
         if expires_at:
             expires_dt = datetime.fromisoformat(expires_at)
-            if expires_dt < datetime.now(timezone.utc):
+            if expires_dt < datetime.now(UTC):
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="刷新令牌已过期")
         else:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="刷新令牌已过期")
@@ -147,9 +146,9 @@ class AdminAuthService:
         self,
         admin_id: int,
         expires_at: datetime,
-        user_agent: Optional[str],
-        ip_address: Optional[str],
-    ) -> Tuple[str, datetime]:
+        user_agent: str | None,
+        ip_address: str | None,
+    ) -> tuple[str, datetime]:
         token_id = uuid.uuid4().hex
         secret = secrets.token_urlsafe(32)
         token_hash = self._hash_secret(secret)
@@ -169,7 +168,7 @@ class AdminAuthService:
         return hashlib.sha256(secret.encode("utf-8")).hexdigest()
 
     @staticmethod
-    def _split_refresh_token(token: str) -> Tuple[str, str]:
+    def _split_refresh_token(token: str) -> tuple[str, str]:
         if not token or "." not in token:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="刷新令牌无效")
         token_id, secret = token.split(".", 1)

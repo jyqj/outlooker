@@ -26,12 +26,12 @@ const variantConfig = {
   },
   warning: {
     icon: AlertTriangle,
-    iconClassName: 'text-yellow-500',
+    iconClassName: 'text-warning',
     buttonVariant: 'default' as const,
   },
   info: {
     icon: Info,
-    iconClassName: 'text-blue-500',
+    iconClassName: 'text-info',
     buttonVariant: 'default' as const,
   },
 };
@@ -88,8 +88,8 @@ export function ConfirmDialog({
       >
         <div className={cn("w-12 h-12 rounded-full flex items-center justify-center mb-4", 
           variant === 'danger' && "bg-destructive/10",
-          variant === 'warning' && "bg-yellow-500/10",
-          variant === 'info' && "bg-blue-500/10"
+          variant === 'warning' && "bg-warning/10",
+          variant === 'info' && "bg-info/10"
         )}>
           <Icon className={cn("w-6 h-6", config.iconClassName)} aria-hidden="true" />
         </div>

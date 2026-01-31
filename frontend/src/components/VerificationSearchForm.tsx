@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { Mail, Loader2, Wand2 } from 'lucide-react';
+import { Mail, Loader2, Wand2, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -30,16 +30,28 @@ export function VerificationSearchForm({
             >
               <Mail className="w-4 h-4" /> 邮箱地址
             </label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => onEmailChange(e.target.value)}
-              placeholder="example@outlook.com"
-              className="text-base"
-              required
-              disabled={loading}
-            />
+            <div className="relative">
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => onEmailChange(e.target.value)}
+                placeholder="example@outlook.com"
+                className={`text-base ${email ? 'pr-10' : ''}`}
+                required
+                disabled={loading}
+              />
+              {email && !loading && (
+                <button
+                  type="button"
+                  onClick={() => onEmailChange('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-full p-0.5 transition-colors"
+                  aria-label="清除输入内容"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-col md:flex-row gap-3">

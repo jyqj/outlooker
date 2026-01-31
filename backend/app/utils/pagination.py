@@ -8,8 +8,8 @@
 
 from __future__ import annotations
 
-from typing import List, Optional, Sequence, Tuple, TypeVar
-
+from collections.abc import Sequence
+from typing import TypeVar
 
 T = TypeVar("T")
 
@@ -22,7 +22,7 @@ def normalize_email(email: str) -> str:
     return (email or "").strip().lower()
 
 
-def paginate_items(items: Sequence[T], page: int, page_size: int) -> Tuple[List[T], int]:
+def paginate_items(items: Sequence[T], page: int, page_size: int) -> tuple[list[T], int]:
     """对列表进行分页并返回切片结果与总数。
 
     Args:
@@ -44,7 +44,7 @@ def paginate_items(items: Sequence[T], page: int, page_size: int) -> Tuple[List[
     return list(items[start:end]), total
 
 
-def filter_messages_by_search(messages: Sequence[dict], search: Optional[str]) -> List[dict]:
+def filter_messages_by_search(messages: Sequence[dict], search: str | None) -> list[dict]:
     """根据搜索关键字过滤邮件列表。
 
     匹配范围:
@@ -56,7 +56,7 @@ def filter_messages_by_search(messages: Sequence[dict], search: Optional[str]) -
         return list(messages)
 
     kw = search.lower()
-    filtered: List[dict] = []
+    filtered: list[dict] = []
 
     for msg in messages:
         subject = (msg.get("subject") or "").lower()

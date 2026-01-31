@@ -7,10 +7,8 @@ Combines all database operation mixins into a single manager class.
 
 import logging
 import re
-import sqlite3
 from contextlib import closing
 from pathlib import Path
-from typing import Optional
 
 from ..migrations import apply_migrations
 from ..settings import get_settings

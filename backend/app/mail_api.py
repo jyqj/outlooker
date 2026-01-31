@@ -12,21 +12,23 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import sentry_sdk
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.staticfiles import StaticFiles
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.starlette import StarletteIntegration
 
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.exceptions import RequestValidationError
+from .core.exceptions import AppException
+from .core.middleware import MetricsMiddleware
+from .core.startup import log_startup_info, validate_environment
 
 # 导入自定义模块
 from .database import db_manager
-from .exceptions import AppException
 from .models import ApiResponse
-from .services import email_manager, load_accounts_config, admin_auth_service
-from .routers import auth, accounts, emails, system, public_accounts
+from .routers import accounts, auth, emails, public_accounts, system
+from .services import admin_auth_service, email_manager, load_accounts_config
 from .settings import get_settings
 from .version import __version__
 
@@ -63,6 +65,15 @@ STATIC_DIR = (PROJECT_ROOT / settings.static_dir).resolve()
 async def lifespan(app: FastAPI):
     """应用程序生命周期管理"""
     logger.info("启动邮件管理系统...")
+
+    # 记录启动信息
+    log_startup_info()
+
+    # 验证环境配置
+    warnings = validate_environment()
+    for warning in warnings:
+        logger.warning(f"[配置警告] {warning}")
+
     # 生产环境关键配置安全检查
     if settings.is_production:
         insecure = []
@@ -110,6 +121,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 添加监控中间件
+app.add_middleware(MetricsMiddleware)
 
 # 挂载API路由
 app.include_router(auth.router)
@@ -215,6 +229,7 @@ async def main():
 
 if __name__ == '__main__':
     import sys
+
     import uvicorn
 
     if len(sys.argv) > 1 and sys.argv[1] == 'web':

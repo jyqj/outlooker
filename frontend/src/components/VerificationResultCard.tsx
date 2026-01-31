@@ -47,7 +47,7 @@ export function VerificationResultCard({ result, onRefresh }: VerificationResult
           <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
             邮件正文
           </h3>
-          <div className="bg-gray-50 dark:bg-gray-900 p-5 rounded-lg border border-gray-200 dark:border-gray-800 max-h-96 overflow-y-auto">
+          <div className="bg-muted p-5 rounded-lg border border-border max-h-96 overflow-y-auto">
             {result.body?.contentType === 'html' ? (
               <div
                 className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-foreground prose-p:text-foreground prose-a:text-primary [&_*]:text-foreground"

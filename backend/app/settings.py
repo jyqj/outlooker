@@ -3,10 +3,9 @@
 Application settings powered by pydantic-settings.
 """
 
-from pathlib import Path
-from functools import lru_cache
-from typing import List, Optional
 import logging
+from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -32,7 +31,7 @@ class AppSettings(BaseSettings):
         return self.app_env.lower() == "production"
 
     # OAuth / IMAP
-    client_id: Optional[str] = Field(default=None, alias="CLIENT_ID")
+    client_id: str | None = Field(default=None, alias="CLIENT_ID")
     token_url: str = Field(
         default="https://login.microsoftonline.com/consumers/oauth2/v2.0/token",
         alias="TOKEN_URL",
@@ -43,14 +42,14 @@ class AppSettings(BaseSettings):
     junk_folder_name: str = Field(default="Junk", alias="JUNK_FOLDER_NAME")
 
     # Admin / auth
-    admin_username: Optional[str] = Field(default=None, alias="ADMIN_USERNAME")
-    admin_password: Optional[str] = Field(default=None, alias="ADMIN_PASSWORD")
-    jwt_secret_key: Optional[str] = Field(default=None, alias="JWT_SECRET_KEY")
+    admin_username: str | None = Field(default=None, alias="ADMIN_USERNAME")
+    admin_password: str | None = Field(default=None, alias="ADMIN_PASSWORD")
+    jwt_secret_key: str | None = Field(default=None, alias="JWT_SECRET_KEY")
     access_token_expire_minutes: int = Field(default=60 * 24, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
     refresh_token_expire_days: int = Field(default=7, alias="REFRESH_TOKEN_EXPIRE_DAYS")
 
     # API / UI
-    allowed_origins: List[str] = Field(
+    allowed_origins: list[str] = Field(
         default=["http://localhost:5173", "http://localhost:5001"],
         alias="ALLOWED_ORIGINS",
     )
@@ -78,13 +77,13 @@ class AppSettings(BaseSettings):
     # Email cache settings
     email_cache_limit_per_account: int = Field(default=100, alias="EMAIL_CACHE_LIMIT_PER_ACCOUNT")
 
-    data_encryption_key: Optional[str] = Field(default=None, alias="DATA_ENCRYPTION_KEY")
+    data_encryption_key: str | None = Field(default=None, alias="DATA_ENCRYPTION_KEY")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     admin_refresh_cookie_enabled: bool = Field(default=True, alias="ADMIN_REFRESH_COOKIE")
     admin_refresh_cookie_name: str = Field(default="outlooker_rtk", alias="ADMIN_REFRESH_COOKIE_NAME")
     admin_refresh_cookie_secure: bool = Field(default=False, alias="ADMIN_REFRESH_COOKIE_SECURE")
     admin_refresh_cookie_path: str = Field(default="/", alias="ADMIN_REFRESH_COOKIE_PATH")
-    public_api_token: Optional[str] = Field(default=None, alias="PUBLIC_API_TOKEN")
+    public_api_token: str | None = Field(default=None, alias="PUBLIC_API_TOKEN")
 
     @staticmethod
     def _env(info) -> str:
@@ -92,7 +91,7 @@ class AppSettings(BaseSettings):
 
     @field_validator("jwt_secret_key", mode="after")
     @classmethod
-    def validate_jwt_secret_key(cls, value: Optional[str], info):
+    def validate_jwt_secret_key(cls, value: str | None, info):
         """生产环境要求显式配置 JWT_SECRET_KEY"""
         app_env = cls._env(info)
         if value:
@@ -105,7 +104,7 @@ class AppSettings(BaseSettings):
 
     @field_validator("data_encryption_key", mode="after")
     @classmethod
-    def validate_data_encryption_key(cls, value: Optional[str], info):
+    def validate_data_encryption_key(cls, value: str | None, info):
         """生产环境要求显式配置 DATA_ENCRYPTION_KEY"""
         app_env = cls._env(info)
         if value:
@@ -118,7 +117,7 @@ class AppSettings(BaseSettings):
 
     @field_validator("client_id", mode="after")
     @classmethod
-    def validate_client_id(cls, value: Optional[str], info):
+    def validate_client_id(cls, value: str | None, info):
         """生产环境要求显式配置 CLIENT_ID"""
         app_env = cls._env(info)
         if value:
@@ -139,7 +138,7 @@ class AppSettings(BaseSettings):
 
     @field_validator("public_api_token", mode="after")
     @classmethod
-    def validate_public_api_token(cls, value: Optional[str], info):
+    def validate_public_api_token(cls, value: str | None, info):
         """公共接口调用口令：生产必填，开发提供示例值"""
         app_env = cls._env(info)
         if value:

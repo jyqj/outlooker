@@ -1,4 +1,4 @@
-import { Search, Upload, Download, RefreshCw, Trash2, Tags } from 'lucide-react';
+import { Search, Upload, Download, RefreshCw, Trash2, Tags, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
@@ -83,7 +83,11 @@ export function DashboardToolbar({
           disabled={exporting}
           className="flex-1 md:flex-none gap-2"
         >
-          <Download className={`w-4 h-4 ${exporting ? 'animate-pulse' : ''}`} />
+          {exporting ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Download className="w-4 h-4" />
+          )}
           {exporting ? '导出中...' : '导出'}
         </Button>
         <Button variant="outline" size="icon" onClick={onRefresh} title="刷新">

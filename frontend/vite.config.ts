@@ -13,6 +13,7 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+    preserveSymlinks: false,
   },
   server: {
     proxy: {
@@ -20,6 +21,9 @@ export default defineConfig({
         target: 'http://localhost:5001',
         changeOrigin: true,
       }
+    },
+    fs: {
+      allow: ['..']
     }
   },
   build: {
@@ -29,14 +33,27 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    setupFiles: './src/test/setup.ts',
+    setupFiles: ['./setupTests.ts'],
+    include: ['../tests/frontend/unit/**/*.{test,spec}.{ts,tsx}'],
     css: true,
+    deps: {
+      inline: [
+        /^(?!.*\.js$).*\.tsx?$/,
+        'react',
+        'react-dom',
+        'react/jsx-dev-runtime',
+        'react/jsx-runtime',
+        '@testing-library/react',
+        '@testing-library/jest-dom',
+        '@testing-library/user-event'
+      ]
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
       exclude: [
         'node_modules/',
-        'src/test/',
+        '../tests/',
         '**/*.d.ts',
         '**/*.config.*',
         '**/main.tsx',

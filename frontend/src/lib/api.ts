@@ -1,6 +1,6 @@
 import axios, { type AxiosRequestConfig, type InternalAxiosRequestConfig } from 'axios';
 import type { BatchOperationResponse } from '@/types/api';
-import { TIMING, API_PATHS } from './constants';
+import { TIMING, API_PATHS, DEV_PUBLIC_TOKEN } from './constants';
 
 // 根据环境变量可自定义 API 地址，默认相对路径
 const api = axios.create({
@@ -38,10 +38,8 @@ function getPublicApiToken(): string | null {
   const stored = sessionStorage.getItem(STORAGE_KEYS.publicToken);
   if (stored) return stored;
 
-  // 与后端 settings 的开发环境 fallback 对齐
-  // 在没有配置 VITE_PUBLIC_API_TOKEN 时使用默认值
-  // 直接硬编码以确保在生产构建中可用
-  return 'dev-public-token-change-me';
+  // 使用统一定义的开发环境默认值
+  return DEV_PUBLIC_TOKEN;
 }
 
 export interface AuthTokensInput {
@@ -158,6 +156,59 @@ export async function batchUpdateTags(
     tags,
     mode,
   });
+  return response.data;
+}
+
+// Tag statistics types
+export interface TagStatItem {
+  name: string;
+  count: number;
+  percentage: number;
+}
+
+export interface TagStats {
+  total_accounts: number;
+  tagged_accounts: number;
+  untagged_accounts: number;
+  tags: TagStatItem[];
+}
+
+export interface TagStatsResponse {
+  success: boolean;
+  data?: TagStats;
+  message?: string;
+}
+
+// Pick account types
+export interface PickAccountRequest {
+  tag: string;
+  exclude_tags?: string[];
+  return_credentials?: boolean;
+}
+
+export interface PickAccountResult {
+  email: string;
+  tags: string[];
+  password?: string;
+  refresh_token?: string;
+  client_id?: string;
+}
+
+export interface PickAccountResponse {
+  success: boolean;
+  data?: PickAccountResult;
+  message?: string;
+}
+
+// Get tag statistics
+export async function getTagStats(): Promise<TagStatsResponse> {
+  const response = await api.get<TagStatsResponse>('/api/accounts/tags/stats');
+  return response.data;
+}
+
+// Pick a random account and tag it
+export async function pickAccount(request: PickAccountRequest): Promise<PickAccountResponse> {
+  const response = await api.post<PickAccountResponse>('/api/accounts/pick', request);
   return response.data;
 }
 

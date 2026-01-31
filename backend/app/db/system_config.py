@@ -11,7 +11,7 @@ import json
 import logging
 import sqlite3
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +21,10 @@ from .base import RunInThreadMixin
 class SystemConfigMixin(RunInThreadMixin):
     """Mixin providing system configuration database operations."""
 
-    async def get_system_config(self, key: str, default_value: Optional[str] = None) -> Optional[str]:
+    async def get_system_config(self, key: str, default_value: str | None = None) -> str | None:
         """Get a system configuration value."""
 
-        def _sync_get(conn: sqlite3.Connection) -> Optional[str]:
+        def _sync_get(conn: sqlite3.Connection) -> str | None:
             cursor = conn.cursor()
             cursor.execute("SELECT value FROM system_config WHERE key = ?", (key,))
             row = cursor.fetchone()
@@ -83,10 +83,10 @@ class SystemConfigMixin(RunInThreadMixin):
 
         return await self._run_in_thread(_sync_upsert)
 
-    async def get_all_system_metrics(self) -> Dict[str, Dict[str, str]]:
+    async def get_all_system_metrics(self) -> dict[str, dict[str, str]]:
         """Get all system metrics."""
 
-        def _sync_get(conn: sqlite3.Connection) -> Dict[str, Dict[str, str]]:
+        def _sync_get(conn: sqlite3.Connection) -> dict[str, dict[str, str]]:
             cursor = conn.cursor()
             cursor.execute("SELECT key, value, updated_at FROM system_metrics")
             rows = cursor.fetchall()

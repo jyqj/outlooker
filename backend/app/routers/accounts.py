@@ -1,21 +1,26 @@
-from fastapi import APIRouter, HTTPException, Header, Depends
-from fastapi.responses import PlainTextResponse
-from typing import Optional, Dict, List, Union
-from datetime import datetime
 import logging
+from datetime import datetime
 
-from ..models import ApiResponse, AccountTagRequest, AccountCredentials, ImportAccountData, ImportRequest, ParseImportTextRequest, create_paginated_response
-from ..settings import get_settings
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import PlainTextResponse
+
 from ..dependencies import AdminUser
+from ..models import (
+    AccountCredentials,
+    AccountTagRequest,
+    ApiResponse,
+    ImportRequest,
+    ParseImportTextRequest,
+    create_paginated_response,
+)
+from ..settings import get_settings
 
 logger = logging.getLogger(__name__)
-from ..exceptions import ResourceNotFoundError, ValidationError, DatabaseError, DuplicateEntryError
-from ..jwt_auth import get_current_admin
-from ..services import (
-    load_accounts_config, merge_accounts_data_to_db, 
-    email_manager, db_manager, parse_account_line
-)
+from ..core.decorators import handle_exceptions
+from ..core.exceptions import DatabaseError, DuplicateEntryError, ResourceNotFoundError, ValidationError
+from ..services import db_manager, email_manager, load_accounts_config, merge_accounts_data_to_db, parse_account_line
 from ..utils.pagination import paginate_items
+from ..utils.validation import validate_tags
 
 settings = get_settings()
 
@@ -33,132 +38,206 @@ def _mask_secret(value: str) -> str:
     return f"{plain[:2]}***{plain[-2:]}"
 
 @router.get("/api/accounts")
+@handle_exceptions("获取账户列表")
 async def get_accounts(admin: AdminUser) -> ApiResponse:
     """获取所有账户列表（需要管理员认证）"""
-    try:
-        accounts = await load_accounts_config()
-        account_list = [
-            {
-                "email": email,
-                # 来自数据库的账户会包含使用状态字段；文件来源则默认为未使用
-                "is_used": bool(info.get("is_used")),
-                "last_used_at": info.get("last_used_at"),
-            }
-            for email, info in accounts.items()
-        ]
-        return ApiResponse(success=True, data=account_list, message=f"共 {len(account_list)} 个账户")
-    except HTTPException:
-        raise
-    except (DatabaseError, ValidationError, ResourceNotFoundError):
-        raise
-    except Exception as e:
-        logger.error(f"获取账户列表失败: {e}", exc_info=True)
-        raise DatabaseError(message="获取账户列表失败")
+    accounts = await load_accounts_config()
+    account_list = [
+        {
+            "email": email,
+            # 来自数据库的账户会包含使用状态字段；文件来源则默认为未使用
+            "is_used": bool(info.get("is_used")),
+            "last_used_at": info.get("last_used_at"),
+        }
+        for email, info in accounts.items()
+    ]
+    return ApiResponse(success=True, data=account_list, message=f"共 {len(account_list)} 个账户")
 
 @router.get("/api/accounts/paged")
+@handle_exceptions("分页获取账户列表")
 async def get_accounts_paged(
     admin: AdminUser,
-    q: Optional[str] = None,
+    q: str | None = None,
     page: int = 1,
     page_size: int = DEFAULT_ACCOUNT_PAGE_SIZE,
 ) -> ApiResponse:
     """分页与搜索账户列表（需要管理员认证）"""
-    try:
+    accounts_dict = await load_accounts_config()
+    emails = sorted(accounts_dict.keys())
 
-        accounts_dict = await load_accounts_config()
-        emails = sorted(accounts_dict.keys())
+    if q:
+        q_lower = q.strip().lower()
+        emails = [e for e in emails if q_lower in e.lower()]
 
-        if q:
-            q_lower = q.strip().lower()
-            emails = [e for e in emails if q_lower in e.lower()]
+    # 统一使用通用分页工具，保持逻辑一致性
+    items_page, total = paginate_items(
+        emails,
+        max(1, page),
+        max(1, min(MAX_ACCOUNT_PAGE_SIZE, page_size)),
+    )
 
-        # 统一使用通用分页工具，保持逻辑一致性
-        items_page, total = paginate_items(
-            emails,
-            max(1, page),
-            max(1, min(MAX_ACCOUNT_PAGE_SIZE, page_size)),
+    # 为每个账户附加使用状态，便于前端展示“已使用/未使用”
+    items = []
+    for e in items_page:
+        info = accounts_dict.get(e, {}) or {}
+        items.append(
+            {
+                "email": e,
+                "is_used": bool(info.get("is_used")),
+                "last_used_at": info.get("last_used_at"),
+            }
         )
 
-        # 为每个账户附加使用状态，便于前端展示“已使用/未使用”
-        items = []
-        for e in items_page:
-            info = accounts_dict.get(e, {}) or {}
-            items.append(
-                {
-                    "email": e,
-                    "is_used": bool(info.get("is_used")),
-                    "last_used_at": info.get("last_used_at"),
-                }
-            )
-
-        return ApiResponse(
-            success=True,
-            data=create_paginated_response(items, total, page, page_size),
-            message=f"共 {total} 个账户"
-        )
-    except (DatabaseError, ValidationError, ResourceNotFoundError):
-        raise
-    except Exception as e:
-        logger.error(f"分页获取账户列表失败: {e}", exc_info=True)
-        raise DatabaseError(message="获取账户列表失败")
+    return ApiResponse(
+        success=True,
+        data=create_paginated_response(items, total, page, page_size),
+        message=f"共 {total} 个账户"
+    )
 
 @router.get("/api/accounts/tags", tags=["标签管理"])
+@handle_exceptions("获取账户标签")
 async def get_accounts_tags(admin: AdminUser) -> ApiResponse:
     """获取所有标签和账户-标签映射（需要管理员认证）"""
-    try:
-        tags = await db_manager.get_all_tags()
-        accounts_map = await db_manager.get_accounts_with_tags()
-        return ApiResponse(success=True, data={"tags": tags, "accounts": accounts_map})
-    except (HTTPException, DatabaseError, ValidationError):
-        raise
-    except Exception as e:
-        logger.error(f"获取账户标签失败: {e}", exc_info=True)
-        raise DatabaseError(message="获取账户标签失败")
+    tags = await db_manager.get_all_tags()
+    accounts_map = await db_manager.get_accounts_with_tags()
+    return ApiResponse(success=True, data={"tags": tags, "accounts": accounts_map})
+
+
+@router.get("/api/accounts/tags/stats", tags=["标签管理"])
+@handle_exceptions("获取标签统计")
+async def get_tag_statistics(admin: AdminUser) -> ApiResponse:
+    """获取标签使用统计（需要管理员认证）
+    
+    返回：
+    - total_accounts: 总账户数
+    - tagged_accounts: 有标签的账户数
+    - untagged_accounts: 无标签的账户数
+    - tags: 标签列表，每个包含 name, count, percentage
+    """
+    stats = await db_manager.get_tag_statistics()
+    return ApiResponse(success=True, data=stats)
+
+
+@router.post("/api/accounts/pick", tags=["标签管理"])
+@handle_exceptions("随机取号")
+async def pick_random_account(
+    admin: AdminUser,
+    request: dict[str, str | list[str] | bool],
+) -> ApiResponse:
+    """随机取号：获取一个没有指定标签的账户并自动打标签
+    
+    请求体:
+    {
+        "tag": "注册-Apple",           // 必填：要打的标签
+        "exclude_tags": ["黑名单"],    // 可选：排除有这些标签的账户
+        "return_credentials": false    // 可选：是否返回凭证信息
+    }
+    
+    返回:
+    {
+        "success": true,
+        "data": {
+            "email": "user@example.com",
+            "tags": ["注册-Apple"],
+            "password": "***",           // 仅当 return_credentials=true
+            "refresh_token": "***"       // 仅当 return_credentials=true
+        }
+    }
+    """
+    # 解析请求参数
+    tag = request.get("tag")
+    if not tag or not isinstance(tag, str) or not tag.strip():
+        raise ValidationError(message="请提供要打的标签", field="tag")
+
+    tag = tag.strip()
+    validate_tags([tag])  # 校验标签格式
+
+    exclude_tags_raw = request.get("exclude_tags", [])
+    exclude_tags: list[str] = []
+    if isinstance(exclude_tags_raw, list):
+        exclude_tags = [str(t).strip() for t in exclude_tags_raw if str(t).strip()]
+    elif isinstance(exclude_tags_raw, str) and exclude_tags_raw.strip():
+        exclude_tags = [exclude_tags_raw.strip()]
+
+    if exclude_tags:
+        validate_tags(exclude_tags)  # 校验排除标签格式
+
+    return_credentials = bool(request.get("return_credentials", False))
+
+    # 随机获取一个符合条件的账户
+    account = await db_manager.get_random_account_without_tag(tag, exclude_tags)
+
+    if not account:
+        raise ResourceNotFoundError(
+            message=f"没有找到可用的账户（不含标签 '{tag}'）",
+            resource_type="account"
+        )
+
+    email = account["email"]
+    current_tags = account.get("tags", [])
+
+    # 为账户添加标签
+    new_tags = list(set(current_tags + [tag]))
+    ok = await db_manager.set_account_tags(email, new_tags)
+    if not ok:
+        raise DatabaseError(message="标记账户失败")
+
+    # 构建响应
+    response_data = {
+        "email": email,
+        "tags": new_tags,
+    }
+
+    if return_credentials:
+        response_data["password"] = account.get("password", "")
+        response_data["refresh_token"] = account.get("refresh_token", "")
+        response_data["client_id"] = account.get("client_id", "")
+
+    logger.info(f"随机取号成功: {email}, 标签: {tag}")
+
+    return ApiResponse(
+        success=True,
+        message=f"成功获取账户并标记为 '{tag}'",
+        data=response_data
+    )
 
 @router.get("/api/account/{email}/tags", tags=["标签管理"])
+@handle_exceptions("获取账户标签")
 async def get_account_tags(email: str, admin: AdminUser) -> ApiResponse:
     """获取指定账户的标签（需要管理员认证）"""
-    try:
-        tags = await db_manager.get_account_tags(email)
-        return ApiResponse(success=True, data={"email": email, "tags": tags})
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"获取账户标签失败({email}): {e}")
-        raise DatabaseError(message="获取账户标签失败")
+    tags = await db_manager.get_account_tags(email)
+    return ApiResponse(success=True, data={"email": email, "tags": tags})
 
 @router.post("/api/account/{email}/tags", tags=["标签管理"])
+@handle_exceptions("保存账户标签")
 async def set_account_tags(
     email: str,
     admin: AdminUser,
     request: AccountTagRequest,
 ) -> ApiResponse:
     """设置指定账户的标签（需要管理员认证）"""
-    try:
-        # 保护：路径中的邮箱与请求体邮箱需一致（若请求体提供）
-        if request.email and request.email != email:
-            raise ValidationError(message="邮箱不一致", field="email")
+    # 保护：路径中的邮箱与请求体邮箱需一致（若请求体提供）
+    if request.email and request.email != email:
+        raise ValidationError(message="邮箱不一致", field="email")
 
-        # 去重并清理空白
-        cleaned_tags = []
-        seen = set()
-        for t in (request.tags or []):
-            tag = (t or "").strip()
-            if not tag:
-                continue
-            if tag not in seen:
-                seen.add(tag)
-                cleaned_tags.append(tag)
+    # 去重并清理空白
+    cleaned_tags = []
+    seen = set()
+    for t in (request.tags or []):
+        tag = (t or "").strip()
+        if not tag:
+            continue
+        if tag not in seen:
+            seen.add(tag)
+            cleaned_tags.append(tag)
 
-        ok = await db_manager.set_account_tags(email, cleaned_tags)
-        if ok:
-            return ApiResponse(success=True, message="标签已保存", data={"email": email, "tags": cleaned_tags})
-        raise DatabaseError(message="保存标签失败")
-    except (HTTPException, ValidationError, DatabaseError):
-        raise
-    except Exception as e:
-        logger.error(f"保存账户标签失败({email}): {e}")
-        raise DatabaseError(message="保存标签失败")
+    # 校验标签
+    validate_tags(cleaned_tags)
+
+    ok = await db_manager.set_account_tags(email, cleaned_tags)
+    if ok:
+        return ApiResponse(success=True, message="标签已保存", data={"email": email, "tags": cleaned_tags})
+    raise DatabaseError(message="保存标签失败")
 
 @router.post("/api/import")
 async def import_accounts_dict(admin: AdminUser, request: ImportRequest) -> ApiResponse:
@@ -189,11 +268,11 @@ async def import_accounts_dict(admin: AdminUser, request: ImportRequest) -> ApiR
 
         # 直接合并到数据库
         result = await merge_accounts_data_to_db(accounts, merge_mode)
-        
+
         # 清除账户缓存以便重新加载
         if result.success and (result.added_count > 0 or result.updated_count > 0):
             await email_manager.invalidate_accounts_cache()
-        
+
         return ApiResponse(
             success=result.success,
             message=result.message,
@@ -206,7 +285,7 @@ async def import_accounts_dict(admin: AdminUser, request: ImportRequest) -> ApiR
                 "details": result.details,
             }
         )
-        
+
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -226,6 +305,7 @@ async def import_accounts_dict(admin: AdminUser, request: ImportRequest) -> ApiR
         )
 
 @router.post("/api/parse-import-text")
+@handle_exceptions("解析导入文本")
 async def parse_import_text(admin: AdminUser, request: ParseImportTextRequest) -> ApiResponse:
     """解析导入文本格式数据（需要管理员认证）
 
@@ -236,59 +316,51 @@ async def parse_import_text(admin: AdminUser, request: ParseImportTextRequest) -
         "text": "email----password----refresh_token----client_id\\n..."
     }
     """
-    try:
+    import_text = request.text.strip()
+    if not import_text:
+        raise ValidationError(message="请提供要导入的文本数据", field="text")
 
-        import_text = request.text.strip()
-        if not import_text:
-            raise ValidationError(message="请提供要导入的文本数据", field="text")
+    accounts = []
+    errors = []
 
-        accounts = []
-        errors = []
+    lines = import_text.split('\n')
+    for line_num, line in enumerate(lines, 1):
+        try:
+            parsed = parse_account_line(line)
+            if not parsed:
+                continue
 
-        lines = import_text.split('\n')
-        for line_num, line in enumerate(lines, 1):
-            try:
-                parsed = parse_account_line(line)
-                if not parsed:
-                    continue
+            email, info = parsed
+            accounts.append({
+                "email": email,
+                "password": info["password"],
+                "client_id": info["client_id"],
+                "refresh_token": info["refresh_token"]
+            })
+        except ValueError as e:
+            errors.append(f"第{line_num}行格式错误：{str(e)}")
+        except Exception as e:
+            errors.append(f"第{line_num}行解析失败：{str(e)}")
 
-                email, info = parsed
-                accounts.append({
-                    "email": email,
-                    "password": info["password"],
-                    "client_id": info["client_id"],
-                    "refresh_token": info["refresh_token"]
-                })
-            except ValueError as e:
-                errors.append(f"第{line_num}行格式错误：{str(e)}")
-            except Exception as e:
-                errors.append(f"第{line_num}行解析失败：{str(e)}")
+    result_data = {
+        "accounts": accounts,
+        "parsed_count": len(accounts),
+        "error_count": len(errors),
+        "errors": errors
+    }
 
-        result_data = {
-            "accounts": accounts,
-            "parsed_count": len(accounts),
-            "error_count": len(errors),
-            "errors": errors
-        }
-
-        if errors:
-            return ApiResponse(
-                success=True,
-                data=result_data,
-                message=f"解析完成：成功 {len(accounts)} 条，错误 {len(errors)} 条"
-            )
-        else:
-            return ApiResponse(
-                success=True,
-                data=result_data,
-                message=f"解析成功：共 {len(accounts)} 条账户数据"
-            )
-
-    except (HTTPException, ValidationError):
-        raise
-    except Exception as e:
-        logger.exception(f"解析导入文本失败: {e}")
-        raise DatabaseError(message="解析导入文本失败")
+    if errors:
+        return ApiResponse(
+            success=True,
+            data=result_data,
+            message=f"解析完成：成功 {len(accounts)} 条，错误 {len(errors)} 条"
+        )
+    else:
+        return ApiResponse(
+            success=True,
+            data=result_data,
+            message=f"解析成功：共 {len(accounts)} 条账户数据"
+        )
 
 @router.get("/api/export")
 async def export_accounts_public(admin: AdminUser, format: str = "txt"):
@@ -296,27 +368,27 @@ async def export_accounts_public(admin: AdminUser, format: str = "txt"):
     try:
 
         accounts = await load_accounts_config()
-        
+
         if not accounts:
             raise ResourceNotFoundError("暂无账户数据", resource_type="accounts")
-        
+
         export_lines = []
         export_lines.append("# Outlook邮件系统账号配置文件")
         export_lines.append(f"# 导出时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         export_lines.append("# 格式: 邮箱----密码----refresh_token----client_id")
         export_lines.append("# 注意：请妥善保管此文件，包含敏感信息")
         export_lines.append("")
-        
+
         for email, account_info in accounts.items():
             password = account_info.get('password', '')
             refresh_token = account_info.get('refresh_token', '')
             client_id = account_info.get('client_id', settings.client_id)
             line = f"{email}----{password}----{refresh_token}----{client_id}"
             export_lines.append(line)
-        
+
         export_content = "\n".join(export_lines)
         filename = f"outlook_accounts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-        
+
         return PlainTextResponse(
             content=export_content,
             headers={
@@ -324,7 +396,7 @@ async def export_accounts_public(admin: AdminUser, format: str = "txt"):
                 "Content-Type": "text/plain; charset=utf-8"
             }
         )
-        
+
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -390,7 +462,7 @@ async def delete_account(
 @router.post("/api/accounts/batch-delete", tags=["批量操作"])
 async def batch_delete_accounts(
     admin: AdminUser,
-    request: Dict[str, List[str]],
+    request: dict[str, list[str]],
 ) -> ApiResponse:
     """批量删除账户
 
@@ -422,7 +494,7 @@ async def batch_delete_accounts(
 @router.post("/api/accounts/batch-tags", tags=["批量操作"])
 async def batch_update_tags(
     admin: AdminUser,
-    request: Dict[str, Union[List[str], str]],
+    request: dict[str, list[str] | str],
 ) -> ApiResponse:
     """批量更新账户标签
 
@@ -438,13 +510,13 @@ async def batch_update_tags(
     tags_raw = request.get("tags", [])
     mode_raw = request.get("mode", "add")
 
-    emails: List[str] = []
+    emails: list[str] = []
     if isinstance(emails_raw, list):
         emails = [str(e).strip() for e in emails_raw if str(e).strip()]
     elif isinstance(emails_raw, str):
         emails = [emails_raw.strip()] if emails_raw.strip() else []
 
-    tags: List[str] = []
+    tags: list[str] = []
     if isinstance(tags_raw, list):
         tags = [str(t).strip() for t in tags_raw if str(t).strip()]
     elif isinstance(tags_raw, str):
@@ -459,6 +531,10 @@ async def batch_update_tags(
 
     # 清理标签
     cleaned_tags = list({t.strip() for t in tags if t and t.strip()})
+
+    # 校验标签（除非是 set 模式的空标签，用于清空）
+    if cleaned_tags or mode != "set":
+        validate_tags(cleaned_tags)
 
     updated_count, _ = await db_manager.batch_update_tags(emails, cleaned_tags, mode)
 

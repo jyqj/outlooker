@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
-from ..settings import get_settings, PROJECT_ROOT
+from ..settings import PROJECT_ROOT, get_settings
 
 _settings = get_settings()
 DEFAULT_EMAIL_LIMIT = _settings.default_email_limit
@@ -16,7 +16,7 @@ CONFIG_MAX_EMAIL_LIMIT = _settings.max_email_limit
 CONFIG_DIR = PROJECT_ROOT / "backend" / "configs"
 CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
-ACCOUNTS_CONFIG_FILES: List[Path] = [
+ACCOUNTS_CONFIG_FILES: list[Path] = [
     CONFIG_DIR / "config.txt",
     CONFIG_DIR / "accounts.txt",
 ]
@@ -28,7 +28,7 @@ SYSTEM_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
 # 系统配置默认值
 # ============================================================================
 
-SYSTEM_CONFIG_DEFAULTS: Dict[str, Any] = {
+SYSTEM_CONFIG_DEFAULTS: dict[str, Any] = {
     "email_limit": DEFAULT_EMAIL_LIMIT,
 }
 

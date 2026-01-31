@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { X, CheckCircle, XCircle, Info, AlertTriangle, type LucideIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import type { ToastType, ToastDetail } from '@/lib/toast';
 
 interface Toast {
@@ -10,12 +11,17 @@ interface Toast {
 }
 
 interface TypeConfig {
-  bgColor: string;
-  borderColor: string;
-  textColor: string;
-  iconColor: string;
+  variant: string;
+  iconClass: string;
   Icon: LucideIcon;
 }
+
+const toastVariants: Record<ToastType, string> = {
+  success: "bg-success/10 border-success/20 text-success",
+  error: "bg-destructive/10 border-destructive/20 text-destructive",
+  warning: "bg-warning/10 border-warning/20 text-warning-foreground",
+  info: "bg-info/10 border-info/20 text-info",
+};
 
 const ToastContainer: React.FC = () => {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -45,7 +51,11 @@ const ToastContainer: React.FC = () => {
   };
 
   return (
-    <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
+    <div
+      className="fixed top-16 right-4 z-50 flex flex-col gap-2 pointer-events-none"
+      role="status"
+      aria-live="polite"
+    >
       {toasts.map((toast) => (
         <ToastItem key={toast.id} toast={toast} onClose={() => removeToast(toast.id)} />
       ))}
@@ -63,52 +73,44 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onClose }) => {
 
   const typeConfig: Record<ToastType, TypeConfig> = {
     success: {
-      bgColor: 'bg-green-50',
-      borderColor: 'border-green-200',
-      textColor: 'text-green-800',
-      iconColor: 'text-green-600',
+      variant: toastVariants.success,
+      iconClass: 'text-success',
       Icon: CheckCircle,
     },
     error: {
-      bgColor: 'bg-red-50',
-      borderColor: 'border-red-200',
-      textColor: 'text-red-800',
-      iconColor: 'text-red-600',
+      variant: toastVariants.error,
+      iconClass: 'text-destructive',
       Icon: XCircle,
     },
     info: {
-      bgColor: 'bg-blue-50',
-      borderColor: 'border-blue-200',
-      textColor: 'text-blue-800',
-      iconColor: 'text-blue-600',
+      variant: toastVariants.info,
+      iconClass: 'text-info',
       Icon: Info,
     },
     warning: {
-      bgColor: 'bg-yellow-50',
-      borderColor: 'border-yellow-200',
-      textColor: 'text-yellow-800',
-      iconColor: 'text-yellow-600',
+      variant: toastVariants.warning,
+      iconClass: 'text-warning-foreground',
       Icon: AlertTriangle,
     },
   };
 
   const config = typeConfig[type] || typeConfig.info;
-  const { bgColor, borderColor, textColor, iconColor, Icon } = config;
+  const { variant, iconClass, Icon } = config;
 
   return (
     <div
-      className={`
-        ${bgColor} ${borderColor} ${textColor}
-        border rounded-lg shadow-lg p-4 min-w-80 max-w-md
-        flex items-start gap-3 pointer-events-auto
-        animate-in slide-in-from-right-full duration-300
-      `}
+      className={cn(
+        "border rounded-lg shadow-lg p-4 min-w-80 max-w-md",
+        "flex items-start gap-3 pointer-events-auto",
+        "animate-in slide-in-from-right-full duration-300",
+        variant
+      )}
     >
-      <Icon className={`w-5 h-5 ${iconColor} flex-shrink-0 mt-0.5`} />
+      <Icon className={cn("w-5 h-5 flex-shrink-0 mt-0.5", iconClass)} />
       <p className="flex-1 text-sm font-medium">{message}</p>
       <button
         onClick={onClose}
-        className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+        className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
         aria-label="关闭"
       >
         <X className="w-4 h-4" />

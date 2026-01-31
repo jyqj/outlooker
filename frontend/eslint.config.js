@@ -23,7 +23,7 @@ export default defineConfig([
   // 主要源代码文件
   {
     files: ['**/*.{js,jsx}'],
-    ignores: ['**/*.test.{js,jsx}', '**/test/**/*.{js,jsx}', '**/__tests__/**/*.{js,jsx}', '*.config.js'],
+    ignores: ['**/*.test.{js,jsx}', '../tests/**/*.{js,jsx}', '*.config.js'],
     extends: [
       js.configs.recommended,
       reactHooks.configs.flat.recommended,
@@ -45,7 +45,7 @@ export default defineConfig([
   },
   // 测试文件配置
   {
-    files: ['**/*.test.{js,jsx}', '**/test/**/*.{js,jsx}', '**/__tests__/**/*.{js,jsx}'],
+    files: ['**/*.test.{js,jsx}', '../tests/frontend/**/*.{js,jsx}'],
     languageOptions: {
       ecmaVersion: 2020,
       globals: {

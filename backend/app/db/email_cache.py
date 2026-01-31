@@ -10,7 +10,7 @@ Handles all email caching related database operations including:
 
 import logging
 import sqlite3
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..settings import get_settings
 from .base import RunInThreadMixin
@@ -24,7 +24,7 @@ class EmailCacheMixin(RunInThreadMixin):
     """Mixin providing email cache database operations."""
 
     @staticmethod
-    def _parse_cached_sender(sender: str) -> Dict[str, Dict[str, Dict[str, str]]]:
+    def _parse_cached_sender(sender: str) -> dict[str, dict[str, dict[str, str]]]:
         """Parse cached sender string into email address format."""
         sender = sender or ""
         if " <" in sender and "<" in sender and sender.endswith(">"):
@@ -44,8 +44,8 @@ class EmailCacheMixin(RunInThreadMixin):
         self,
         email: str,
         message_id: str,
-        email_data: Dict,
-        folder: Optional[str] = None,
+        email_data: dict,
+        folder: str | None = None,
     ) -> bool:
         """
         Cache email data with capacity control.
@@ -118,12 +118,12 @@ class EmailCacheMixin(RunInThreadMixin):
         return await self._run_in_thread(_sync_cache)
 
     async def get_cached_email(
-        self, email: str, message_id: str, folder: Optional[str] = None
-    ) -> Optional[Dict]:
+        self, email: str, message_id: str, folder: str | None = None
+    ) -> dict | None:
         """Get a cached email by message ID."""
         folder_id = (folder or INBOX_FOLDER_NAME or "INBOX").strip() or "INBOX"
 
-        def _sync_get(conn: sqlite3.Connection) -> Optional[Dict]:
+        def _sync_get(conn: sqlite3.Connection) -> dict | None:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -151,14 +151,14 @@ class EmailCacheMixin(RunInThreadMixin):
     async def get_cached_messages(
         self,
         email: str,
-        folder: Optional[str] = None,
+        folder: str | None = None,
         limit: int = 50,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """Get cached messages for an email account in a folder (newest first)."""
         folder_id = (folder or INBOX_FOLDER_NAME or "INBOX").strip() or "INBOX"
         limit = max(0, int(limit or 0))
 
-        def _sync_get(conn: sqlite3.Connection) -> List[Dict]:
+        def _sync_get(conn: sqlite3.Connection) -> list[dict]:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -174,7 +174,7 @@ class EmailCacheMixin(RunInThreadMixin):
                 (email, folder_id, limit),
             )
             rows = cursor.fetchall()
-            messages: List[Dict] = []
+            messages: list[dict] = []
             for row in rows:
                 sender_payload = self._parse_cached_sender(row["sender"])
                 messages.append(
@@ -196,12 +196,12 @@ class EmailCacheMixin(RunInThreadMixin):
         return await self._run_in_thread(_sync_get)
 
     async def get_email_cache_state(
-        self, email: str, folder: Optional[str] = None
-    ) -> Dict[str, Any]:
+        self, email: str, folder: str | None = None
+    ) -> dict[str, Any]:
         """Get cache summary info for an email account's folder."""
         folder_id = (folder or INBOX_FOLDER_NAME or "INBOX").strip() or "INBOX"
 
-        def _sync_state(conn: sqlite3.Connection) -> Dict[str, Any]:
+        def _sync_state(conn: sqlite3.Connection) -> dict[str, Any]:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -237,7 +237,7 @@ class EmailCacheMixin(RunInThreadMixin):
         return await self._run_in_thread(_sync_state)
 
     async def mark_email_cache_checked(
-        self, email: str, folder: Optional[str] = None
+        self, email: str, folder: str | None = None
     ) -> None:
         """Record a cache check timestamp (even if no new emails)."""
         folder_id = (folder or INBOX_FOLDER_NAME or "INBOX").strip() or "INBOX"
@@ -257,10 +257,10 @@ class EmailCacheMixin(RunInThreadMixin):
 
         await self._run_in_thread(_sync_mark)
 
-    async def get_email_cache_stats(self) -> Dict[str, int]:
+    async def get_email_cache_stats(self) -> dict[str, int]:
         """Get aggregate statistics for the email cache."""
 
-        def _sync_stats(conn: sqlite3.Connection) -> Dict[str, int]:
+        def _sync_stats(conn: sqlite3.Connection) -> dict[str, int]:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -313,7 +313,7 @@ class EmailCacheMixin(RunInThreadMixin):
         return await self._run_in_thread(_sync_cleanup)
 
     async def delete_cached_email(
-        self, email: str, message_id: str, folder: Optional[str] = None
+        self, email: str, message_id: str, folder: str | None = None
     ) -> bool:
         """Delete a specific cached email."""
         folder_id = (folder or INBOX_FOLDER_NAME or "INBOX").strip() or "INBOX"
@@ -337,7 +337,7 @@ class EmailCacheMixin(RunInThreadMixin):
         return await self._run_in_thread(_sync_delete)
 
     async def mark_email_as_read(
-        self, email: str, message_id: str, folder: Optional[str] = None
+        self, email: str, message_id: str, folder: str | None = None
     ) -> bool:
         """
         Mark a cached email as read.

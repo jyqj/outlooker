@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple
 
+from ..auth.security import encrypt_if_needed
 from ..database import db_manager, looks_like_guid
 from ..models import ImportAccountData, ImportResult
-from ..security import encrypt_if_needed
 from ..settings import get_settings
 from .account_utils import _normalize_email, _validate_account_info
 from .constants import VALID_MERGE_MODES
@@ -23,9 +22,9 @@ class ImportStats:
     updated: int = 0
     skipped: int = 0
     errors: int = 0
-    details: List[Dict[str, str]] = field(default_factory=list)
+    details: list[dict[str, str]] = field(default_factory=list)
 
-    def record(self, action: str, detail: Dict[str, str]) -> None:
+    def record(self, action: str, detail: dict[str, str]) -> None:
         if action == "added":
             self.added += 1
         elif action == "updated":
@@ -38,11 +37,11 @@ class ImportStats:
 
 
 def _prepare_and_validate_accounts(
-    accounts: List[ImportAccountData]
-) -> Tuple[Dict[str, Dict[str, str]], List[Dict[str, str]], int]:
+    accounts: list[ImportAccountData]
+) -> tuple[dict[str, dict[str, str]], list[dict[str, str]], int]:
     """准备并验证账户数据"""
-    prepared: Dict[str, Dict[str, str]] = {}
-    error_details: List[Dict[str, str]] = []
+    prepared: dict[str, dict[str, str]] = {}
+    error_details: list[dict[str, str]] = []
     error_count = 0
 
     for idx, account in enumerate(accounts, 1):
@@ -102,10 +101,10 @@ def _prepare_and_validate_accounts(
 
 
 async def _handle_replace_mode(
-    prepared: Dict[str, Dict[str, str]],
+    prepared: dict[str, dict[str, str]],
     total_count: int,
     error_count: int,
-    error_details: List[Dict[str, str]],
+    error_details: list[dict[str, str]],
 ) -> ImportResult:
     """处理 replace 模式的账户导入"""
     valid_accounts = {
@@ -162,10 +161,10 @@ async def _handle_replace_mode(
 
 async def _process_single_account_update_mode(
     normalized_email: str,
-    info: Dict[str, str],
-    lookup_existing: Dict[str, str],
+    info: dict[str, str],
+    lookup_existing: dict[str, str],
     merge_mode: str,
-) -> Tuple[str, Dict[str, str]]:
+) -> tuple[str, dict[str, str]]:
     """处理单个账户的 update/skip/add 逻辑"""
     email_to_use = lookup_existing.get(normalized_email, info["email"] or normalized_email)
     payload = {
@@ -220,7 +219,7 @@ async def _process_single_account_update_mode(
 
 
 async def _handle_update_skip_mode(
-    prepared: Dict[str, Dict[str, str]],
+    prepared: dict[str, dict[str, str]],
     merge_mode: str,
 ) -> ImportStats:
     """处理 update/skip 模式的账户导入"""
@@ -244,7 +243,7 @@ def _build_import_result(
     updated_count: int,
     skipped_count: int,
     error_count: int,
-    details: List[Dict[str, str]],
+    details: list[dict[str, str]],
 ) -> ImportResult:
     message = (
         f"导入完成：新增 {added_count}，更新 {updated_count}，"
@@ -267,7 +266,7 @@ def _build_import_result(
 
 
 async def merge_accounts_data_to_db(
-    accounts: List[ImportAccountData],
+    accounts: list[ImportAccountData],
     merge_mode: str = "update",
 ) -> ImportResult:
     """根据不同模式合并账户数据"""

@@ -9,8 +9,8 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-green.svg)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-19.0-61dafb.svg)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178c6.svg)](https://www.typescriptlang.org/)
-[![Tests](https://img.shields.io/badge/Tests-130%2B%20passed-success.svg)](CHANGELOG.md)
-[![Coverage](https://img.shields.io/badge/Coverage-~70%25-yellow.svg)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/Tests-238%20passed-success.svg)](CHANGELOG.md)
+[![Coverage](https://img.shields.io/badge/Coverage-70%25-yellow.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 </div>
@@ -27,10 +27,10 @@
 - 📧 **邮件管理**：支持多账户、分页查询、文件夹切换、模糊搜索、标记已读、删除
 - 🎯 **验证码提取**：自动识别并提取邮件中的 4-6 位验证码
 - 👥 **账户管理**：批量导入/导出、标签分类、账户搜索、**批量删除、批量标签**
-- 📊 **系统监控**：缓存命中率、IMAP 连接复用、运行指标统计、健康检查端点
+- 📊 **系统监控**：缓存命中率、IMAP 连接复用、运行指标统计、健康检查端点、**API 性能指标**
 - 🎨 **现代 UI**：基于 React 19 + **TypeScript** + Tailwind CSS 4 + TanStack Query v5，shadcn-like 组件库，响应式布局
 - 🐳 **容器化部署**：提供 Docker 和 Docker Compose 配置
-- 🔧 **模块化架构**：数据库操作采用 Mixin 模式，统一异常处理，配置可外部化
+- 🔧 **模块化架构**：数据库操作采用 Mixin 模式，**统一异常处理装饰器**，配置可外部化
 
 ### 🏗️ 技术架构
 
@@ -117,48 +117,71 @@ graph TB
 
 ```
 outlooker/
-├── backend/              # 后端服务
-│   ├── app/             # FastAPI 应用核心
-│   │   ├── routers/     # API 路由（账户、邮件、系统、认证）
-│   │   ├── services/    # 业务逻辑层
-│   │   ├── db/          # 数据库操作模块（Mixin 架构）
-│   │   ├── migrations/  # 数据库迁移脚本
-│   │   ├── models.py    # 数据模型
-│   │   ├── exceptions.py # 统一异常处理
-│   │   ├── security.py  # 加密与安全
-│   │   └── jwt_auth.py  # JWT 认证
-│   ├── configs/         # 配置文件
-│   ├── tests/           # 单元测试和集成测试
-│   └── requirements.txt # Python 依赖
-├── frontend/            # 前端应用 (TypeScript)
+├── backend/                    # 后端服务
+│   ├── app/                   # FastAPI 应用核心
+│   │   ├── routers/           # API 路由（账户、邮件、系统、认证）
+│   │   ├── services/          # 业务逻辑层
+│   │   ├── db/                # 数据库操作模块（Mixin 架构）
+│   │   ├── auth/              # 认证与安全模块
+│   │   │   ├── jwt.py         # JWT 认证
+│   │   │   ├── security.py    # 数据加密
+│   │   │   ├── oauth.py       # OAuth2 集成
+│   │   │   └── refresh_token.py # 刷新令牌管理
+│   │   ├── core/              # 核心功能模块
+│   │   │   ├── exceptions.py  # 统一异常处理
+│   │   │   ├── messages.py    # 消息常量
+│   │   │   ├── rate_limiter.py # 频率限制
+│   │   │   ├── decorators.py  # 异常处理装饰器
+│   │   │   ├── metrics.py     # API 性能指标
+│   │   │   ├── middleware.py  # 监控中间件
+│   │   │   └── startup.py     # 启动验证
+│   │   ├── utils/             # 工具函数
+│   │   ├── migrations/        # 数据库迁移脚本
+│   │   ├── models.py          # Pydantic 数据模型
+│   │   ├── settings.py        # 配置管理
+│   │   └── mail_api.py        # FastAPI 应用入口
+│   ├── configs/               # 配置文件
+│   └── requirements.txt       # Python 依赖
+├── frontend/                  # 前端应用 (TypeScript)
 │   ├── src/
-│   │   ├── components/  # React 组件
-│   │   │   ├── ui/      # 基础 UI 组件 (Button, Input, Dialog...)
-│   │   ├── pages/       # 页面组件
-│   │   ├── lib/         # 工具库和 Hooks
-│   │   ├── types/       # TypeScript 类型定义
-│   │   └── main.tsx     # 应用入口
-│   ├── tsconfig.json    # TypeScript 配置
-│   └── package.json     # Node.js 依赖
-├── infra/               # 基础设施
-│   ├── Dockerfile       # 容器镜像
+│   │   ├── components/        # React 组件
+│   │   │   ├── ui/            # 基础 UI 组件 (Button, Input, Dialog...)
+│   │   ├── pages/             # 页面组件
+│   │   │   └── dashboard/     # 管理后台子模块
+│   │   ├── hooks/             # 自定义 Hooks
+│   │   ├── lib/               # 工具库
+│   │   ├── types/             # TypeScript 类型定义
+│   │   ├── i18n/              # 国际化配置
+│   │   └── main.tsx           # 应用入口
+│   ├── e2e/                   # E2E 测试 (Playwright)
+│   └── package.json           # Node.js 依赖
+├── docker/                    # Docker 部署配置
+│   ├── Dockerfile             # 容器镜像
 │   ├── docker-compose.yml
-│   └── deploy.sh        # 部署脚本
-├── docs/                # 完整文档
-│   ├── API_DOCUMENTATION.md      # API 参考
-│   ├── BACKEND_README.md         # 后端详解
-│   ├── LOGIN_SECURITY.md         # 安全机制
+│   ├── deploy.sh              # 部署脚本
+│   └── entrypoint.sh          # 容器入口脚本
+├── docs/                      # 完整文档
+│   ├── API_DOCUMENTATION.md   # API 参考
+│   ├── BACKEND_README.md      # 后端详解
+│   ├── LOGIN_SECURITY.md      # 安全机制
 │   └── ...
-├── scripts/             # 运维脚本
-│   ├── encrypt_existing_accounts.py  # 数据加密迁移
-│   ├── cleanup_email_cache.py        # 缓存清理
-│   ├── run_smoke_tests.py            # 冒烟测试
-│   └── security_scan.sh              # 安全扫描
-├── data/                # 运行时数据（Git 忽略）
-│   ├── outlook_manager.db   # SQLite 数据库
-│   ├── logs/                # 日志文件
-│   └── static/              # 前端构建产物
-└── .env                 # 环境配置（需手动创建）
+├── scripts/                   # 运维脚本
+│   ├── benchmarks/            # 性能基准测试
+│   │   ├── benchmark_email_cache.py
+│   │   └── benchmark_imap.py
+│   ├── maintenance/           # 维护脚本
+│   │   ├── encrypt_existing_accounts.py  # 数据加密迁移
+│   │   ├── cleanup_email_cache.py        # 缓存清理
+│   │   └── view_login_audit.py           # 查看登录审计
+│   ├── security/              # 安全脚本
+│   │   └── security_scan.sh              # 安全扫描
+│   └── run_smoke_tests.py     # 冒烟测试
+├── tests/                     # 集成测试
+├── data/                      # 运行时数据（Git 忽略）
+│   ├── outlook_manager.db     # SQLite 数据库
+│   ├── logs/                  # 日志文件
+│   └── static/                # 前端构建产物
+└── .env                       # 环境配置（需手动创建）
 ```
 
 ## 🚀 快速开始
@@ -221,13 +244,13 @@ npm run dev
 
 ```bash
 # 方式一：使用部署脚本
-cd infra
+cd docker
 chmod +x deploy.sh
 ./deploy.sh build
 ./deploy.sh start
 
 # 方式二：直接使用 docker-compose
-cd infra
+cd docker
 docker-compose up -d
 ```
 
@@ -238,12 +261,12 @@ docker-compose up -d
 | 文档 | 说明 |
 |------|------|
 | [更新日志](CHANGELOG.md) | 版本历史和变更记录 |
-| [后端功能说明](docs/BACKEND_README.md) | 后端架构、数据库设计、核心功能 |
-| [快速开始指南](docs/BACKEND_QUICKSTART.md) | 开发环境配置、常见任务 |
-| [API 参考文档](docs/API_DOCUMENTATION.md) | 完整的 REST API 接口说明 |
-| [登录安全机制](docs/LOGIN_SECURITY.md) | 频率限制、防爆破、审计日志 |
-| [安全测试指南](docs/SECURITY_TESTING_GUIDE.md) | 安全改进验证步骤 |
-| [依赖维护策略](docs/DEPENDENCY_MAINTENANCE.md) | 依赖升级和安全审计 |
+| [后端架构](docs/architecture.md) | 后端架构、数据库设计、核心功能 |
+| [快速开始](docs/getting-started.md) | 开发环境配置、常见任务 |
+| [API 参考](docs/api-reference.md) | 完整的 REST API 接口说明 |
+| [安全机制](docs/security.md) | 频率限制、防爆破、审计日志 |
+| [安全测试](docs/security-testing.md) | 安全改进验证步骤 |
+| [依赖维护](docs/maintenance.md) | 依赖升级和安全审计 |
 
 ## 🔧 开发命令
 
@@ -256,8 +279,9 @@ docker-compose up -d
 | 前端测试 | `cd frontend && npm run test` |
 | 类型检查 | `cd backend && mypy app` / `cd frontend && npm run typecheck` |
 | 代码检查 | `cd backend && ruff check .` / `cd frontend && npm run lint` |
-| 安全扫描 | `./scripts/security_scan.sh` |
+| 安全扫描 | `./scripts/security/security_scan.sh` |
 | 健康检查 | `curl http://localhost:5001/api/health` |
+| API 指标 | `curl http://localhost:5001/api/system/metrics` |
 
 ## 🔒 安全特性
 
@@ -282,19 +306,21 @@ Outlooker 实现了多层安全防护：
 ### 日志审计
 - ✅ 登录审计日志：`data/logs/login_audit.log`
 - ✅ 敏感信息脱敏
-- ✅ 查看工具：`python scripts/view_login_audit.py`
+- ✅ 查看工具：`python scripts/maintenance/view_login_audit.py`
 
 ## 🛠️ 运维脚本
 
 | 脚本 | 用途 |
 |------|------|
-| `scripts/encrypt_existing_accounts.py` | 迁移旧账户数据到加密存储 |
-| `scripts/cleanup_email_cache.py` | 清理过期邮件缓存 |
+| `scripts/maintenance/encrypt_existing_accounts.py` | 迁移旧账户数据到加密存储 |
+| `scripts/maintenance/cleanup_email_cache.py` | 清理过期邮件缓存 |
+| `scripts/maintenance/view_login_audit.py` | 查看登录审计日志统计 |
 | `scripts/test_security_improvements.py` | 安全改进自动化验证 |
 | `scripts/test_rate_limiting.py` | 频率限制功能测试 |
-| `scripts/view_login_audit.py` | 查看登录审计日志统计 |
 | `scripts/run_smoke_tests.py` | 部署后冒烟测试 |
-| `scripts/security_scan.sh` | 依赖安全扫描 |
+| `scripts/security/security_scan.sh` | 依赖安全扫描 |
+| `scripts/benchmarks/benchmark_email_cache.py` | 邮件缓存性能测试 |
+| `scripts/benchmarks/benchmark_imap.py` | IMAP 连接性能测试 |
 
 ## 📊 主要功能
 
@@ -378,11 +404,11 @@ Outlooker 实现了多层安全防护：
 
 项目拥有完善的测试覆盖,确保代码质量和稳定性:
 
-**测试统计** (v2.4.0):
-- 后端测试: 110+ 个测试 (100% 通过率)
-- 前端测试: 23个测试 (100% 通过率)
-- 总测试数: 130+
-- 估计覆盖率: ~70%
+**测试统计** (v2.5.0):
+- 后端测试: 215 个测试 (100% 通过率)
+- 前端测试: 23 个测试 (100% 通过率)
+- 总测试数: 238
+- 覆盖率: 70%
 
 **v2.4.0 测试更新**:
 - ✅ 新增 IMAP 客户端单元测试
@@ -436,7 +462,7 @@ tail -f data/logs/login_audit.log
 python -c "import os; print('KEY:', 'SET' if os.getenv('DATA_ENCRYPTION_KEY') else 'NOT SET')"
 
 # 重新运行加密迁移
-python scripts/encrypt_existing_accounts.py
+python scripts/maintenance/encrypt_existing_accounts.py
 ```
 
 ### 前端无法连接后端

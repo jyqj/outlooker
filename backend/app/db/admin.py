@@ -11,7 +11,6 @@ Handles all admin-related database operations including:
 import logging
 import sqlite3
 from datetime import datetime
-from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +20,10 @@ from .base import RunInThreadMixin
 class AdminMixin(RunInThreadMixin):
     """Mixin providing admin-related database operations."""
 
-    async def get_admin_by_username(self, username: str) -> Optional[Dict[str, str]]:
+    async def get_admin_by_username(self, username: str) -> dict[str, str] | None:
         """Get admin by username."""
 
-        def _sync_get(conn: sqlite3.Connection) -> Optional[Dict[str, str]]:
+        def _sync_get(conn: sqlite3.Connection) -> dict[str, str] | None:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -41,10 +40,10 @@ class AdminMixin(RunInThreadMixin):
 
         return await self._run_in_thread(_sync_get)
 
-    async def get_admin_by_id(self, admin_id: int) -> Optional[Dict[str, str]]:
+    async def get_admin_by_id(self, admin_id: int) -> dict[str, str] | None:
         """Get admin by ID."""
 
-        def _sync_get(conn: sqlite3.Connection) -> Optional[Dict[str, str]]:
+        def _sync_get(conn: sqlite3.Connection) -> dict[str, str] | None:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -67,10 +66,10 @@ class AdminMixin(RunInThreadMixin):
         password_hash: str,
         role: str = "admin",
         is_active: bool = True,
-    ) -> Optional[int]:
+    ) -> int | None:
         """Create a new admin user."""
 
-        def _sync_create(conn: sqlite3.Connection) -> Optional[int]:
+        def _sync_create(conn: sqlite3.Connection) -> int | None:
             cursor = conn.cursor()
             try:
                 cursor.execute(
@@ -122,8 +121,8 @@ class AdminMixin(RunInThreadMixin):
         admin_id: int,
         token_hash: str,
         expires_at: datetime,
-        user_agent: Optional[str],
-        ip_address: Optional[str],
+        user_agent: str | None,
+        ip_address: str | None,
     ) -> bool:
         """Save an admin refresh token."""
 
@@ -149,10 +148,10 @@ class AdminMixin(RunInThreadMixin):
 
         return await self._run_in_thread(_sync_insert)
 
-    async def get_admin_refresh_token(self, token_id: str) -> Optional[Dict[str, str]]:
+    async def get_admin_refresh_token(self, token_id: str) -> dict[str, str] | None:
         """Get a refresh token."""
 
-        def _sync_get(conn: sqlite3.Connection) -> Optional[Dict[str, str]]:
+        def _sync_get(conn: sqlite3.Connection) -> dict[str, str] | None:
             cursor = conn.cursor()
             cursor.execute(
                 """

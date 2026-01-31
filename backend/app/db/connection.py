@@ -8,10 +8,11 @@ Handles SQLite connection creation, thread pool execution, and resource manageme
 import asyncio
 import logging
 import sqlite3
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 from pathlib import Path
-from typing import Callable, Optional, TypeVar
+from typing import TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +23,8 @@ class ConnectionMixin:
     """Mixin providing database connection management functionality."""
 
     db_path: str
-    _executor: Optional[ThreadPoolExecutor]
-    _executor_loop: Optional[asyncio.AbstractEventLoop]
+    _executor: ThreadPoolExecutor | None
+    _executor_loop: asyncio.AbstractEventLoop | None
 
     def _init_connection(self, db_path: str, project_root: Path) -> None:
         """Initialize connection settings."""
@@ -32,10 +33,10 @@ class ConnectionMixin:
             resolved = project_root / resolved
         resolved.parent.mkdir(parents=True, exist_ok=True)
         self.db_path = str(resolved)
-        self._executor: Optional[ThreadPoolExecutor] = ThreadPoolExecutor(
+        self._executor: ThreadPoolExecutor | None = ThreadPoolExecutor(
             max_workers=4, thread_name_prefix="db-worker"
         )
-        self._executor_loop: Optional[asyncio.AbstractEventLoop] = None
+        self._executor_loop: asyncio.AbstractEventLoop | None = None
 
     def _create_connection(self) -> sqlite3.Connection:
         """Create a new SQLite connection with row factory enabled."""

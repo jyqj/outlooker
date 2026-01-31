@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, User, Inbox, Loader2 } from 'lucide-react';
+import { Lock, User, Inbox, Loader2, Eye, EyeOff } from 'lucide-react';
 import api, { setAuthTokens } from '@/lib/api';
 import { handleApiError } from '@/lib/error';
 import { MESSAGES } from '@/lib/constants';
@@ -13,6 +13,7 @@ import type { AdminLoginResponse } from '@/types/models';
 export default function AdminLoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { loading, run } = useAsyncTask();
   const navigate = useNavigate();
@@ -66,9 +67,9 @@ export default function AdminLoginPage() {
             <CardTitle className="text-center">管理员登录</CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleLogin} className="space-y-6">
+            <form onSubmit={handleLogin} className="space-y-6" aria-describedby={error ? "login-error" : undefined}>
               {error && (
-                <div className="bg-destructive/10 text-destructive p-3 rounded-lg text-sm text-center border border-destructive/20">
+                <div id="login-error" role="alert" className="bg-destructive/10 text-destructive p-3 rounded-lg text-sm text-center border border-destructive/20">
                   {error}
                 </div>
               )}
@@ -86,6 +87,7 @@ export default function AdminLoginPage() {
                     placeholder="请输入用户名"
                     required
                     disabled={loading}
+                    autoFocus
                   />
                 </div>
 
@@ -93,15 +95,31 @@ export default function AdminLoginPage() {
                   <label htmlFor="password" className="text-sm font-medium text-foreground flex items-center gap-2">
                     <Lock className="w-4 h-4" /> 密码
                   </label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="请输入密码"
-                    required
-                    disabled={loading}
-                  />
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="请输入密码"
+                      required
+                      disabled={loading}
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded transition-colors"
+                      aria-label={showPassword ? '隐藏密码' : '显示密码'}
+                      disabled={loading}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
 

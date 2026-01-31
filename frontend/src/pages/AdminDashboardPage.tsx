@@ -8,6 +8,7 @@ import { useAccountsQuery, useAccountTagsQuery, useDebounce } from '@/lib/hooks'
 import { logError } from '@/lib/utils';
 import { handleApiError } from '@/lib/error';
 import { queryKeys } from '@/lib/queryKeys';
+import { downloadBlob } from '@/lib/download';
 import type { Account } from '@/types';
 import { isTagsData } from '@/types/api';
 
@@ -92,6 +93,11 @@ export default function AdminDashboardPage() {
     pagination.resetPage();
   }, [debouncedSearch, pagination.resetPage]);
 
+  // Clear selection when pagination changes
+  useEffect(() => {
+    selection.clearSelection();
+  }, [pagination.page, pagination.pageSize, selection.clearSelection]);
+
   // Handlers
   const handleLogout = async () => {
     try {
@@ -108,13 +114,7 @@ export default function AdminDashboardPage() {
     modals.setExporting(true);
     try {
       const res = await api.get('/api/export', { responseType: 'blob' });
-      const url = window.URL.createObjectURL(new Blob([res.data as BlobPart]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', 'outlook_accounts.txt');
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+      downloadBlob(new Blob([res.data as BlobPart]), 'outlook_accounts.txt');
       showSuccess(MESSAGES.SUCCESS_EXPORT);
     } catch (e: unknown) {
       showError(handleApiError(e, '导出失败', MESSAGES.ERROR_EXPORT_FAILED));

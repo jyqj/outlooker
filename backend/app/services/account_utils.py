@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Optional, Tuple
 
 from ..database import looks_like_guid
 from ..settings import get_settings
@@ -21,9 +20,9 @@ def _normalize_email(email: str) -> str:
     return normalize_email(email)
 
 
-def _validate_account_info(email: str, account_info: Dict[str, str]) -> List[str]:
+def _validate_account_info(email: str, account_info: dict[str, str]) -> list[str]:
     """基础字段校验，返回问题列表"""
-    errors: List[str] = []
+    errors: list[str] = []
 
     refresh_token = (account_info.get("refresh_token") or "").strip()
     if not refresh_token:
@@ -36,7 +35,7 @@ def _validate_account_info(email: str, account_info: Dict[str, str]) -> List[str
     return errors
 
 
-def parse_account_line(line: str) -> Optional[Tuple[str, Dict[str, str]]]:
+def parse_account_line(line: str) -> tuple[str, dict[str, str]] | None:
     """解析配置文件中的账户行 (公共函数)
     
     支持的格式：
@@ -50,7 +49,7 @@ def parse_account_line(line: str) -> Optional[Tuple[str, Dict[str, str]]]:
 
     parts = [p.strip() for p in raw.split("----")]
     num_parts = len(parts)
-    
+
     if num_parts >= 6:
         # 6字段格式: 邮箱----密码----client_id----refresh_token----恢复邮箱----恢复密码
         email, password, client_id, refresh_token = parts[0], parts[1], parts[2], parts[3]
@@ -82,9 +81,9 @@ def parse_account_line(line: str) -> Optional[Tuple[str, Dict[str, str]]]:
     }
 
 
-def _load_accounts_from_files() -> Dict[str, Dict[str, str]]:
+def _load_accounts_from_files() -> dict[str, dict[str, str]]:
     """从本地配置文件加载账户（兼容 config.txt）"""
-    accounts: Dict[str, Dict[str, str]] = {}
+    accounts: dict[str, dict[str, str]] = {}
 
     for file_path in ACCOUNTS_CONFIG_FILES:
         if not file_path.exists():

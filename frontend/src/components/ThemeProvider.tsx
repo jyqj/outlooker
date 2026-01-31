@@ -1,6 +1,6 @@
-import { createContext, useContext, useEffect, useState } from "react"
+import { createContext, useContext, useEffect, useState, useCallback } from "react"
 
-type Theme = "dark" | "light" | "system"
+export type Theme = "dark" | "light" | "system"
 
 type ThemeProviderProps = {
     children: React.ReactNode
@@ -10,11 +10,20 @@ type ThemeProviderProps = {
 
 type ThemeProviderState = {
     theme: Theme
+    resolvedTheme: "light" | "dark"
     setTheme: (theme: Theme) => void
+}
+
+const getSystemTheme = (): "light" | "dark" => {
+    if (typeof window === "undefined") return "light"
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light"
 }
 
 const initialState: ThemeProviderState = {
     theme: "system",
+    resolvedTheme: "light",
     setTheme: () => null,
 }
 
@@ -25,34 +34,67 @@ export function ThemeProvider({
     defaultTheme = "system",
     storageKey = "vite-ui-theme",
 }: ThemeProviderProps) {
-    const [theme, setTheme] = useState<Theme>(
+    const [theme, setThemeState] = useState<Theme>(
         () => (localStorage.getItem(storageKey) as Theme) || defaultTheme
     )
+    const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">(() => {
+        const storedTheme = localStorage.getItem(storageKey) as Theme
+        const currentTheme = storedTheme || defaultTheme
+        return currentTheme === "system" ? getSystemTheme() : currentTheme
+    })
+
+    const applyTheme = useCallback((newTheme: "light" | "dark") => {
+        const root = window.document.documentElement
+        
+        // Add transitioning class for smooth theme switch animation
+        root.classList.add("theme-transitioning")
+        
+        root.classList.remove("light", "dark")
+        root.classList.add(newTheme)
+        setResolvedTheme(newTheme)
+        
+        // Remove transitioning class after animation completes
+        const timer = setTimeout(() => {
+            root.classList.remove("theme-transitioning")
+        }, 200)
+        
+        return () => clearTimeout(timer)
+    }, [])
 
     useEffect(() => {
-        const root = window.document.documentElement
-
-        root.classList.remove("light", "dark")
-
         if (theme === "system") {
-            const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
-                .matches
-                ? "dark"
-                : "light"
+            const systemTheme = getSystemTheme()
+            const cleanup = applyTheme(systemTheme)
 
-            root.classList.add(systemTheme)
-            return
+            // Listen for system theme changes
+            const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)")
+            let themeCleanup: (() => void) | undefined
+            const handleChange = (e: MediaQueryListEvent) => {
+                themeCleanup?.()
+                themeCleanup = applyTheme(e.matches ? "dark" : "light")
+            }
+
+            mediaQuery.addEventListener("change", handleChange)
+            return () => {
+                cleanup()
+                themeCleanup?.()
+                mediaQuery.removeEventListener("change", handleChange)
+            }
         }
 
-        root.classList.add(theme)
-    }, [theme])
+        const cleanup = applyTheme(theme)
+        return cleanup
+    }, [theme, applyTheme])
+
+    const setTheme = useCallback((newTheme: Theme) => {
+        localStorage.setItem(storageKey, newTheme)
+        setThemeState(newTheme)
+    }, [storageKey])
 
     const value = {
         theme,
-        setTheme: (theme: Theme) => {
-            localStorage.setItem(storageKey, theme)
-            setTheme(theme)
-        },
+        resolvedTheme,
+        setTheme,
     }
 
     return (

@@ -8,7 +8,8 @@ provide a small base class to declare the expected interface.
 """
 
 import sqlite3
-from typing import Callable, TypeVar
+from collections.abc import Callable
+from typing import TypeVar
 
 T = TypeVar("T")
 

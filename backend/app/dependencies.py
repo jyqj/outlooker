@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-from typing import Annotated, Optional
+from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, Request
 
+from .core.rate_limiter import public_api_rate_limiter
 from .settings import get_settings
-from .rate_limiter import public_api_rate_limiter
 from .utils.request_utils import get_client_ip
 
 settings = get_settings()
 
 
-async def verify_public_token(x_public_token: Optional[str] = Header(None)) -> None:
+async def verify_public_token(x_public_token: str | None = Header(None)) -> None:
     """校验公共接口调用口令（X-Public-Token）。"""
     if not x_public_token or x_public_token != settings.public_api_token:
         raise HTTPException(status_code=401, detail="未授权的公共接口访问")
@@ -23,7 +23,7 @@ async def verify_public_token(x_public_token: Optional[str] = Header(None)) -> N
 
 
 async def get_admin_user(
-    authorization: Annotated[Optional[str], Header()] = None
+    authorization: Annotated[str | None, Header()] = None
 ) -> str:
     """获取当前认证的管理员用户名
     
@@ -39,7 +39,7 @@ async def get_admin_user(
         HTTPException: 认证失败时抛出 401 错误
     """
     # 延迟导入避免循环依赖
-    from .jwt_auth import get_current_admin
+    from .auth.jwt import get_current_admin
     return get_current_admin(authorization)
 
 
@@ -47,7 +47,7 @@ async def get_admin_user(
 AdminUser = Annotated[str, Depends(get_admin_user)]
 
 
-async def enforce_public_rate_limit(request: Request, email: Optional[str] = None) -> None:
+async def enforce_public_rate_limit(request: Request, email: str | None = None) -> None:
     """按 IP（可选按 IP+email）施加速率限制，防止公共接口被滥用。"""
     client_ip = get_client_ip(request)
     key = client_ip

@@ -16,12 +16,11 @@ import email
 import imaplib
 import logging
 import re
+from email import utils as email_utils
 from email.errors import MessageError
 from email.header import decode_header
-from email import utils as email_utils
-from typing import Dict, Optional
 
-from .exceptions import IMAPConnectionError
+from .core.exceptions import IMAPConnectionError
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +50,7 @@ def decode_header_value(header_value) -> str:
     return decoded_string
 
 
-def parse_email_header(email_message) -> Dict:
+def parse_email_header(email_message) -> dict:
     """解析邮件头部信息"""
     subject = decode_header_value(email_message["Subject"]) or "(No Subject)"
     from_str = decode_header_value(email_message["From"]) or "(Unknown Sender)"
@@ -84,15 +83,15 @@ def parse_email_header(email_message) -> Dict:
     }
 
 
-def parse_email_body(email_message) -> Dict:
+def parse_email_body(email_message) -> dict:
     """解析邮件正文(支持 multipart 和非 multipart)"""
     body_content = ""
     body_type = "text"
     body_preview = ""
 
     if email_message.is_multipart():
-        html_content: Optional[str] = None
-        text_content: Optional[str] = None
+        html_content: str | None = None
+        text_content: str | None = None
 
         for part in email_message.walk():
             content_type = part.get_content_type()
@@ -153,7 +152,7 @@ def parse_email_body(email_message) -> Dict:
     }
 
 
-def build_message_dict(uid_bytes: bytes, header_info: Dict, body_info: Dict) -> Dict:
+def build_message_dict(uid_bytes: bytes, header_info: dict, body_info: dict) -> dict:
     """构建符合 API 格式的消息字典"""
     return {
         "id": uid_bytes.decode("utf-8"),
@@ -171,14 +170,14 @@ def build_message_dict(uid_bytes: bytes, header_info: Dict, body_info: Dict) -> 
     }
 
 
-def fetch_and_parse_single_email(imap_conn, uid_bytes: bytes) -> Optional[Dict]:
+def fetch_and_parse_single_email(imap_conn, uid_bytes: bytes) -> dict | None:
     """获取并解析单封邮件，失败返回 None"""
     try:
         typ, msg_data = imap_conn.uid("fetch", uid_bytes, "(RFC822)")
         if typ != "OK" or not msg_data or msg_data[0] is None:
             return None
 
-        raw_email_bytes: Optional[bytes] = None
+        raw_email_bytes: bytes | None = None
         if isinstance(msg_data[0], tuple) and len(msg_data[0]) == 2:
             raw_email_bytes = msg_data[0][1]
 

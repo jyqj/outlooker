@@ -8,6 +8,6 @@ New code should import directly from app.db.
 
 # Re-export everything from the new modular db package
 from .db import DatabaseManager, db_manager
-from .db.manager import looks_like_guid, GUID_PATTERN
+from .db.manager import GUID_PATTERN, looks_like_guid
 
 __all__ = ["DatabaseManager", "db_manager", "looks_like_guid", "GUID_PATTERN"]

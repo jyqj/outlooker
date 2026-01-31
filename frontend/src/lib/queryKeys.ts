@@ -4,6 +4,7 @@ export const queryKeys = {
       ? (['accounts'] as const)
       : (['accounts', page, search, pageSize] as const),
   tags: () => ['tags'] as const,
+  tagStats: () => ['tag-stats'] as const,
   systemConfig: () => ['system-config'] as const,
   systemMetrics: () => ['system-metrics'] as const,
   emailMessages: (email: string, refreshCounter?: number, page?: number, pageSize?: number) =>

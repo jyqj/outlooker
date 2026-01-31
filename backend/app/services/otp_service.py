@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, Optional, cast
+from typing import Any, cast
 
 
 def _clean_html(html: str) -> str:
@@ -93,7 +93,7 @@ _CODE_PATTERNS = [
 ]
 
 
-def extract_verification_code(text: str) -> Optional[str]:
+def extract_verification_code(text: str) -> str | None:
     """智能提取验证码（4-8位数字/字母数字）。
 
     策略与前端 `extractVerificationCode` 基本对齐：
@@ -201,7 +201,7 @@ def extract_verification_code(text: str) -> Optional[str]:
     return cast(str, filtered[0]["code"])
 
 
-def extract_code_from_message(message: Dict[str, Any]) -> Optional[str]:
+def extract_code_from_message(message: dict[str, Any]) -> str | None:
     """从邮件消息对象中提取验证码。
 
     - 自动处理 HTML / 纯文本
