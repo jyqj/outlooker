@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { deleteTagGlobally, renameTagGlobally, getTagStats } from '@/lib/api';
 import { queryKeys } from '@/lib/queryKeys';
 import { showSuccess, showError } from '@/lib/toast';
-import type { TagStats } from '@/types';
+import type { TagStatItem } from '@/types/api';
 import { PickAccountModal } from '@/components/pick-account';
 
 import { useTagModals } from './hooks/useTagModals';
@@ -22,7 +22,7 @@ import { TagRenameDialog } from './TagRenameDialog';
 function useTagStatsQuery() {
   return useQuery({
     queryKey: queryKeys.tagStats(),
-    queryFn: getTagStats,
+    queryFn: () => getTagStats(),
   });
 }
 
@@ -200,7 +200,7 @@ export default function TagsPage() {
       <PickAccountModal
         isOpen={pickModal.isOpen}
         preselectedTag={pickModal.preselectedTag}
-        availableTags={stats?.tags.map(t => t.name) || []}
+        availableTags={stats?.tags.map((t: TagStatItem) => t.name) || []}
         onClose={closePickModal}
         onSuccess={handlePickSuccess}
       />

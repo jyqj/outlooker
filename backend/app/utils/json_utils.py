@@ -5,7 +5,7 @@ JSON utility functions for safe parsing and serialization.
 
 import json
 import logging
-from typing import overload
+from typing import Any, overload
 
 
 @overload
