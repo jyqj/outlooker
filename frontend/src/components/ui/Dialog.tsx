@@ -102,7 +102,7 @@ const Dialog: React.FC<DialogProps> = ({ isOpen, onClose, title, children, class
       {/* Backdrop */}
       <div
         ref={overlayRef}
-        className="fixed inset-0 bg-black/80 backdrop-blur-md transition-opacity animate-in fade-in duration-200"
+        className="fixed inset-0 bg-black/95 transition-opacity animate-in fade-in duration-200"
         onClick={onClose}
         aria-label="关闭对话框"
       />

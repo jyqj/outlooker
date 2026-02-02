@@ -9,7 +9,8 @@ interface VerificationSearchFormProps {
   onEmailChange: (value: string) => void;
   loading: boolean;
   onSearch: (e?: FormEvent) => void;
-  onAutoOtp: () => void;
+  onAutoOtp?: () => void;
+  showAutoOtp?: boolean;
 }
 
 export function VerificationSearchForm({
@@ -18,6 +19,7 @@ export function VerificationSearchForm({
   loading,
   onSearch,
   onAutoOtp,
+  showAutoOtp = false,
 }: VerificationSearchFormProps) {
   return (
     <Card className="shadow-md">
@@ -73,17 +75,19 @@ export function VerificationSearchForm({
                 </>
               )}
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={loading}
-              onClick={onAutoOtp}
-              className="w-full md:w-auto gap-2 text-base font-semibold py-4"
-              size="lg"
-            >
-              <Wand2 className="w-5 h-5" />
-              自动分配邮箱并接码
-            </Button>
+            {showAutoOtp && onAutoOtp && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={loading}
+                onClick={onAutoOtp}
+                className="w-full md:w-auto gap-2 text-base font-semibold py-4"
+                size="lg"
+              >
+                <Wand2 className="w-5 h-5" />
+                自动分配邮箱并接码
+              </Button>
+            )}
           </div>
         </form>
       </CardContent>
