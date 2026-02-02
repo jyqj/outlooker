@@ -13,7 +13,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root / "backend"))
 
-from app.rate_limiter import rate_limiter, auditor
+from app.core.rate_limiter import rate_limiter, auditor
 
 
 async def test_basic_rate_limiting():

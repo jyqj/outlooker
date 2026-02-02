@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from ..database import looks_like_guid
+from ..db.manager import looks_like_guid
 from ..settings import get_settings
 from ..utils.pagination import normalize_email
 from .constants import ACCOUNTS_CONFIG_FILES

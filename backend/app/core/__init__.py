@@ -83,21 +83,46 @@ from .messages import (
 from .metrics import (
     APIMetrics,
     api_metrics,
+    http_requests_total,
+    http_request_duration_seconds,
+    email_fetch_total,
+    get_metrics,
+    get_metrics_content_type,
 )
 from .middleware import (
     MetricsMiddleware,
+)
+from .audit import (
+    AuditEvent,
+    AuditEventType,
+    AuditLogger,
+    audit_logger,
+    init_audit_logger,
 )
 from .rate_limiter import (
     AUDIT_LOG_FILE,
     LoginAuditor,
     LoginRateLimiter,
-    RequestRateLimiter,
     auditor,
-    public_api_rate_limiter,
+    public_api_rate_limiter,  # 现为 SlidingWindowRateLimiter 实例
     rate_limiter,
+)
+from .sliding_window_limiter import (
+    RateLimitConfig,
+    SlidingWindowRateLimiter,
+    check_login_rate_limit,
+    check_public_api_rate_limit,
+    login_limiter,
+    public_api_limiter,
+)
+from .logging_config import (
+    get_logger,
+    request_logger,
+    setup_structured_logging,
 )
 from .startup import (
     log_startup_info,
+    setup_app,
     validate_environment,
 )
 
@@ -126,21 +151,44 @@ __all__ = [
     "ConfigurationError",
     "ServiceUnavailableError",
     "ExternalServiceError",
-    # Rate Limiter
+    # Audit Logger
+    "AuditEvent",
+    "AuditEventType",
+    "AuditLogger",
+    "audit_logger",
+    "init_audit_logger",
+    # Rate Limiter - 登录相关
     "LoginRateLimiter",
-    "LoginAuditor",
-    "RequestRateLimiter",
+    "LoginAuditor",  # 已重构为 AuditLogger 适配器
     "rate_limiter",
     "auditor",
-    "public_api_rate_limiter",
+    # Rate Limiter - API 限流（统一为 SlidingWindowRateLimiter）
+    "public_api_rate_limiter",  # SlidingWindowRateLimiter 实例
+    # Sliding Window Rate Limiter
+    "RateLimitConfig",
+    "SlidingWindowRateLimiter",
+    "check_login_rate_limit",
+    "check_public_api_rate_limit",
+    "login_limiter",
+    "public_api_limiter",
     # Decorators
     "handle_exceptions",
     # Metrics
     "APIMetrics",
     "api_metrics",
+    "http_requests_total",
+    "http_request_duration_seconds",
+    "email_fetch_total",
+    "get_metrics",
+    "get_metrics_content_type",
     # Middleware
     "MetricsMiddleware",
     # Startup
     "validate_environment",
     "log_startup_info",
+    "setup_app",
+    # Logging
+    "setup_structured_logging",
+    "get_logger",
+    "request_logger",
 ]

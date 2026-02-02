@@ -132,9 +132,9 @@ Compose 会使用根目录 `.env`，同时挂载 `data/`（必需）与 `backend
 - `POST /api/temp-messages`: 同步支持分页/搜索。
 - 账户 CRUD：
   - `POST /api/accounts`
-  - `GET /api/account/{email}`
-  - `PUT /api/account/{email}`
-  - `DELETE /api/account/{email}`
+  - `GET /api/accounts/{email}`
+  - `PUT /api/accounts/{email}`
+  - `DELETE /api/accounts/{email}`
 - 系统配置 PATCH：`POST /api/system/config`。
 - 缓存刷新：`POST /api/system/cache/refresh`。
 

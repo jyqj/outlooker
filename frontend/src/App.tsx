@@ -5,9 +5,10 @@ import AdminLoginPage from './pages/AdminLoginPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import NotFoundPage from './pages/NotFoundPage';
 import ToastContainer from './components/Toast';
+import { getStoredAccessToken } from './lib/api';
 
 // Lazy load TagsPage for better performance
-const TagsPage = React.lazy(() => import('./pages/TagsPage'));
+const TagsPage = React.lazy(() => import('./pages/tags/TagsPage'));
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -15,7 +16,7 @@ interface ProtectedRouteProps {
 
 // Protected Route Component
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const token = sessionStorage.getItem('admin_token');
+  const token = getStoredAccessToken();
   if (!token) {
     return <Navigate to="/admin/login" replace />;
   }

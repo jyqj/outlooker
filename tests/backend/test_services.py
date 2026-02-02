@@ -22,7 +22,7 @@ from app.services import (
     extract_verification_code,
     extract_code_from_message,
 )
-from app.database import db_manager
+from app.db import db_manager
 from app.models import ImportAccountData
 
 

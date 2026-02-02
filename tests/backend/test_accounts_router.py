@@ -133,7 +133,7 @@ class TestAccountTags:
 
         # 设置标签
         response = client.post(
-            f"/api/account/{email}/tags",
+            f"/api/accounts/{email}/tags",
             json={"email": email, "tags": ["vip", "test"]},
             headers=admin_headers,
         )
@@ -142,7 +142,7 @@ class TestAccountTags:
 
         # 获取标签
         response = client.get(
-            f"/api/account/{email}/tags",
+            f"/api/accounts/{email}/tags",
             headers=admin_headers,
         )
         assert response.status_code == 200
@@ -165,7 +165,7 @@ class TestAccountTags:
             headers=admin_headers,
         )
         client.post(
-            f"/api/account/tag1@example.com/tags",
+            f"/api/accounts/tag1@example.com/tags",
             json={"email": "tag1@example.com", "tags": ["alpha", "beta"]},
             headers=admin_headers,
         )
@@ -255,7 +255,7 @@ class TestBatchOperations:
         # 验证标签
         for email in emails:
             tag_response = client.get(
-                f"/api/account/{email}/tags",
+                f"/api/accounts/{email}/tags",
                 headers=admin_headers,
             )
             tags = tag_response.json()["data"]["tags"]
@@ -276,7 +276,7 @@ class TestBatchOperations:
             headers=admin_headers,
         )
         client.post(
-            f"/api/account/{email}/tags",
+            f"/api/accounts/{email}/tags",
             json={"email": email, "tags": ["keep", "remove"]},
             headers=admin_headers,
         )
@@ -291,7 +291,7 @@ class TestBatchOperations:
 
         # 验证标签已移除
         tag_response = client.get(
-            f"/api/account/{email}/tags",
+            f"/api/accounts/{email}/tags",
             headers=admin_headers,
         )
         tags = tag_response.json()["data"]["tags"]
@@ -312,7 +312,7 @@ class TestBatchOperations:
             headers=admin_headers,
         )
         client.post(
-            f"/api/account/{email}/tags",
+            f"/api/accounts/{email}/tags",
             json={"email": email, "tags": ["old1", "old2"]},
             headers=admin_headers,
         )
@@ -327,7 +327,7 @@ class TestBatchOperations:
 
         # 验证标签已替换
         tag_response = client.get(
-            f"/api/account/{email}/tags",
+            f"/api/accounts/{email}/tags",
             headers=admin_headers,
         )
         tags = tag_response.json()["data"]["tags"]
@@ -428,7 +428,7 @@ class TestAccountDetail:
     def test_get_account_detail_not_found(self, admin_headers):
         """测试获取不存在的账户详情"""
         response = client.get(
-            "/api/account/nonexistent@example.com",
+            "/api/accounts/nonexistent@example.com",
             headers=admin_headers,
         )
         assert response.status_code == 404
@@ -447,7 +447,7 @@ class TestAccountDetail:
             headers=admin_headers,
         )
 
-        response = client.get(f"/api/account/{email}", headers=admin_headers)
+        response = client.get(f"/api/accounts/{email}", headers=admin_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
@@ -490,17 +490,17 @@ class TestTagStatistics:
 
         # 为部分账户添加标签
         client.post(
-            "/api/account/stats0@example.com/tags",
+            "/api/accounts/stats0@example.com/tags",
             json={"email": "stats0@example.com", "tags": ["注册-Apple"]},
             headers=admin_headers,
         )
         client.post(
-            "/api/account/stats1@example.com/tags",
+            "/api/accounts/stats1@example.com/tags",
             json={"email": "stats1@example.com", "tags": ["注册-Apple"]},
             headers=admin_headers,
         )
         client.post(
-            "/api/account/stats2@example.com/tags",
+            "/api/accounts/stats2@example.com/tags",
             json={"email": "stats2@example.com", "tags": ["注册-Google"]},
             headers=admin_headers,
         )
@@ -611,13 +611,13 @@ class TestPickAccount:
 
         # 给第一个账户打黑名单标签
         client.post(
-            "/api/account/exclude0@example.com/tags",
+            "/api/accounts/exclude0@example.com/tags",
             json={"email": "exclude0@example.com", "tags": ["黑名单"]},
             headers=admin_headers,
         )
         # 给第二个账户打目标标签
         client.post(
-            "/api/account/exclude1@example.com/tags",
+            "/api/accounts/exclude1@example.com/tags",
             json={"email": "exclude1@example.com", "tags": ["注册-Apple"]},
             headers=admin_headers,
         )
@@ -648,7 +648,7 @@ class TestPickAccount:
             headers=admin_headers,
         )
         client.post(
-            "/api/account/tagged@example.com/tags",
+            "/api/accounts/tagged@example.com/tags",
             json={"email": "tagged@example.com", "tags": ["注册-Apple"]},
             headers=admin_headers,
         )
@@ -706,7 +706,7 @@ class TestPickAccount:
             headers=admin_headers,
         )
         client.post(
-            "/api/account/append@example.com/tags",
+            "/api/accounts/append@example.com/tags",
             json={"email": "append@example.com", "tags": ["已有标签"]},
             headers=admin_headers,
         )

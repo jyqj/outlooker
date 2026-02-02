@@ -241,6 +241,93 @@ def _create_login_audit_tables(conn: sqlite3.Connection) -> None:
     )
 
 
+@register_migration("2026012001", "添加软删除支持")
+def _add_soft_delete_support(conn: sqlite3.Connection) -> None:
+    """为 accounts 表添加软删除字段
+
+    - 添加 deleted_at 字段用于标记软删除时间
+    - 创建索引优化软删除查询
+    """
+    cursor = conn.cursor()
+
+    # 若 accounts 表不存在，直接返回
+    cursor.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='accounts'"
+    )
+    if not cursor.fetchone():
+        return
+
+    # 查询已有字段
+    cursor.execute("PRAGMA table_info(accounts)")
+    columns = {col[1] for col in cursor.fetchall()}
+
+    if "deleted_at" not in columns:
+        cursor.execute(
+            "ALTER TABLE accounts ADD COLUMN deleted_at TIMESTAMP DEFAULT NULL"
+        )
+
+    # 创建软删除索引
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_accounts_deleted_at ON accounts(deleted_at)"
+    )
+
+    # 创建复合索引优化常用查询（活跃账户）
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_accounts_active 
+        ON accounts(deleted_at, email) WHERE deleted_at IS NULL
+        """
+    )
+
+
+@register_migration("2026012002", "优化数据库索引")
+def _optimize_indexes(conn: sqlite3.Connection) -> None:
+    """添加优化索引提升查询性能"""
+    cursor = conn.cursor()
+
+    # 检查 accounts 表是否存在
+    cursor.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='accounts'"
+    )
+    accounts_exists = cursor.fetchone() is not None
+
+    # 检查 email_cache 表是否存在
+    cursor.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='email_cache'"
+    )
+    email_cache_exists = cursor.fetchone() is not None
+
+    if accounts_exists:
+        # 邮箱搜索（小写）
+        try:
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_accounts_email_lower ON accounts(LOWER(email))"
+            )
+        except Exception:
+            pass  # 某些 SQLite 版本可能不支持表达式索引
+
+        # 使用状态 + 创建时间
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_accounts_is_used_created ON accounts(is_used, created_at)"
+        )
+
+        # 最后使用时间
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_accounts_last_used ON accounts(last_used_at DESC)"
+        )
+
+    if email_cache_exists:
+        # 邮箱 + 接收时间
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_email_cache_email_received ON email_cache(email, received_date DESC)"
+        )
+
+        # 邮箱 + 文件夹 + 接收时间
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_email_cache_email_folder_received ON email_cache(email, folder, received_date DESC)"
+        )
+
+
 @register_migration("2026010901", "升级 email_cache 表结构以支持 folder 维度")
 def _upgrade_email_cache_folder(conn: sqlite3.Connection) -> None:
     cursor = conn.cursor()
@@ -363,3 +450,157 @@ def _upgrade_email_cache_folder(conn: sqlite3.Connection) -> None:
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_email_cache_meta_checked_at ON email_cache_meta(last_checked_at)"
     )
+
+
+@register_migration("2026020100", "创建审计事件表")
+def _create_audit_events_table(conn: sqlite3.Connection) -> None:
+    """创建 audit_events 表用于记录安全相关事件"""
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS audit_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_type TEXT NOT NULL,
+            timestamp TEXT NOT NULL,
+            user_id TEXT,
+            ip_address TEXT,
+            user_agent TEXT,
+            resource TEXT,
+            action TEXT,
+            details TEXT,
+            success INTEGER NOT NULL DEFAULT 1,
+            error_message TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # 创建索引优化查询
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_audit_events_type ON audit_events(event_type)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_audit_events_timestamp ON audit_events(timestamp)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_audit_events_user_id ON audit_events(user_id)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_audit_events_ip ON audit_events(ip_address)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_audit_events_type_timestamp ON audit_events(event_type, timestamp)"
+    )
+    
+    logger.info("审计事件表创建完成")
+
+
+@register_migration("2026020101", "将 JSON 标签转换为关系表")
+def _migrate_tag_relations(conn: sqlite3.Connection) -> None:
+    """将 JSON 格式的 account_tags 表转换为关系型 tags + account_tag_relations 表"""
+    import json
+    
+    cursor = conn.cursor()
+    
+    # 检查 account_tags 表是否存在
+    cursor.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='account_tags'"
+    )
+    if not cursor.fetchone():
+        # 表不存在，直接创建新表结构
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS tags (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS account_tag_relations (
+                account_email TEXT NOT NULL,
+                tag_id INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (account_email, tag_id),
+                FOREIGN KEY (account_email) REFERENCES accounts(email) ON DELETE CASCADE,
+                FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_atr_tag_id ON account_tag_relations(tag_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_atr_email ON account_tag_relations(account_email)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_tags_name ON tags(name)")
+        return
+    
+    # 检查 account_tags_backup_json 是否已存在（说明迁移已执行过）
+    cursor.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='account_tags_backup_json'"
+    )
+    if cursor.fetchone():
+        return
+    
+    # 创建新表
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS tags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS account_tag_relations (
+            account_email TEXT NOT NULL,
+            tag_id INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (account_email, tag_id),
+            FOREIGN KEY (account_email) REFERENCES accounts(email) ON DELETE CASCADE,
+            FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_atr_tag_id ON account_tag_relations(tag_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_atr_email ON account_tag_relations(account_email)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_tags_name ON tags(name)")
+    
+    # 迁移数据
+    cursor.execute("SELECT email, tags FROM account_tags")
+    rows = cursor.fetchall()
+    
+    tag_cache: dict[str, int] = {}
+    
+    for row in rows:
+        email = row[0] if not isinstance(row, sqlite3.Row) else row["email"]
+        tags_json = row[1] if not isinstance(row, sqlite3.Row) else row["tags"]
+        
+        if not tags_json:
+            continue
+        
+        try:
+            tags = json.loads(tags_json)
+        except json.JSONDecodeError:
+            logger.warning(f"账户 {email} 的标签 JSON 解析失败，跳过")
+            continue
+        
+        if not tags:
+            continue
+        
+        for tag_name in tags:
+            if not tag_name or not str(tag_name).strip():
+                continue
+            
+            tag_name = str(tag_name).strip()
+            
+            if tag_name not in tag_cache:
+                cursor.execute("INSERT OR IGNORE INTO tags (name) VALUES (?)", (tag_name,))
+                cursor.execute("SELECT id FROM tags WHERE name = ?", (tag_name,))
+                tag_row = cursor.fetchone()
+                if tag_row:
+                    tag_id = tag_row[0] if not isinstance(tag_row, sqlite3.Row) else tag_row["id"]
+                    tag_cache[tag_name] = tag_id
+                else:
+                    continue
+            
+            cursor.execute("""
+                INSERT OR IGNORE INTO account_tag_relations (account_email, tag_id)
+                VALUES (?, ?)
+            """, (email, tag_cache[tag_name]))
+    
+    # 重命名原表为备份
+    cursor.execute("ALTER TABLE account_tags RENAME TO account_tags_backup_json")
+    logger.info("标签数据已从 JSON 格式迁移到关系表")

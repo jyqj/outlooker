@@ -10,6 +10,7 @@ from ..services import (
     db_manager,
     email_manager,
     extract_code_from_message,
+    imap_pool,
 )
 
 logger = logging.getLogger(__name__)
@@ -94,6 +95,8 @@ async def delete_account_public(
         if not deleted:
             raise ResourceNotFoundError(message="账户不存在或删除失败", resource_type="account", resource_id=email)
 
+        # 清理 IMAP 连接池中的连接
+        await imap_pool.remove(email)
         # 删除账户后刷新邮件管理器缓存
         await email_manager.invalidate_accounts_cache()
 

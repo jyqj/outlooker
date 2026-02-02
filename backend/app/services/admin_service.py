@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 from fastapi import HTTPException, status
 
 from ..auth.jwt import create_access_token, get_password_hash, verify_password
-from ..database import db_manager
+from ..db import db_manager
 from ..settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -120,6 +120,23 @@ class AdminAuthService:
         expected_hash = record["token_hash"]
         if expected_hash != self._hash_secret(secret):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="刷新令牌无效")
+
+        # IP/UA 绑定检查（变化时记录警告，可选拒绝）
+        stored_ip = record.get("ip_address")
+        stored_ua = record.get("user_agent")
+
+        if stored_ip and stored_ip != ip_address:
+            logger.warning(
+                f"Refresh token IP changed: token_id={token_id}, "
+                f"stored={stored_ip}, current={ip_address}"
+            )
+            # 可选：严格模式下拒绝
+            # raise HTTPException(status_code=401, detail="刷新令牌无效")
+
+        if stored_ua and stored_ua != user_agent:
+            logger.warning(
+                f"Refresh token UA changed: token_id={token_id}"
+            )
 
         admin = await db_manager.get_admin_by_id(int(record["admin_id"]))
         if not admin or not admin.get("is_active"):

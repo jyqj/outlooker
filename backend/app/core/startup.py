@@ -8,8 +8,22 @@
 import logging
 
 from ..settings import get_settings
+from .logging_config import get_logger, setup_structured_logging
 
 logger = logging.getLogger(__name__)
+
+
+def setup_app() -> None:
+    """应用启动初始化
+    
+    在其他初始化之前调用，配置结构化日志等。
+    """
+    # 初始化结构化日志
+    setup_structured_logging()
+    
+    # 获取结构化日志器
+    struct_logger = get_logger("startup")
+    struct_logger.info("structured_logging_initialized", message="结构化日志初始化完成")
 
 
 def validate_environment() -> list[str]:

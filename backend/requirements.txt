@@ -12,5 +12,14 @@ passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 pydantic-settings==2.6.1
 
+# Logging
+structlog==24.4.0
+
 # APM / Error Tracking
 sentry-sdk[fastapi]==2.19.2
+
+# Monitoring
+prometheus-client>=0.17.0
+
+# Encryption (for backup encryption)
+cryptography>=41.0.0

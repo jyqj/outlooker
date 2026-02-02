@@ -71,6 +71,11 @@ backend/.env
 credentials.json
 secrets.json
 
+# 敏感配置文件（包含密码和token）
+backend/configs/config.txt
+backend/configs/accounts.txt
+backend/configs/token_config.ini
+
 # ============================================================================
 # Data & Logs
 # ============================================================================

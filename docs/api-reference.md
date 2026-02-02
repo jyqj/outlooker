@@ -139,9 +139,9 @@ JWT_SECRET_KEY=your-secret-key-change-this-in-production-please
 | `/api/admin/logout` | POST | Bearer/Cookie | 管理后台 | 登出并清理 refresh cookie | - |
 | `/api/accounts/paged` | GET | Bearer | 管理后台 | 分页拉取账户列表 | 前端主要使用 |
 | `/api/accounts` | GET/POST | Bearer | 管理后台/内部 | 获取全部/创建单账户 | 前端一般用分页/导入 |
-| `/api/account/{email}` | GET/PUT/DELETE | Bearer | 管理后台/内部 | 单账户读写删 | 批量场景用批量接口 |
+| `/api/accounts/{email}` | GET/PUT/DELETE | Bearer | 管理后台/内部 | 单账户读写删 | 批量场景用批量接口 |
 | `/api/accounts/tags` | GET | Bearer | 管理后台 | 拉取标签总表与映射 | - |
-| `/api/account/{email}/tags` | GET/POST | Bearer | 管理后台 | 获取/更新单账户标签 | - |
+| `/api/accounts/{email}/tags` | GET/POST | Bearer | 管理后台 | 获取/更新单账户标签 | - |
 | `/api/accounts/batch-delete` | POST | Bearer | 管理后台 | 批量删除账户 | - |
 | `/api/accounts/batch-tags` | POST | Bearer | 管理后台 | 批量标签操作 | - |
 | `/api/import` | POST | Bearer | 管理后台 | 批量导入账户 | - |
@@ -849,7 +849,7 @@ curl -X POST "http://localhost:5001/api/parse-import-text" \
 
 #### 获取账户详情
 
-**端点**: `GET /api/account/{email}`
+**端点**: `GET /api/accounts/{email}`
 
 **描述**: 返回账户的客户端 ID 以及敏感字段是否存在（附带脱敏预览）
 
@@ -872,7 +872,7 @@ curl -X POST "http://localhost:5001/api/parse-import-text" \
 
 #### 更新账户
 
-**端点**: `PUT /api/account/{email}`
+**端点**: `PUT /api/accounts/{email}`
 
 **描述**: 覆盖指定账户的客户端 ID/密码/refresh_token，`email` 需与路径一致
 
@@ -891,7 +891,7 @@ curl -X POST "http://localhost:5001/api/parse-import-text" \
 
 #### 删除账户
 
-**端点**: `DELETE /api/account/{email}`
+**端点**: `DELETE /api/accounts/{email}`
 
 **描述**: 删除账户及其标签、缓存记录
 
@@ -967,7 +967,7 @@ curl "http://localhost:5001/api/accounts/tags" \
 
 #### 2. 获取指定账户的标签
 
-**端点**: `GET /api/account/{email}/tags`
+**端点**: `GET /api/accounts/{email}/tags`
 
 **描述**: 获取指定账户的标签列表
 
@@ -990,7 +990,7 @@ curl "http://localhost:5001/api/accounts/tags" \
 
 **示例**:
 ```bash
-curl "http://localhost:5001/api/account/user@example.com/tags" \
+curl "http://localhost:5001/api/accounts/user@example.com/tags" \
   -H "Authorization: Bearer {access_token}"
 ```
 
@@ -999,7 +999,7 @@ curl "http://localhost:5001/api/account/user@example.com/tags" \
 
 #### 3. 设置账户标签
 
-**端点**: `POST /api/account/{email}/tags`
+**端点**: `POST /api/accounts/{email}/tags`
 
 **描述**: 为指定账户设置标签列表
 
@@ -1034,7 +1034,7 @@ curl "http://localhost:5001/api/account/user@example.com/tags" \
 
 **示例**:
 ```bash
-curl -X POST "http://localhost:5001/api/account/user@example.com/tags" \
+curl -X POST "http://localhost:5001/api/accounts/user@example.com/tags" \
   -H "Authorization: Bearer {access_token}" \
   -H "Content-Type: application/json" \
   -d '{

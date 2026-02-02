@@ -173,3 +173,126 @@ export interface BatchOperationResponse {
     mode?: string;
   };
 }
+
+// ============================================================================
+// Tag Statistics Types
+// ============================================================================
+
+/**
+ * Single tag statistic item
+ */
+export interface TagStatItem {
+  name: string;
+  count: number;
+  percentage: number;
+}
+
+/**
+ * Tag statistics summary
+ */
+export interface TagStats {
+  total_accounts: number;
+  tagged_accounts: number;
+  untagged_accounts: number;
+  tags: TagStatItem[];
+}
+
+/**
+ * Tag statistics API response
+ */
+export interface TagStatsResponse {
+  success: boolean;
+  data?: TagStats;
+  message?: string;
+}
+
+// ============================================================================
+// Pick Account Types
+// ============================================================================
+
+/**
+ * Request parameters for picking a random account
+ */
+export interface PickAccountRequest {
+  tag: string;
+  exclude_tags?: string[];
+  return_credentials?: boolean;
+}
+
+/**
+ * Result data from pick account operation
+ */
+export interface PickAccountResult {
+  email: string;
+  tags: string[];
+  password?: string;
+  refresh_token?: string;
+  client_id?: string;
+}
+
+/**
+ * Pick account API response
+ */
+export interface PickAccountResponse {
+  success: boolean;
+  data?: PickAccountResult;
+  message?: string;
+}
+
+// ============================================================================
+// Tag Management Types
+// ============================================================================
+
+/**
+ * Tag list API response
+ */
+export interface TagListResponse {
+  success: boolean;
+  data?: { tags: string[] };
+  message?: string;
+}
+
+/**
+ * Tag operation (create/rename/delete) API response
+ */
+export interface TagOperationResponse {
+  success: boolean;
+  message?: string;
+  data?: {
+    tag?: string;
+    old_name?: string;
+    new_name?: string;
+    affected_accounts?: number;
+  };
+}
+
+// ============================================================================
+// Account List Types
+// ============================================================================
+
+/**
+ * Parameters for fetching accounts list
+ */
+export interface AccountsParams {
+  page?: number;
+  page_size?: number;
+  search?: string;
+  tag?: string;
+  sort_by?: string;
+  sort_order?: 'asc' | 'desc';
+}
+
+/**
+ * Paginated accounts list API response
+ */
+export interface AccountsListResponse {
+  success: boolean;
+  data?: {
+    accounts: Account[];
+    total: number;
+    page: number;
+    page_size: number;
+    total_pages: number;
+  };
+  message?: string;
+}

@@ -97,21 +97,32 @@ def decode_access_token(token: str) -> dict | None:
 
 
 def authenticate_admin(username: str, password: str) -> bool:
-    """向后兼容的管理员验证（仅用于旧代码/测试）。
+    """验证管理员凭证 - 仅支持哈希密码。
 
     新代码请使用 admin_auth_service.authenticate。
+    
+    安全要求：
+    - 密码必须使用 bcrypt 哈希存储（以 $2b$ 开头）
+    - 不再支持明文密码比对
     """
     env_username = settings.admin_username or "admin"
     env_password = settings.admin_password or ""
 
     if not env_password:
+        logger.warning("管理员密码未配置")
         return False
     if username != env_username:
         return False
 
-    if env_password.startswith("$2b$"):
-        return verify_password(password, env_password)
-    return password == env_password
+    # 强制要求使用 bcrypt 哈希密码
+    if not env_password.startswith("$2b$"):
+        logger.error("安全配置错误: ADMIN_PASSWORD 必须使用 bcrypt 哈希值，不支持明文密码")
+        raise RuntimeError(
+            "ADMIN_PASSWORD 必须是 bcrypt 哈希值。"
+            "请使用 python -c \"from passlib.hash import bcrypt; print(bcrypt.hash('your_password'))\" 生成哈希值"
+        )
+    
+    return verify_password(password, env_password)
 
 
 def get_current_admin(authorization: str | None = Header(None)) -> str:

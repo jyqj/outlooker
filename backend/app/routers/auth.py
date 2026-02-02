@@ -11,7 +11,7 @@ from ..core.exceptions import (
     InvalidCredentialsError,
 )
 from ..core.rate_limiter import auditor, rate_limiter
-from ..database import db_manager
+from ..db import db_manager
 from ..models import (
     AdminLoginRequest,
     AdminLoginResponse,
@@ -120,7 +120,8 @@ async def admin_login(
         raise
     except Exception as e:
         logger.error(f"管理员登录异常: {e}")
-        await auditor.log_attempt(client_ip, username, False, f"系统错误: {str(e)}")
+        # 审计日志不记录完整异常信息，避免敏感数据泄露
+        await auditor.log_attempt(client_ip, username, False, "系统内部错误")
         raise AuthenticationError(message="登录失败，请稍后重试")
 
 

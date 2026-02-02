@@ -135,14 +135,23 @@ def encrypt_if_needed(value: str) -> str:
     return encrypt_value(value)
 
 
-def decrypt_if_needed(value: str) -> str:
+class DecryptionError(Exception):
+    """解密失败异常"""
+    pass
+
+
+def decrypt_if_needed(value: str, raise_on_error: bool = False) -> str:
     """如果已加密则解密
     
     Args:
         value: 待解密的字符串
+        raise_on_error: 如果为 True，解密失败时抛出异常；否则返回空字符串
         
     Returns:
         解密后的字符串 (如果未加密则返回原值)
+        
+    Raises:
+        DecryptionError: 当 raise_on_error=True 且解密失败时
     """
     if not value:
         return ""
@@ -153,5 +162,68 @@ def decrypt_if_needed(value: str) -> str:
     try:
         return decrypt_value(value)
     except InvalidToken:
-        logger.warning("解密失败,可能是密钥已更改,返回原值")
-        return value
+        logger.error(
+            "解密失败: 密钥可能已更改或数据已损坏。"
+            "请检查 DATA_ENCRYPTION_KEY 配置是否正确。"
+        )
+        if raise_on_error:
+            raise DecryptionError("解密失败，密钥可能已更改或数据已损坏")
+        # 返回空字符串而非原加密值，防止敏感数据泄露
+        return ""
+
+
+# ============================================================================
+# 数据脱敏函数
+# ============================================================================
+
+def mask_secret(value: str | None, visible_chars: int = 2, mask_char: str = "*") -> str:
+    """
+    安全的敏感数据脱敏。
+    
+    策略：
+    - 空值或过短：返回固定掩码
+    - 正常值：保留前后各 N 位，中间用掩码替换
+    
+    Args:
+        value: 原始值
+        visible_chars: 前后各显示的字符数
+        mask_char: 掩码字符
+        
+    Returns:
+        脱敏后的字符串
+        
+    Examples:
+        >>> mask_secret("abcdefghij", 2)
+        'ab******ij'
+        >>> mask_secret("abc", 2)
+        '***'
+        >>> mask_secret(None)
+        '***'
+    """
+    if not value:
+        return mask_char * 3
+        
+    length = len(value)
+    min_length = visible_chars * 2 + 1
+    
+    if length <= min_length:
+        return mask_char * 3
+        
+    masked_length = length - visible_chars * 2
+    return f"{value[:visible_chars]}{mask_char * masked_length}{value[-visible_chars:]}"
+
+
+def mask_email(email: str | None) -> str:
+    """
+    邮箱地址脱敏。
+    
+    Examples:
+        >>> mask_email("user@example.com")
+        'us***@example.com'
+    """
+    if not email or "@" not in email:
+        return "***@***"
+        
+    local, domain = email.rsplit("@", 1)
+    masked_local = mask_secret(local, visible_chars=2)
+    return f"{masked_local}@{domain}"

@@ -200,7 +200,7 @@ class TestAccountCrud:
             raise AssertionError(f"response={body}")
 
         # detail
-        detail = client.get("/api/account/crud@example.com", headers=jwt_headers)
+        detail = client.get("/api/accounts/crud@example.com", headers=jwt_headers)
         assert detail.status_code == 200
         detail_data = detail.json()["data"]
         assert detail_data["has_refresh_token"] is True
@@ -208,14 +208,14 @@ class TestAccountCrud:
         # update
         payload["password"] = "updated"
         payload["refresh_token"] = "token456"
-        response = client.put("/api/account/crud@example.com", json=payload, headers=jwt_headers)
+        response = client.put("/api/accounts/crud@example.com", json=payload, headers=jwt_headers)
         assert response.status_code == 200
         update_body = response.json()
         if not update_body["success"]:
             raise AssertionError(f"update_response={update_body}")
 
         # delete
-        response = client.delete("/api/account/crud@example.com", headers=jwt_headers)
+        response = client.delete("/api/accounts/crud@example.com", headers=jwt_headers)
         assert response.status_code == 200
         delete_body = response.json()
         if not delete_body["success"]:

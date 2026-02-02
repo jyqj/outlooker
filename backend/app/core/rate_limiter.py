@@ -1,21 +1,18 @@
 #!/usr/bin/env python3
 """
-登录频率限制与审计模块
+登录频率限制模块
 
 实现基于 IP 地址和用户名的登录频率限制,防止暴力破解攻击
-记录所有登录尝试(成功和失败)用于安全审计
+审计日志功能已统一到 core/audit.py 的 AuditLogger
 """
 
 import asyncio
-import json
 import logging
-import time
-from collections import defaultdict, deque
 from datetime import datetime, timedelta
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
-from ..database import db_manager
+from ..db import db_manager
 from ..settings import get_settings
 
 # ============================================================================
@@ -29,17 +26,17 @@ MAX_LOGIN_ATTEMPTS = settings.max_login_attempts
 LOCKOUT_DURATION = settings.lockout_duration_seconds
 ATTEMPT_WINDOW = settings.login_attempt_window_seconds
 
-# 审计日志配置
+# 审计日志配置（向后兼容，实际审计已统一到 AuditLogger）
 AUDIT_LOG_DIR = Path(settings.logs_dir)
 AUDIT_LOG_FILE = AUDIT_LOG_DIR / "login_audit.log"
 
 
 # ============================================================================
-# 数据结构
+# 数据结构（向后兼容）
 # ============================================================================
 
 class LoginAttempt:
-    """登录尝试记录"""
+    """登录尝试记录（向后兼容，新代码请使用 AuditEvent）"""
     def __init__(self, ip: str, username: str, success: bool, timestamp: float):
         self.ip = ip
         self.username = username
@@ -102,16 +99,19 @@ class LoginRateLimiter:
 
 
 # ============================================================================
-# 审计日志
+# 审计日志（委托给 AuditLogger）
 # ============================================================================
 
 class LoginAuditor:
-    """登录审计日志记录器"""
+    """登录审计日志记录器
+    
+    已重构为 AuditLogger 的适配器，保持向后兼容。
+    新代码请直接使用 audit_logger.log_login()。
+    """
 
     def __init__(self):
-        # 确保日志目录存在
+        # 确保日志目录存在（向后兼容）
         AUDIT_LOG_DIR.mkdir(parents=True, exist_ok=True)
-        self._lock = asyncio.Lock()
 
     async def log_attempt(
         self,
@@ -122,25 +122,23 @@ class LoginAuditor:
     ) -> None:
         """记录登录尝试到审计日志
         
+        现已委托给 AuditLogger 统一处理。
+        
         Args:
             ip: 客户端 IP 地址
             username: 用户名
             success: 是否成功
             reason: 失败原因(可选)
         """
-        async with self._lock:
-            attempt = LoginAttempt(ip, username, success, time.time())
-            log_entry = attempt.to_dict()
-
-            if reason:
-                log_entry["reason"] = reason
-
-            try:
-                # 追加到审计日志文件
-                with AUDIT_LOG_FILE.open("a", encoding="utf-8") as f:
-                    f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
-            except Exception as e:
-                logger.error(f"写入审计日志失败: {e}")
+        # 延迟导入避免循环依赖
+        from .audit import audit_logger
+        
+        await audit_logger.log_login(
+            ip_address=ip,
+            username=username,
+            success=success,
+            reason=reason,
+        )
 
 
 # ============================================================================
@@ -150,33 +148,7 @@ class LoginAuditor:
 rate_limiter = LoginRateLimiter()
 auditor = LoginAuditor()
 
-
-class RequestRateLimiter:
-    """用于 API 的简单按 IP 频率限制器"""
-
-    def __init__(self, max_requests: int, window_seconds: int):
-        self.max_requests = max_requests
-        self.window_seconds = window_seconds
-        self._records: dict[str, deque[float]] = defaultdict(deque)
-        self._lock = asyncio.Lock()
-
-    async def is_allowed(self, key: str) -> tuple[bool, int | None]:
-        """返回是否允许请求以及建议的重试秒数"""
-        async with self._lock:
-            now = time.time()
-            window_start = now - self.window_seconds
-            hits = self._records[key]
-
-            while hits and hits[0] <= window_start:
-                hits.popleft()
-
-            if len(hits) >= self.max_requests:
-                retry_after = int(self.window_seconds - (now - hits[0]))
-                return False, max(retry_after, 1)
-
-            hits.append(now)
-            return True, None
-
-
-# 公共 API 的缺省限流：每分钟最多 60 次
-public_api_rate_limiter = RequestRateLimiter(max_requests=60, window_seconds=60)
+# 公共 API 限流器：直接使用 SlidingWindowRateLimiter
+# 已移除废弃的 RequestRateLimiter 和代理类
+# 推荐使用 sliding_window_limiter 模块中的 public_api_limiter
+from .sliding_window_limiter import public_api_limiter as public_api_rate_limiter

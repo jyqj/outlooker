@@ -12,3 +12,4 @@ export { Label, type LabelProps } from './Label';
 export { LoadingSpinner, spinnerVariants, type LoadingSpinnerProps } from './LoadingSpinner';
 export { Skeleton, type SkeletonProps } from './Skeleton';
 export { Textarea, type TextareaProps } from './Textarea';
+export { StatsCard, type StatsCardProps } from './StatsCard';

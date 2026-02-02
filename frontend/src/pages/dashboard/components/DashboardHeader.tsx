@@ -12,7 +12,7 @@ export function DashboardHeader({ onLogout }: DashboardHeaderProps) {
   const isTagsPage = location.pathname === '/admin/tags';
 
   return (
-    <header className="bg-background/80 border-b px-6 py-4 flex justify-between items-center sticky top-0 z-20 shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-background/60">
+    <header className="bg-background border-b px-6 py-4 flex justify-between items-center sticky top-0 z-20 shadow-sm [background:hsl(var(--background))]">
       <div className="flex items-center gap-3">
         <div className="bg-primary p-2 rounded-lg text-primary-foreground">
           <Inbox className="w-5 h-5" />

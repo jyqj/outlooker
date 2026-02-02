@@ -1,6 +1,6 @@
-import { useState } from 'react';
 import { Copy, Check, AlertCircle } from 'lucide-react';
 import { Button } from './ui/Button';
+import { useCopyToClipboard } from '@/hooks';
 
 interface VerificationCodeCardProps {
   code?: string | null;
@@ -14,40 +14,11 @@ interface VerificationCodeCardProps {
  * - 展示复制成功/失败提示
  */
 export default function VerificationCodeCard({ code, showFallback = false }: VerificationCodeCardProps) {
-  const [copied, setCopied] = useState(false);
-  const [copyError, setCopyError] = useState(false);
+  const { copy, copied, error: copyError } = useCopyToClipboard(2000);
 
   const handleCopy = async () => {
     if (!code) return;
-    
-    try {
-      // 优先使用 Clipboard API
-      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-        await navigator.clipboard.writeText(code);
-      } else {
-        // 降级方案：使用 execCommand
-        const textArea = document.createElement('textarea');
-        textArea.value = code;
-        textArea.style.position = 'fixed';
-        textArea.style.left = '-9999px';
-        textArea.style.top = '-9999px';
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        const success = document.execCommand('copy');
-        document.body.removeChild(textArea);
-        if (!success) {
-          throw new Error('execCommand copy failed');
-        }
-      }
-      setCopied(true);
-      setCopyError(false);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('复制失败:', err);
-      setCopyError(true);
-      setTimeout(() => setCopyError(false), 3000);
-    }
+    await copy(code);
   };
 
   const hasCode = Boolean(code);

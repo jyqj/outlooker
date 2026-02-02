@@ -25,7 +25,7 @@ from .core.middleware import MetricsMiddleware
 from .core.startup import log_startup_info, validate_environment
 
 # 导入自定义模块
-from .database import db_manager
+from .db import db_manager
 from .models import ApiResponse
 from .routers import accounts, auth, emails, public_accounts, system
 from .services import admin_auth_service, email_manager, load_accounts_config

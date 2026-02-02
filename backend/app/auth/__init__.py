@@ -14,6 +14,7 @@ from .jwt import (
 )
 from .oauth import get_access_token
 from .security import (
+    DecryptionError,
     decrypt_if_needed,
     decrypt_value,
     encrypt_if_needed,
@@ -38,4 +39,5 @@ __all__ = [
     "encrypt_if_needed",
     "decrypt_if_needed",
     "is_encrypted",
+    "DecryptionError",
 ]

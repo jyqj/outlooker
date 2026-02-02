@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from ..database import db_manager
+from ..db import db_manager
 from .constants import MAX_EMAIL_LIMIT, MIN_EMAIL_LIMIT, SYSTEM_CONFIG_DEFAULTS
 from .constants import SYSTEM_CONFIG_FILE as DEFAULT_SYSTEM_CONFIG_FILE
 

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState, useEffect } from 'react';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
-import api from './api';
+import api, { getAccountsPaged } from './api';
 import { CONFIG } from './constants';
 import { showError, showSuccess } from './toast';
 import { logError } from './utils';
@@ -60,12 +60,8 @@ export function useAccountsQuery({
 }: AccountsQueryParams = {}): UseQueryResult<ApiResponse<PaginatedData<Account>>> {
   return useQuery({
     queryKey: queryKeys.accounts(page, search, pageSize),
-    queryFn: async ({ signal }) => {
-      const res = await api.get<ApiResponse<PaginatedData<Account>>>('/api/accounts/paged', {
-        params: { page, page_size: pageSize, q: search },
-        signal,
-      });
-      return res.data;
+    queryFn: async () => {
+      return getAccountsPaged({ page, page_size: pageSize, q: search });
     },
     placeholderData: (previousData) => previousData,
   });

@@ -198,6 +198,40 @@ const isDevEnv =
   (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.DEV) ||
   (typeof process !== "undefined" && process.env && process.env.NODE_ENV !== "production");
 
+/**
+ * 格式化相对时间（用于邮件列表等场景）
+ * - 今天：显示 HH:mm
+ * - 昨天：显示 "昨天"
+ * - 7天内：显示 "N天前"
+ * - 其他：显示 月/日
+ * @param dateStr - ISO 日期字符串
+ * @returns 格式化后的相对时间字符串
+ */
+export function formatRelativeTime(dateStr: string): string {
+  if (!dateStr) return '未知';
+  
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return '未知';
+    
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    
+    if (days === 0) {
+      return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    } else if (days === 1) {
+      return '昨天';
+    } else if (days < 7) {
+      return `${days}天前`;
+    } else {
+      return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+    }
+  } catch {
+    return '未知';
+  }
+}
+
 export function logError(message: string, error?: unknown): void {
   if (!isDevEnv || typeof console === "undefined") {
     return;

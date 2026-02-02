@@ -33,8 +33,11 @@ class ConnectionMixin:
             resolved = project_root / resolved
         resolved.parent.mkdir(parents=True, exist_ok=True)
         self.db_path = str(resolved)
+        # 延迟导入避免循环依赖
+        from ..settings import get_settings
+        pool_size = get_settings().db_thread_pool_size
         self._executor: ThreadPoolExecutor | None = ThreadPoolExecutor(
-            max_workers=4, thread_name_prefix="db-worker"
+            max_workers=pool_size, thread_name_prefix="db-worker"
         )
         self._executor_loop: asyncio.AbstractEventLoop | None = None
 
@@ -42,6 +45,7 @@ class ConnectionMixin:
         """Create a new SQLite connection with row factory enabled."""
         conn = sqlite3.connect(self.db_path, check_same_thread=False)
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON")
         return conn
 
     def get_connection(self) -> sqlite3.Connection:
@@ -55,7 +59,10 @@ class ConnectionMixin:
     def _get_executor(self) -> ThreadPoolExecutor:
         """Get the database thread pool executor."""
         if self._executor is None:
-            self._executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="db-worker")
+            # 延迟导入避免循环依赖
+            from ..settings import get_settings
+            pool_size = get_settings().db_thread_pool_size
+            self._executor = ThreadPoolExecutor(max_workers=pool_size, thread_name_prefix="db-worker")
         return self._executor
 
     async def _run_in_thread(self, handler: Callable[[sqlite3.Connection], T]) -> T:

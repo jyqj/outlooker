@@ -128,3 +128,17 @@ class SystemConfigMixin(RunInThreadMixin):
                 return False
 
         return await self._run_in_thread(_sync_check)
+
+    async def execute_health_check(self) -> bool:
+        """执行数据库健康检查
+        
+        Returns:
+            True if database is healthy, False otherwise.
+        """
+
+        def _sync_check(conn: sqlite3.Connection) -> bool:
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            return cursor.fetchone() is not None
+
+        return await self._run_in_thread(_sync_check)

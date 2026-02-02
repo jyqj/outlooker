@@ -1,0 +1,9 @@
+# 每天凌晨 3 点执行备份
+# 编辑 crontab: crontab -e
+# 添加以下行（根据实际路径修改）:
+
+# 每日备份，保留 7 天
+0 3 * * * cd /path/to/outlooker && python scripts/maintenance/auto_backup.py --verify >> /var/log/outlooker-backup.log 2>&1
+
+# 每周完整备份，保留 30 天
+0 4 * * 0 cd /path/to/outlooker && python scripts/maintenance/auto_backup.py --backup-dir data/backups/weekly --keep-days 30 --verify >> /var/log/outlooker-backup.log 2>&1

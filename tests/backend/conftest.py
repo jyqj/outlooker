@@ -28,4 +28,11 @@ def reset_public_api_rate_limiter():
     """重置公共接口限流状态，避免用例间互相影响。"""
     from app.core.rate_limiter import public_api_rate_limiter
 
-    public_api_rate_limiter._records.clear()
+    # 兼容新旧实现：
+    # - 旧版使用 _records (deque)
+    # - 新版使用 _PublicApiRateLimiterProxy -> SlidingWindowRateLimiter._windows
+    if hasattr(public_api_rate_limiter, "_records"):
+        public_api_rate_limiter._records.clear()
+    elif hasattr(public_api_rate_limiter, "_limiter") and public_api_rate_limiter._limiter is not None:
+        public_api_rate_limiter._limiter._windows.clear()
+    # 如果 _limiter 还未初始化，无需清理

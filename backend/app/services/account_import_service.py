@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 
 from ..auth.security import encrypt_if_needed
-from ..database import db_manager, looks_like_guid
+from ..db import db_manager
+from ..db.manager import looks_like_guid
 from ..models import ImportAccountData, ImportResult
 from ..settings import get_settings
 from .account_utils import _normalize_email, _validate_account_info
+from .cache_warmup_service import schedule_cache_warmup
 from .constants import VALID_MERGE_MODES
 from .email_service import email_manager
+
+logger = logging.getLogger(__name__)
 
 _settings = get_settings()
 CLIENT_ID = (_settings.client_id or "").strip()
@@ -105,8 +110,12 @@ async def _handle_replace_mode(
     total_count: int,
     error_count: int,
     error_details: list[dict[str, str]],
-) -> ImportResult:
-    """处理 replace 模式的账户导入"""
+) -> tuple[ImportResult, list[str]]:
+    """处理 replace 模式的账户导入
+
+    Returns:
+        (ImportResult, 成功导入的邮箱列表)
+    """
     valid_accounts = {
         info["email"]: {
             "password": info["password"],
@@ -127,7 +136,7 @@ async def _handle_replace_mode(
             error_count=error_count or total_count,
             details=error_details,
             message=message,
-        )
+        ), []
 
     replaced = await db_manager.replace_all_accounts(valid_accounts)
     if replaced:
@@ -143,7 +152,7 @@ async def _handle_replace_mode(
             error_count=error_count,
             details=error_details,
             message=message,
-        )
+        ), list(valid_accounts.keys())
 
     error_count = max(error_count, total_count or len(valid_accounts))
     message = "替换账户失败"
@@ -156,7 +165,7 @@ async def _handle_replace_mode(
         error_count=error_count,
         details=error_details,
         message=message,
-    )
+    ), []
 
 
 async def _process_single_account_update_mode(
@@ -221,9 +230,14 @@ async def _process_single_account_update_mode(
 async def _handle_update_skip_mode(
     prepared: dict[str, dict[str, str]],
     merge_mode: str,
-) -> ImportStats:
-    """处理 update/skip 模式的账户导入"""
+) -> tuple[ImportStats, list[str]]:
+    """处理 update/skip 模式的账户导入
+
+    Returns:
+        (ImportStats, 成功添加或更新的邮箱列表)
+    """
     stats = ImportStats()
+    success_emails: list[str] = []
 
     existing_accounts = await db_manager.get_all_accounts()
     lookup_existing = {addr.lower(): addr for addr in existing_accounts.keys()}
@@ -233,8 +247,12 @@ async def _handle_update_skip_mode(
             normalized_email, info, lookup_existing, merge_mode
         )
         stats.record(action, detail)
+        # 记录成功添加或更新的邮箱
+        if action in ("added", "updated"):
+            email_used = detail.get("email", info.get("email", normalized_email))
+            success_emails.append(email_used)
 
-    return stats
+    return stats, success_emails
 
 
 def _build_import_result(
@@ -268,8 +286,15 @@ def _build_import_result(
 async def merge_accounts_data_to_db(
     accounts: list[ImportAccountData],
     merge_mode: str = "update",
+    warmup_cache: bool = True,
 ) -> ImportResult:
-    """根据不同模式合并账户数据"""
+    """根据不同模式合并账户数据
+
+    Args:
+        accounts: 要导入的账户列表
+        merge_mode: 合并模式 (update/skip/replace)
+        warmup_cache: 是否在导入后预热邮件缓存（后台异步执行）
+    """
     merge_mode = (merge_mode or "update").lower()
     if merge_mode not in VALID_MERGE_MODES:
         merge_mode = "update"
@@ -277,16 +302,26 @@ async def merge_accounts_data_to_db(
     total_count = len(accounts)
     prepared, error_details, error_count = _prepare_and_validate_accounts(accounts)
 
+    success_emails: list[str] = []
+
     if merge_mode == "replace":
-        return await _handle_replace_mode(prepared, total_count, error_count, error_details)
+        result, success_emails = await _handle_replace_mode(
+            prepared, total_count, error_count, error_details
+        )
+    else:
+        stats, success_emails = await _handle_update_skip_mode(prepared, merge_mode)
+        error_count += stats.errors
+        all_details = error_details + stats.details
 
-    stats = await _handle_update_skip_mode(prepared, merge_mode)
-    error_count += stats.errors
-    all_details = error_details + stats.details
+        if stats.added or stats.updated:
+            await email_manager.invalidate_accounts_cache()
 
-    if stats.added or stats.updated:
-        await email_manager.invalidate_accounts_cache()
+        result = _build_import_result(
+            total_count, stats.added, stats.updated, stats.skipped, error_count, all_details
+        )
 
-    return _build_import_result(
-        total_count, stats.added, stats.updated, stats.skipped, error_count, all_details
-    )
+    # 后台预热邮件缓存（非阻塞）
+    if warmup_cache and success_emails:
+        schedule_cache_warmup(success_emails, limit=_settings.default_email_limit)
+
+    return result

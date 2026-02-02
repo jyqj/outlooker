@@ -23,12 +23,24 @@ export const TIMING = {
   DEBOUNCE_DELAY: 500,
   /** Token 过期时间偏移量（毫秒），用于提前刷新 */
   TOKEN_CLOCK_SKEW: 60_000,
-  /** Toast 显示时长（毫秒）*/
-  TOAST_DURATION: 3000,
+  // 注意：Toast 显示时长请使用 CONFIG.TOAST_DURATION
   /** 轮询间隔（毫秒）*/
   POLL_INTERVAL: 30_000,
   /** 自动刷新间隔（毫秒）*/
   AUTO_REFRESH_INTERVAL: 60_000,
+} as const;
+
+// ============================================================================
+// 请求重试配置
+// ============================================================================
+
+export const RETRY_CONFIG = {
+  /** 最大重试次数 */
+  MAX_RETRIES: 3,
+  /** 基础重试延迟（毫秒）*/
+  RETRY_DELAY: 1000,
+  /** 请求超时时间（毫秒）*/
+  REQUEST_TIMEOUT: 30_000,
 } as const;
 
 // ============================================================================
@@ -152,8 +164,6 @@ export const API_PATHS = {
   ADMIN: [
     '/api/accounts',
     'api/accounts',
-    '/api/account',
-    'api/account',
     '/api/import',
     'api/import',
     '/api/export',
@@ -162,6 +172,8 @@ export const API_PATHS = {
     'api/system',
     '/api/parse-import-text',
     'api/parse-import-text',
+    '/api/tags',
+    'api/tags',
   ],
 } as const;
 

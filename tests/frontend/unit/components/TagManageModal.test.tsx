@@ -213,7 +213,7 @@ describe('TagManageModal', () => {
 
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith(
-        `/api/account/${encodeURIComponent(mockEmail)}/tags`,
+        `/api/accounts/${encodeURIComponent(mockEmail)}/tags`,
         {
           email: mockEmail,
           tags: ['tag1'],

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, Suspense } from 'react';
+import React, { useCallback, useEffect, useState, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import api, { clearAuthTokens } from '@/lib/api';
@@ -29,7 +29,7 @@ import {
 
 // Lazy load modals
 const ImportModal = React.lazy(() => import('@/components/ImportModal'));
-const EmailViewModal = React.lazy(() => import('@/components/EmailViewModal'));
+const EmailViewModal = React.lazy(() => import('@/components/email-view').then(m => ({ default: m.EmailViewModal })));
 const TagManageModal = React.lazy(() => import('@/components/TagManageModal'));
 
 // Import ConfirmDialog
@@ -99,7 +99,7 @@ export default function AdminDashboardPage() {
   }, [pagination.page, pagination.pageSize, selection.clearSelection]);
 
   // Handlers
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     try {
       await api.post('/api/admin/logout', {});
     } catch (e) {
@@ -108,9 +108,9 @@ export default function AdminDashboardPage() {
       clearAuthTokens();
       navigate('/admin/login');
     }
-  };
+  }, [navigate]);
 
-  const handleExport = async () => {
+  const handleExport = useCallback(async () => {
     modals.setExporting(true);
     try {
       const res = await api.get('/api/export', { responseType: 'blob' });
@@ -121,11 +121,11 @@ export default function AdminDashboardPage() {
     } finally {
       modals.setExporting(false);
     }
-  };
+  }, [modals]);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: queryKeys.accounts() });
-  };
+  }, [queryClient]);
 
   return (
     <div className="min-h-screen bg-muted/60 flex flex-col font-sans">

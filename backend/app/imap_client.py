@@ -16,7 +16,7 @@ from fastapi import HTTPException
 from . import imap_parser as _imap_parser
 from .auth.oauth import get_access_token
 from .core import exceptions as _exceptions
-from .database import db_manager
+from .db import db_manager
 from .imap_parser import (
     build_message_dict,
     fetch_and_parse_single_email,

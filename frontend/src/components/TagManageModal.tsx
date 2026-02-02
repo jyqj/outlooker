@@ -50,7 +50,7 @@ function TagManageModalContent({ email, currentTags = [], onClose, onSuccess }: 
     setSaving(true);
     await apiAction(
       () =>
-        api.post(`/api/account/${encodeURIComponent(email)}/tags`, {
+        api.post(`/api/accounts/${encodeURIComponent(email)}/tags`, {
           email,
           tags,
         }),

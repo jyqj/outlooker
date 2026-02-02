@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { X, CheckCircle, XCircle, Info, AlertTriangle, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ToastType, ToastDetail } from '@/lib/toast';
@@ -25,6 +25,23 @@ const toastVariants: Record<ToastType, string> = {
 
 const ToastContainer: React.FC = () => {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  // 使用 ref 追踪定时器，防止内存泄漏
+  const timersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
+
+  // 清理单个定时器
+  const clearTimer = useCallback((id: number) => {
+    const timer = timersRef.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      timersRef.current.delete(id);
+    }
+  }, []);
+
+  // 移除 toast 并清理其定时器
+  const removeToast = useCallback((id: number) => {
+    clearTimer(id);
+    setToasts((prev) => prev.filter((toast) => toast.id !== id));
+  }, [clearTimer]);
 
   useEffect(() => {
     const handleShowToast = (event: Event) => {
@@ -36,19 +53,25 @@ const ToastContainer: React.FC = () => {
       setToasts((prev) => [...prev, newToast]);
 
       if (duration > 0) {
-        setTimeout(() => {
+        // 存储定时器引用以便清理
+        const timer = setTimeout(() => {
+          timersRef.current.delete(id);
           setToasts((prev) => prev.filter((toast) => toast.id !== id));
         }, duration);
+        timersRef.current.set(id, timer);
       }
     };
 
     window.addEventListener('showToast', handleShowToast);
-    return () => window.removeEventListener('showToast', handleShowToast);
+    
+    // 清理函数：移除事件监听器并清理所有定时器
+    return () => {
+      window.removeEventListener('showToast', handleShowToast);
+      // 清理所有未完成的定时器
+      timersRef.current.forEach((timer) => clearTimeout(timer));
+      timersRef.current.clear();
+    };
   }, []);
-
-  const removeToast = (id: number) => {
-    setToasts((prev) => prev.filter((toast) => toast.id !== id));
-  };
 
   return (
     <div

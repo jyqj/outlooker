@@ -18,6 +18,7 @@ from .audit import AuditMixin
 from .connection import ConnectionMixin
 from .email_cache import EmailCacheMixin
 from .system_config import SystemConfigMixin
+from .tags import TagsMixin
 
 settings = get_settings()
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -41,6 +42,7 @@ class DatabaseManager(
     AdminMixin,
     SystemConfigMixin,
     AuditMixin,
+    TagsMixin,
 ):
     """
     Database manager combining all operation mixins.
@@ -140,9 +142,15 @@ class DatabaseManager(
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_accounts_email ON accounts(email)"
             )
+            # Note: account_tags index is only created if the table still exists
+            # (before v2 migration converts it to relational tables)
             cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_account_tags_email ON account_tags(email)"
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='account_tags'"
             )
+            if cursor.fetchone():
+                cursor.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_account_tags_email ON account_tags(email)"
+                )
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_email_cache_email_folder ON email_cache(email, folder)"
             )

@@ -58,7 +58,7 @@ docker-compose up --build -d
 
 - **新增账户**：在后台或通过 `POST /api/accounts`，系统会自动加密 refresh_token。
 - **更新系统配置**：后台页面直接修改，或调用 `POST /api/system/config`。
-- **标签管理**：后台按钮或 API `POST /api/account/{email}/tags`。
+- **标签管理**：后台按钮或 API `POST /api/accounts/{email}/tags`。
 - **临时拉取邮件**：调用 `/api/temp-messages`，支持 `page/page_size/search/folder`。
 
 ## 5. 测试与诊断

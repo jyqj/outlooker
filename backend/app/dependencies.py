@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Annotated
+from functools import lru_cache
+from typing import TYPE_CHECKING, Annotated
 
 from fastapi import Depends, Header, HTTPException, Request
 
@@ -8,7 +9,66 @@ from .core.rate_limiter import public_api_rate_limiter
 from .settings import get_settings
 from .utils.request_utils import get_client_ip
 
+if TYPE_CHECKING:
+    from .db.manager import DatabaseManager
+    from .services.email_service import EmailManager
+    from .services.imap_client_pool import IMAPClientPool
+    from .services.account_cache_service import AccountCacheService
+
 settings = get_settings()
+
+
+# ============================================================================
+# 服务依赖注入
+# ============================================================================
+# 使用 FastAPI 的 Depends 机制实现依赖注入
+# 便于测试时替换服务实例
+
+
+@lru_cache
+def get_db_manager() -> "DatabaseManager":
+    """获取数据库管理器实例
+    
+    使用 lru_cache 确保单例模式，同时支持测试时清除缓存替换实例。
+    """
+    from .services import db_manager
+    return db_manager
+
+
+@lru_cache
+def get_email_manager() -> "EmailManager":
+    """获取邮件管理器实例"""
+    from .services import email_manager
+    return email_manager
+
+
+@lru_cache
+def get_imap_pool() -> "IMAPClientPool":
+    """获取 IMAP 连接池实例"""
+    from .services import imap_pool
+    return imap_pool
+
+
+@lru_cache
+def get_account_cache() -> "AccountCacheService":
+    """获取账户缓存服务实例"""
+    from .services import account_cache
+    return account_cache
+
+
+# 类型别名，用于路由函数参数
+DbManager = Annotated["DatabaseManager", Depends(get_db_manager)]
+EmailMgr = Annotated["EmailManager", Depends(get_email_manager)]
+ImapPool = Annotated["IMAPClientPool", Depends(get_imap_pool)]
+AccountCache = Annotated["AccountCacheService", Depends(get_account_cache)]
+
+
+def clear_service_caches() -> None:
+    """清除所有服务缓存（用于测试）"""
+    get_db_manager.cache_clear()
+    get_email_manager.cache_clear()
+    get_imap_pool.cache_clear()
+    get_account_cache.cache_clear()
 
 
 async def verify_public_token(x_public_token: str | None = Header(None)) -> None:

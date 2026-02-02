@@ -18,7 +18,7 @@ from ..settings import get_settings
 logger = logging.getLogger(__name__)
 from ..core.decorators import handle_exceptions
 from ..core.exceptions import DatabaseError, DuplicateEntryError, ResourceNotFoundError, ValidationError
-from ..services import db_manager, email_manager, load_accounts_config, merge_accounts_data_to_db, parse_account_line
+from ..services import db_manager, email_manager, imap_pool, load_accounts_config, merge_accounts_data_to_db, parse_account_line
 from ..utils.pagination import paginate_items
 from ..utils.validation import validate_tags
 
@@ -201,14 +201,14 @@ async def pick_random_account(
         data=response_data
     )
 
-@router.get("/api/account/{email}/tags", tags=["标签管理"])
+@router.get("/api/accounts/{email}/tags", tags=["标签管理"])
 @handle_exceptions("获取账户标签")
 async def get_account_tags(email: str, admin: AdminUser) -> ApiResponse:
     """获取指定账户的标签（需要管理员认证）"""
     tags = await db_manager.get_account_tags(email)
     return ApiResponse(success=True, data={"email": email, "tags": tags})
 
-@router.post("/api/account/{email}/tags", tags=["标签管理"])
+@router.post("/api/accounts/{email}/tags", tags=["标签管理"])
 @handle_exceptions("保存账户标签")
 async def set_account_tags(
     email: str,
@@ -292,7 +292,7 @@ async def import_accounts_dict(admin: AdminUser, request: ImportRequest) -> ApiR
         logger.exception(f"导入账户失败: {e}")
         return ApiResponse(
             success=False,
-            message=f"导入失败: {str(e)}",
+            message="导入失败，请检查数据格式或稍后重试",
             error_code="IMPORT_FAILED",
             data={
                 "total_count": len(request.accounts),
@@ -300,7 +300,7 @@ async def import_accounts_dict(admin: AdminUser, request: ImportRequest) -> ApiR
                 "updated_count": 0,
                 "skipped_count": 0,
                 "error_count": len(request.accounts),
-                "details": [{"action": "error", "message": f"系统错误: {str(e)}"}],
+                "details": [{"action": "error", "message": "系统错误，请联系管理员"}],
             }
         )
 
@@ -337,10 +337,10 @@ async def parse_import_text(admin: AdminUser, request: ParseImportTextRequest) -
                 "client_id": info["client_id"],
                 "refresh_token": info["refresh_token"]
             })
-        except ValueError as e:
-            errors.append(f"第{line_num}行格式错误：{str(e)}")
-        except Exception as e:
-            errors.append(f"第{line_num}行解析失败：{str(e)}")
+        except ValueError:
+            errors.append(f"第{line_num}行格式错误")
+        except Exception:
+            errors.append(f"第{line_num}行解析失败")
 
     result_data = {
         "accounts": accounts,
@@ -401,7 +401,7 @@ async def export_accounts_public(admin: AdminUser, format: str = "txt"):
         raise e
     except Exception as e:
         logger.exception(f"导出账户配置失败: {e}")
-        raise ResourceNotFoundError(f"导出失败: {str(e)}")
+        raise ResourceNotFoundError("导出失败")
 @router.post("/api/accounts", tags=["账户管理"])
 async def create_account(
     admin: AdminUser,
@@ -422,7 +422,7 @@ async def create_account(
     return ApiResponse(success=True, data={"email": request.email}, message="账户已创建")
 
 
-@router.put("/api/account/{email}", tags=["账户管理"])
+@router.put("/api/accounts/{email}", tags=["账户管理"])
 async def update_account(
     email: str,
     admin: AdminUser,
@@ -445,48 +445,83 @@ async def update_account(
     return ApiResponse(success=True, message="账户已更新", data={"email": email})
 
 
-@router.delete("/api/account/{email}", tags=["账户管理"])
+@router.delete("/api/accounts/{email}", tags=["账户管理"])
 async def delete_account(
     email: str,
     admin: AdminUser,
+    soft: bool = False,
 ) -> ApiResponse:
-    """删除账户"""
-    deleted = await db_manager.delete_account(email)
+    """删除账户
+    
+    Args:
+        email: 账户邮箱
+        soft: 是否软删除（默认否，即物理删除）
+    """
+    if soft:
+        # 软删除：标记删除但保留数据
+        deleted = await db_manager.soft_delete_account(email)
+        message = "账户已软删除（可恢复）"
+    else:
+        # 物理删除
+        deleted = await db_manager.delete_account(email)
+        message = "账户已永久删除"
+    
     if not deleted:
         raise ResourceNotFoundError(message="账户不存在或删除失败", resource_type="account", resource_id=email)
 
+    # 清理 IMAP 连接池中的连接
+    await imap_pool.remove(email)
     await email_manager.invalidate_accounts_cache()
-    return ApiResponse(success=True, message="账户已删除", data={"email": email})
+    return ApiResponse(success=True, message=message, data={"email": email, "soft_delete": soft})
 
 
 @router.post("/api/accounts/batch-delete", tags=["批量操作"])
 async def batch_delete_accounts(
     admin: AdminUser,
-    request: dict[str, list[str]],
+    request: dict[str, list[str] | bool],
 ) -> ApiResponse:
     """批量删除账户
 
     请求体:
     {
-        "emails": ["email1@example.com", "email2@example.com"]
+        "emails": ["email1@example.com", "email2@example.com"],
+        "soft": false  // 可选，默认物理删除
     }
     """
+    MAX_BATCH_SIZE = 100
 
     emails = request.get("emails", [])
-    if not emails:
+    if not emails or not isinstance(emails, list):
         return ApiResponse(success=False, message="请提供要删除的账户列表")
 
-    deleted_count, failed_count = await db_manager.batch_delete_accounts(emails)
+    if len(emails) > MAX_BATCH_SIZE:
+        return ApiResponse(success=False, message=f"批量操作最多支持 {MAX_BATCH_SIZE} 条记录，当前 {len(emails)} 条")
+
+    soft_delete = bool(request.get("soft", False))
+
+    if soft_delete:
+        # 批量软删除
+        deleted_count, failed_count = await db_manager.batch_soft_delete_accounts(emails)
+        message = f"成功软删除 {deleted_count} 个账户（可恢复）"
+    else:
+        # 批量物理删除
+        deleted_count, failed_count = await db_manager.batch_delete_accounts(emails)
+        message = f"成功永久删除 {deleted_count} 个账户"
+    
     if deleted_count > 0:
+        # 批量清理 IMAP 连接池
+        for email in emails:
+            await imap_pool.remove(email)
         await email_manager.invalidate_accounts_cache()
 
     return ApiResponse(
         success=True,
-        message=f"成功删除 {deleted_count} 个账户",
+        message=message,
         data={
             "deleted_count": deleted_count,
             "failed_count": failed_count,
-            "requested_count": len(emails)
+            "requested_count": len(emails),
+            "soft_delete": soft_delete,
         }
     )
 
@@ -505,6 +540,7 @@ async def batch_update_tags(
         "mode": "add" | "remove" | "set"
     }
     """
+    MAX_BATCH_SIZE = 100
 
     emails_raw = request.get("emails", [])
     tags_raw = request.get("tags", [])
@@ -526,6 +562,8 @@ async def batch_update_tags(
 
     if not emails:
         raise ValidationError(message="请提供要操作的账户列表", field="emails")
+    if len(emails) > MAX_BATCH_SIZE:
+        return ApiResponse(success=False, message=f"批量操作最多支持 {MAX_BATCH_SIZE} 条记录，当前 {len(emails)} 条")
     if mode not in ("add", "remove", "set"):
         raise ValidationError(message="无效的操作模式，支持: add, remove, set", field="mode")
 
@@ -550,7 +588,7 @@ async def batch_update_tags(
     )
 
 
-@router.get("/api/account/{email}", tags=["账户管理"])
+@router.get("/api/accounts/{email}", tags=["账户管理"])
 async def get_account_detail(
     email: str,
     admin: AdminUser,
@@ -572,4 +610,131 @@ async def get_account_detail(
             "is_used": bool(account.get("is_used")),
             "last_used_at": account.get("last_used_at"),
         },
+    )
+
+
+# ============================================================================
+# 全局标签管理 API
+# ============================================================================
+
+@router.get("/api/tags", tags=["标签管理"])
+@handle_exceptions("获取所有标签")
+async def get_all_tags_list(admin: AdminUser) -> ApiResponse:
+    """获取所有唯一标签列表（需要管理员认证）"""
+    tags = await db_manager.get_all_tags()
+    return ApiResponse(success=True, data={"tags": tags}, message=f"共 {len(tags)} 个标签")
+
+
+@router.post("/api/tags", tags=["标签管理"])
+@handle_exceptions("验证标签")
+async def validate_tag(
+    admin: AdminUser,
+    request: dict[str, str],
+) -> ApiResponse:
+    """验证标签名称格式（需要管理员认证）
+
+    验证标签名称是否符合格式要求，但不实际创建标签。
+    标签会在被分配给账户时自动创建。
+
+    请求体:
+    {
+        "name": "标签名称"
+    }
+    """
+    tag_name = (request.get("name") or "").strip()
+    if not tag_name:
+        raise ValidationError(message="标签名称不能为空", field="name")
+
+    # 校验标签格式
+    validate_tags([tag_name])
+
+    # 检查标签是否已存在
+    existing_tags = await db_manager.get_all_tags()
+    exists = tag_name in existing_tags
+
+    return ApiResponse(
+        success=True,
+        message=f"标签 '{tag_name}' 格式有效" + ("（已存在）" if exists else "（可使用）"),
+        data={"name": tag_name, "exists": exists}
+    )
+
+
+@router.delete("/api/tags/{tag_name}", tags=["标签管理"])
+@handle_exceptions("删除标签")
+async def delete_tag_globally(
+    tag_name: str,
+    admin: AdminUser,
+) -> ApiResponse:
+    """删除标签（从所有账户中移除，需要管理员认证）"""
+    tag_name = tag_name.strip()
+    if not tag_name:
+        raise ValidationError(message="标签名称不能为空", field="tag_name")
+    
+    validate_tags([tag_name])
+
+    # 检查标签是否存在
+    existing_tags = await db_manager.get_all_tags()
+    if tag_name not in existing_tags:
+        raise ResourceNotFoundError(
+            message=f"标签 '{tag_name}' 不存在",
+            resource_type="tag",
+            resource_id=tag_name
+        )
+
+    affected = await db_manager.delete_tag_globally(tag_name)
+
+    return ApiResponse(
+        success=True,
+        message=f"已删除标签 '{tag_name}'，影响 {affected} 个账户",
+        data={"tag": tag_name, "affected_accounts": affected}
+    )
+
+
+@router.put("/api/tags/{tag_name}", tags=["标签管理"])
+@handle_exceptions("重命名标签")
+async def rename_tag_globally(
+    tag_name: str,
+    admin: AdminUser,
+    request: dict[str, str],
+) -> ApiResponse:
+    """重命名标签（在所有账户中，需要管理员认证）
+
+    请求体:
+    {
+        "new_name": "新标签名称"
+    }
+    """
+    tag_name = tag_name.strip()
+    validate_tags([tag_name])
+    new_name = (request.get("new_name") or "").strip()
+
+    if not tag_name:
+        raise ValidationError(message="原标签名称不能为空", field="tag_name")
+    if not new_name:
+        raise ValidationError(message="新标签名称不能为空", field="new_name")
+    if tag_name == new_name:
+        raise ValidationError(message="新名称与原名称相同", field="new_name")
+
+    # 校验新标签格式
+    validate_tags([new_name])
+
+    # 检查原标签是否存在
+    existing_tags = await db_manager.get_all_tags()
+    if tag_name not in existing_tags:
+        raise ResourceNotFoundError(
+            message=f"标签 '{tag_name}' 不存在",
+            resource_type="tag",
+            resource_id=tag_name
+        )
+
+    # 检查新标签是否已存在
+    if new_name in existing_tags:
+        raise ValidationError(message=f"标签 '{new_name}' 已存在", field="new_name")
+
+    affected = await db_manager.rename_tag_globally(tag_name, new_name)
+
+    return ApiResponse(
+        success=True,
+        message=f"已将标签 '{tag_name}' 重命名为 '{new_name}'，影响 {affected} 个账户",
+        data={"old_name": tag_name, "new_name": new_name, "affected_accounts": affected}
     )

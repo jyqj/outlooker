@@ -5,7 +5,8 @@ from contextlib import closing
 
 import pytest
 import pytest_asyncio
-from app.database import db_manager, looks_like_guid
+from app.db import db_manager
+from app.db.manager import looks_like_guid
 
 
 @pytest_asyncio.fixture(autouse=True)

@@ -16,7 +16,7 @@ from app.core.rate_limiter import (
     AUDIT_LOG_FILE,
 )
 import app.core.rate_limiter as rate_limiter_module
-from app.database import db_manager
+from app.db import db_manager
 
 
 class TestLoginRateLimiter:

@@ -44,7 +44,19 @@ jobs:
         working-directory: backend
         run: |
           pip install pip-audit
-          pip-audit --ignore-vuln PYSEC-2022-43012 || true
+          # 先运行审计并保存结果，区分高危和中低危漏洞
+          pip-audit --ignore-vuln PYSEC-2022-43012 --format json > audit_result.json || true
+          # 检查是否有高危漏洞 (severity >= HIGH)
+          if grep -q '"severity": "HIGH"\|"severity": "CRITICAL"' audit_result.json 2>/dev/null; then
+            echo "::error::发现高危安全漏洞，请立即修复！"
+            pip-audit --ignore-vuln PYSEC-2022-43012
+            exit 1
+          fi
+          # 中低危漏洞仅警告，不阻断 CI
+          if [ -s audit_result.json ]; then
+            echo "::warning::发现安全漏洞（非高危），建议尽快修复"
+            pip-audit --ignore-vuln PYSEC-2022-43012 || true
+          fi
 
       - name: Upload coverage reports
         uses: codecov/codecov-action@v4
@@ -80,7 +92,11 @@ jobs:
         run: npm run test -- --coverage
 
       - name: Security scan (npm audit)
-        run: npm audit --audit-level=high || true
+        run: |
+          # 高危漏洞必须阻断 CI
+          npm audit --audit-level=critical
+          # 中低危漏洞仅警告
+          npm audit --audit-level=high || echo "::warning::发现中等安全漏洞，建议修复"
 
   docker:
     runs-on: ubuntu-latest
@@ -94,7 +110,7 @@ jobs:
         run: |
           docker run -d --name outlooker-test -p 5001:5001 outlooker:test
           sleep 10
-          curl -f http://localhost:5001/ || (docker logs outlooker-test && exit 1)
+          curl -f http://localhost:5001/api/health/live || (docker logs outlooker-test && exit 1)
           docker logs outlooker-test
           docker stop outlooker-test
           docker rm outlooker-test

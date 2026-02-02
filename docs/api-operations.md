@@ -14,7 +14,7 @@
 | --- | --- | --- | --- | --- | --- |
 | 账户分页 | `/api/accounts/paged` | GET | Bearer | `page`(>=1), `page_size`(<=100), `q`(模糊搜索) | `{ items: [{ email }], total, page, page_size }`
 | 标签拉取 | `/api/accounts/tags` | GET | Bearer | - | `{ tags: string[], accounts: { [email]: string[] } }`
-| 标签写入 | `/api/account/{email}/tags` | POST | Bearer | body: `{ email, tags: string[] }` | `{ success: boolean, message }`，成功后需刷新缓存
+| 标签写入 | `/api/accounts/{email}/tags` | POST | Bearer | body: `{ email, tags: string[] }` | `{ success: boolean, message }`，成功后需刷新缓存
 | 账户导入 | `/api/import` | POST | Bearer | `{ accounts: ImportAccountData[], merge_mode: "update"\|"skip"\|"replace" }` | `ImportResult`（计数 + details）
 | 文本解析 | `/api/parse-import-text` | POST | Bearer | `{ text }` | `{ parsed_count, error_count, accounts, errors[] }`
 | 配置读取 | `/api/system/config` | GET | Bearer | - | `{ email_limit }`（如需扩展，前后端共用同名字段）
