@@ -11,13 +11,10 @@ import time
 from contextlib import asynccontextmanager
 from datetime import datetime
 
-from fastapi import HTTPException
-
 from . import imap_parser as _imap_parser
-from .auth.oauth import get_access_token, _get_proxy_url
+from .auth.oauth import _get_proxy_url, get_access_token
 from .core import exceptions as _exceptions
 from .db import db_manager
-from .utils.proxy import ProxyIMAP4_SSL
 from .imap_parser import (
     build_message_dict,
     fetch_and_parse_single_email,
@@ -25,6 +22,7 @@ from .imap_parser import (
     parse_email_header,
 )
 from .settings import get_settings
+from .utils.proxy import ProxyIMAP4_SSL
 
 settings = get_settings()
 IMAP_SERVER = settings.imap_server
@@ -47,7 +45,7 @@ class IMAPEmailClient:
 
     def __init__(self, email: str, account_info: dict):
         """初始化IMAP邮件客户端
-        
+
         Args:
             email: 邮箱地址
             account_info: 包含refresh_token的账户信息
@@ -94,15 +92,15 @@ class IMAPEmailClient:
                     except Exception as exc:
                         logger.warning("刷新令牌回写失败(%s): %s", self.email, exc)
             else:
-                raise HTTPException(status_code=401, detail="Failed to refresh access token")
+                raise _exceptions.TokenRefreshError(f"刷新访问令牌失败: {self.email}")
 
-        except HTTPException:
+        except (_exceptions.TokenRefreshError, _exceptions.IMAPError):
             raise
         except asyncio.CancelledError:
             raise
         except Exception as e:
             logger.exception("Token刷新失败 %s: %s", self.email, e)
-            raise HTTPException(status_code=500, detail="Failed to refresh access token") from e
+            raise _exceptions.TokenRefreshError(f"刷新访问令牌失败: {self.email}") from e
 
     async def create_imap_connection(self, mailbox_to_select=INBOX_FOLDER_NAME):
         """创建IMAP连接（按需创建，带超时和重试）"""
@@ -156,7 +154,7 @@ class IMAPEmailClient:
             except Exception as e:
                 # 识别认证错误
                 if "authentication failed" in str(e).lower() or "authenticate" in str(e).lower():
-                     raise IMAPAuthenticationError(f"认证失败: {e}")
+                    raise IMAPAuthenticationError(f"认证失败: {e}") from e
 
                 logger.error("创建IMAP连接失败 (%s), 第%s次尝试: %s", self.email, attempt + 1, e)
                 if attempt < max_retries - 1:
@@ -322,15 +320,13 @@ class IMAPEmailClient:
         except asyncio.CancelledError:
             logger.warning("获取邮件操作被取消 (%s)", self.email)
             raise
-        except IMAPAuthenticationError as e:
-            logger.error("认证失败 %s: %s", self.email, e)
-            raise HTTPException(status_code=401, detail="邮箱认证失败，请检查账户凭证")
-        except IMAPConnectionError as e:
-            logger.error("连接失败 %s: %s", self.email, e)
-            raise HTTPException(status_code=503, detail="邮箱服务连接失败，请稍后重试")
+        except IMAPAuthenticationError:
+            raise
+        except IMAPConnectionError:
+            raise
         except Exception as e:
             logger.error("获取邮件失败 %s: %s", self.email, e)
-            raise HTTPException(status_code=500, detail="Failed to retrieve emails")
+            raise IMAPError(f"获取邮件失败: {self.email}") from e
 
     async def get_messages_since_uid(
         self,
@@ -360,7 +356,7 @@ class IMAPEmailClient:
 
         start_time = time.time()
         logger.info(
-            "📨 增量刷新 %s (%s) since_uid=%s",
+            "增量刷新 %s (%s) since_uid=%s",
             self.email,
             folder_id,
             since_uid_int,
@@ -397,7 +393,7 @@ class IMAPEmailClient:
 
             total_time = (time.time() - start_time) * 1000
             logger.info(
-                "✅ 增量刷新完成: 新增 %s 封邮件 (耗时: %.0fms)",
+                "增量刷新完成: 新增 %s 封邮件 (耗时: %.0fms)",
                 len(messages),
                 total_time,
             )
@@ -406,15 +402,13 @@ class IMAPEmailClient:
         except asyncio.CancelledError:
             logger.warning("增量获取邮件操作被取消 (%s)", self.email)
             raise
-        except IMAPAuthenticationError as e:
-            logger.error("认证失败 %s: %s", self.email, e)
-            raise HTTPException(status_code=401, detail="邮箱认证失败，请检查账户凭证")
-        except IMAPConnectionError as e:
-            logger.error("连接失败 %s: %s", self.email, e)
-            raise HTTPException(status_code=503, detail="邮箱服务连接失败，请稍后重试")
+        except IMAPAuthenticationError:
+            raise
+        except IMAPConnectionError:
+            raise
         except Exception as e:
             logger.error("增量获取邮件失败 %s: %s", self.email, e)
-            raise HTTPException(status_code=500, detail="Failed to retrieve emails")
+            raise IMAPError(f"增量获取邮件失败: {self.email}") from e
 
     async def cleanup(self):
         """清理资源"""

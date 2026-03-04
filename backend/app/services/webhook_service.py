@@ -22,6 +22,8 @@ logger = logging.getLogger(__name__)
 MAX_RETRIES = 3
 RETRY_DELAYS = [1, 3, 10]
 
+_background_tasks: set[asyncio.Task[None]] = set()
+
 
 async def _get_webhook_config() -> dict[str, Any] | None:
     enabled = await get_system_config_value("webhook_enabled", False)
@@ -76,4 +78,6 @@ async def dispatch_event(event_type: str, payload: dict[str, Any]) -> None:
     if config["secret"]:
         headers["X-Signature"] = _sign_payload(body, config["secret"])
 
-    asyncio.create_task(_send_with_retry(config["url"], headers, body))
+    task = asyncio.create_task(_send_with_retry(config["url"], headers, body))
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)

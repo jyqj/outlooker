@@ -174,7 +174,11 @@ def create_paginated_response(
     page: int,
     page_size: int,
 ) -> dict:
-    """创建统一的分页响应数据结构"""
+    """创建统一的分页响应数据结构
+
+    顶层保留 page_size 以兼容现有前端测试/调用，
+    pagination 子对象使用 camelCase 供前端组件直接消费。
+    """
     total_pages = math.ceil(total / page_size) if page_size > 0 else 0
     return {
         "items": items,
@@ -183,10 +187,10 @@ def create_paginated_response(
         "page_size": page_size,
         "pagination": {
             "page": page,
-            "pageSize": page_size,  # camelCase for frontend compatibility
+            "pageSize": page_size,
             "total": total,
             "totalPages": total_pages,
-        }
+        },
     }
 
 

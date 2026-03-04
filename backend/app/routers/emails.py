@@ -4,10 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ..core.decorators import handle_exceptions
 from ..core.exceptions import ResourceNotFoundError, ValidationError
-from ..dependencies import AdminUser, enforce_public_rate_limit, verify_public_token
+from ..dependencies import AdminUser, DbManager, EmailMgr, enforce_public_rate_limit, verify_public_token
 from ..imap_client import IMAPEmailClient
 from ..models import ApiResponse, TempAccountRequest, TestEmailRequest, create_paginated_response
-from ..services import db_manager, email_manager, get_system_config_value
+from ..services import get_system_config_value
 from ..services.otp_service import extract_code_from_message
 from ..services.webhook_service import dispatch_event
 from ..settings import get_settings
@@ -35,6 +35,7 @@ def _filter_and_paginate_messages(
 @handle_exceptions("获取邮件列表")
 async def get_messages(
     email: str,
+    email_mgr: EmailMgr,
     page: int = 1,
     page_size: int = 5,
     folder: str | None = None,
@@ -54,7 +55,7 @@ async def get_messages(
     requested = page * page_size
     top = min(settings.max_email_limit, max(system_limit, requested))
 
-    messages = await email_manager.get_messages(email, top, folder, force_refresh=refresh)
+    messages = await email_mgr.get_messages(email, top, folder, force_refresh=refresh)
 
     if messages:
         code = extract_code_from_message(messages[0])
@@ -113,7 +114,7 @@ async def get_temp_messages(request: TempAccountRequest) -> ApiResponse:
 
 @router.post("/api/test-email", dependencies=[Depends(verify_public_token)])
 @handle_exceptions("测试邮件连接")
-async def test_email_connection(request: TestEmailRequest) -> ApiResponse:
+async def test_email_connection(request: TestEmailRequest, email_mgr: EmailMgr) -> ApiResponse:
     """测试邮件连接
 
     使用 Pydantic 模型验证请求数据
@@ -156,8 +157,7 @@ async def test_email_connection(request: TestEmailRequest) -> ApiResponse:
         finally:
             await temp_client.cleanup()
     else:
-        # 配置文件中的账户测试
-        messages = await email_manager.get_messages(email, top=1, folder=None, force_refresh=True)
+        messages = await email_mgr.get_messages(email, top=1, folder=None, force_refresh=True)
         if messages:
             latest_message = messages[0]
             return ApiResponse(
@@ -179,9 +179,10 @@ async def delete_email(
     email_account: str,
     message_id: str,
     admin: AdminUser,
+    db: DbManager,
 ) -> ApiResponse:
     """删除缓存中的邮件（需要管理员认证）"""
-    success = await db_manager.delete_cached_email(email_account, message_id)
+    success = await db.delete_cached_email(email_account, message_id)
     if success:
         return ApiResponse(success=True, message="邮件已删除")
     raise ResourceNotFoundError(message="邮件不存在或删除失败", resource_type="email", resource_id=message_id)

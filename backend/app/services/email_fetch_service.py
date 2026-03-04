@@ -9,9 +9,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import HTTPException
-
-from ..core.messages import ERROR_EMAIL_NOT_CONFIGURED, ERROR_EMAIL_NOT_PROVIDED
+from ..core.exceptions import AccountNotFoundError, ValidationError
+from ..core.messages import ERROR_EMAIL_NOT_PROVIDED
 from ..db import db_manager
 from ..settings import get_settings
 from .account_cache_service import account_cache
@@ -70,7 +69,7 @@ class EmailFetchService:
         actual_email = lookup.get(normalized)
 
         if not actual_email:
-            raise HTTPException(status_code=404, detail=ERROR_EMAIL_NOT_CONFIGURED)
+            raise AccountNotFoundError(email)
 
         return actual_email, accounts[actual_email]
 
@@ -83,7 +82,7 @@ class EmailFetchService:
     ) -> list[dict[str, Any]]:
         """获取邮件消息"""
         if not email or not email.strip():
-            raise HTTPException(status_code=400, detail=ERROR_EMAIL_NOT_PROVIDED)
+            raise ValidationError(message=ERROR_EMAIL_NOT_PROVIDED, field="email")
 
         actual_email, account_info = await self._get_account_info(email)
         limit = self._normalize_limit(top)
