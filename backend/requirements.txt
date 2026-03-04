@@ -21,5 +21,8 @@ sentry-sdk[fastapi]==2.19.2
 # Monitoring
 prometheus-client>=0.17.0
 
+# IMAP proxy support (SOCKS5/SOCKS4/HTTP)
+pysocks>=1.7.1
+
 # Encryption (for backup encryption)
 cryptography>=41.0.0

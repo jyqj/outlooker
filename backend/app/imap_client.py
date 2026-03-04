@@ -14,9 +14,10 @@ from datetime import datetime
 from fastapi import HTTPException
 
 from . import imap_parser as _imap_parser
-from .auth.oauth import get_access_token
+from .auth.oauth import get_access_token, _get_proxy_url
 from .core import exceptions as _exceptions
 from .db import db_manager
+from .utils.proxy import ProxyIMAP4_SSL
 from .imap_parser import (
     build_message_dict,
     fetch_and_parse_single_email,
@@ -110,13 +111,23 @@ class IMAPEmailClient:
         max_retries = settings.imap_max_retries
         timeout = settings.imap_operation_timeout
 
+        proxy_url = await _get_proxy_url()
+        if proxy_url:
+            logger.info("IMAP 将通过代理连接: %s", proxy_url.split("@")[-1])
+
         for attempt in range(max_retries):
             try:
                 if attempt > 0:
                     logger.info("重试连接 IMAP (第%s次)", attempt + 1)
 
                 def _sync_connect():
-                    imap_conn = imaplib.IMAP4_SSL(IMAP_SERVER, IMAP_PORT)
+                    if proxy_url:
+                        imap_conn = ProxyIMAP4_SSL(
+                            IMAP_SERVER, IMAP_PORT, proxy_url=proxy_url
+                        )
+                    else:
+                        imap_conn = imaplib.IMAP4_SSL(IMAP_SERVER, IMAP_PORT)
+
                     auth_string = f"user={self.email}\1auth=Bearer {self.access_token}\1\1"
                     typ, data = imap_conn.authenticate('XOAUTH2', lambda x: auth_string.encode('utf-8'))
 
@@ -131,7 +142,6 @@ class IMAPEmailClient:
                         error_message = data[0].decode('utf-8', 'replace') if data and data[0] else "未知认证错误"
                         raise Exception(f"IMAP XOAUTH2 认证失败: {error_message} (Type: {typ})")
 
-                # 在线程池中执行，带配置的超时
                 imap_conn = await asyncio.wait_for(
                     asyncio.to_thread(_sync_connect), timeout=float(timeout)
                 )
