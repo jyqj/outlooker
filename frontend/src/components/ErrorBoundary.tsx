@@ -1,4 +1,5 @@
 import { Component, type ReactNode, type ErrorInfo } from 'react';
+import i18n from '@/i18n';
 import { logError } from '@/lib/utils';
 
 interface ErrorBoundaryProps {
@@ -36,16 +37,16 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
     if (this.state.hasError) {
       return (
         <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-muted/50 px-4 text-center">
-          <h1 className="text-2xl font-semibold text-foreground">页面加载失败</h1>
+          <h1 className="text-2xl font-semibold text-foreground">{i18n.t('errorBoundary.title')}</h1>
           <p className="text-sm text-muted-foreground">
-            {this.state.error?.message || '出现未知错误，请重试或联系管理员。'}
+            {this.state.error?.message || i18n.t('errorBoundary.fallback')}
           </p>
           <button
             type="button"
             onClick={this.handleRetry}
             className="px-4 py-2 rounded-md bg-primary text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-[var(--scale-click)] focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
           >
-            重新加载
+            {i18n.t('errorBoundary.retry')}
           </button>
         </div>
       );

@@ -5,3 +5,4 @@ export { Pagination } from './Pagination';
 export { DashboardHeader } from './DashboardHeader';
 export { DashboardToolbar } from './DashboardToolbar';
 export { AccountsTable } from './AccountsTable';
+export { DashboardCharts } from './DashboardCharts';

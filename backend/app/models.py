@@ -5,6 +5,8 @@ Pydantic模型用于API请求和响应
 """
 
 
+import math
+
 from pydantic import BaseModel, EmailStr
 
 # ============================================================================
@@ -93,8 +95,13 @@ class TempAccountRequest(BaseModel):
     search: str | None = None
 
 class SystemConfigRequest(BaseModel):
-    """系统配置请求"""
+    """系统配置请求（向后兼容单字段更新）"""
     email_limit: int = 5
+
+
+class SystemConfigBatchUpdate(BaseModel):
+    """批量更新系统配置"""
+    configs: dict[str, str | int | bool]
 
 class AccountTagRequest(BaseModel):
     """账户标签请求"""
@@ -111,6 +118,16 @@ class TestEmailRequest(BaseModel):
 class ParseImportTextRequest(BaseModel):
     """解析导入文本请求模型"""
     text: str
+
+
+class ValidateTagRequest(BaseModel):
+    """验证标签请求模型"""
+    name: str
+
+
+class RenameTagRequest(BaseModel):
+    """重命名标签请求模型"""
+    new_name: str
 
 
 class PickAccountRequest(BaseModel):
@@ -158,7 +175,6 @@ def create_paginated_response(
     page_size: int,
 ) -> dict:
     """创建统一的分页响应数据结构"""
-    import math
     total_pages = math.ceil(total / page_size) if page_size > 0 else 0
     return {
         "items": items,

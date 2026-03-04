@@ -54,7 +54,22 @@ VALID_MERGE_MODES = {"update", "skip", "replace"}
 
 SYSTEM_CONFIG_DEFAULTS: dict[str, Any] = {
     "email_limit": DEFAULT_EMAIL_LIMIT,
+    # Proxy
+    "proxy_enabled": False,
+    "proxy_url": "",
+    # Token auto-refresh
+    "token_refresh_enabled": True,
+    "token_refresh_interval_hours": 12,
+    # Webhook
+    "webhook_enabled": False,
+    "webhook_url": "",
+    "webhook_secret": "",
+    "webhook_events": "verification_code_received,token_refresh_failed",
 }
+
+BOOL_CONFIG_KEYS = {"proxy_enabled", "token_refresh_enabled", "webhook_enabled"}
+INT_CONFIG_KEYS = {"email_limit", "token_refresh_interval_hours"}
+STR_CONFIG_KEYS = {"proxy_url", "webhook_url", "webhook_secret", "webhook_events"}
 
 # ============================================================================
 # 认证相关常量（从配置系统读取）

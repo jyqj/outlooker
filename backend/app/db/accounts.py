@@ -88,7 +88,8 @@ class AccountsMixin(RunInThreadMixin):
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT email, password, client_id, refresh_token, is_used, last_used_at
+                SELECT email, password, client_id, refresh_token, is_used, last_used_at,
+                       health_status, last_health_check_at
                 FROM accounts
                 WHERE deleted_at IS NULL
                 """
@@ -103,57 +104,12 @@ class AccountsMixin(RunInThreadMixin):
                     "refresh_token": row["refresh_token"],
                     "is_used": bool(row["is_used"]) if row["is_used"] is not None else False,
                     "last_used_at": row["last_used_at"],
+                    "health_status": row["health_status"] or "unknown",
+                    "last_health_check_at": row["last_health_check_at"],
                 }
             return result
 
         return await self._run_in_thread(_sync_get)
-
-    async def get_first_unused_account_email(self) -> str | None:
-        """
-        Get the first unused account email (sorted by creation time).
-
-        Returns None if no unused accounts exist.
-        """
-
-        def _sync_get(conn: sqlite3.Connection) -> str | None:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT email
-                FROM accounts
-                WHERE is_used = 0 AND deleted_at IS NULL
-                ORDER BY created_at ASC
-                LIMIT 1
-                """
-            )
-            row = cursor.fetchone()
-            return row["email"] if row else None
-
-        return await self._run_in_thread(_sync_get)
-
-    async def mark_account_used(self, email: str) -> bool:
-        """Mark an account as used and record the last used time."""
-
-        def _sync_mark(conn: sqlite3.Connection) -> bool:
-            try:
-                cursor = conn.cursor()
-                cursor.execute(
-                    """
-                    UPDATE accounts
-                    SET is_used = 1,
-                        last_used_at = CURRENT_TIMESTAMP,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE email = ? AND deleted_at IS NULL
-                    """,
-                    (email,),
-                )
-                conn.commit()
-                return cursor.rowcount > 0
-            except Exception as e:
-                logger.error(f"标记账户为已使用失败: {e}")
-                return False
-
-        return await self._run_in_thread(_sync_mark)
 
     async def replace_all_accounts(self, accounts: dict[str, dict[str, str]]) -> bool:
         """Replace all accounts with the provided data."""
@@ -736,6 +692,50 @@ class AccountsMixin(RunInThreadMixin):
         """
         # 委托给 v2 方法（使用关系表）
         return await self.rename_tag_globally_v2(old_name, new_name)
+
+    async def update_account_health(
+        self, email: str, status: str, refresh_token: str | None = None,
+    ) -> bool:
+        def _sync(conn: sqlite3.Connection) -> bool:
+            try:
+                cursor = conn.cursor()
+                if refresh_token is not None:
+                    cursor.execute(
+                        """UPDATE accounts SET health_status=?, last_health_check_at=CURRENT_TIMESTAMP,
+                           refresh_token=?, updated_at=CURRENT_TIMESTAMP
+                           WHERE email=? AND deleted_at IS NULL""",
+                        (status, encrypt_if_needed(refresh_token), email),
+                    )
+                else:
+                    cursor.execute(
+                        """UPDATE accounts SET health_status=?, last_health_check_at=CURRENT_TIMESTAMP,
+                           updated_at=CURRENT_TIMESTAMP
+                           WHERE email=? AND deleted_at IS NULL""",
+                        (status, email),
+                    )
+                conn.commit()
+                return cursor.rowcount > 0
+            except Exception as e:
+                logger.error("更新账户健康状态失败: %s", e)
+                return False
+        return await self._run_in_thread(_sync)
+
+    async def get_health_summary(self) -> dict[str, Any]:
+        def _sync(conn: sqlite3.Connection) -> dict[str, Any]:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT COUNT(*) FROM accounts WHERE deleted_at IS NULL"
+            )
+            total = cursor.fetchone()[0]
+            cursor.execute(
+                """SELECT health_status, COUNT(*) as cnt FROM accounts
+                   WHERE deleted_at IS NULL GROUP BY health_status"""
+            )
+            breakdown: dict[str, int] = {}
+            for row in cursor.fetchall():
+                breakdown[row[0] or "unknown"] = row[1]
+            return {"total": total, **breakdown}
+        return await self._run_in_thread(_sync)
 
     async def get_accounts_by_tag_filter(
         self,

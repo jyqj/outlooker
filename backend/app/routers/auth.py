@@ -100,7 +100,7 @@ async def admin_login(
 
         _set_refresh_cookie(response, token_pair["refresh_token"], token_pair["refresh_expires_in"])
 
-        logger.info(f"管理员登录成功: 用户名={username}, IP={client_ip}")
+        logger.info("管理员登录成功: 用户名=%s, IP=%s", username, client_ip)
 
         return AdminLoginResponse(
             access_token=token_pair["access_token"],
@@ -119,7 +119,7 @@ async def admin_login(
     except (HTTPException, AccountLockedError, InvalidCredentialsError):
         raise
     except Exception as e:
-        logger.error(f"管理员登录异常: {e}")
+        logger.error("管理员登录异常: %s", e)
         # 审计日志不记录完整异常信息，避免敏感数据泄露
         await auditor.log_attempt(client_ip, username, False, "系统内部错误")
         raise AuthenticationError(message="登录失败，请稍后重试")
@@ -170,7 +170,7 @@ async def refresh_token(
     except (HTTPException, AuthenticationError):
         raise
     except Exception as e:
-        logger.error(f"刷新令牌失败: {e}")
+        logger.error("刷新令牌失败: %s", e)
         raise AuthenticationError(message="刷新失败")
 
 

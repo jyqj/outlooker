@@ -16,6 +16,19 @@ _settings = get_settings()
 CLIENT_ID = _settings.client_id
 TOKEN_URL = _settings.token_url
 
+
+async def _get_proxy_url() -> str | None:
+    """Read proxy config from system_config table at runtime."""
+    try:
+        from ..services.system_config_service import get_system_config_value
+        enabled = await get_system_config_value("proxy_enabled", False)
+        if not enabled:
+            return None
+        url = await get_system_config_value("proxy_url", "")
+        return url if url else None
+    except Exception:
+        return None
+
 # ============================================================================
 # OAuth2令牌获取函数
 # ============================================================================
@@ -39,7 +52,8 @@ async def get_access_token(refresh_token: str, check_only: bool = False) -> tupl
     }
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        proxy_url = await _get_proxy_url()
+        async with httpx.AsyncClient(timeout=15.0, proxy=proxy_url) as client:
             response = await client.post(TOKEN_URL, data=data)
             response.raise_for_status()
 

@@ -604,3 +604,48 @@ def _migrate_tag_relations(conn: sqlite3.Connection) -> None:
     # 重命名原表为备份
     cursor.execute("ALTER TABLE account_tags RENAME TO account_tags_backup_json")
     logger.info("标签数据已从 JSON 格式迁移到关系表")
+
+
+@register_migration("2026030401", "为 accounts 表增加健康检测字段")
+def _add_health_check_columns(conn: sqlite3.Connection) -> None:
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='accounts'"
+    )
+    if not cursor.fetchone():
+        return
+
+    cursor.execute("PRAGMA table_info(accounts)")
+    columns = {col[1] for col in cursor.fetchall()}
+
+    if "health_status" not in columns:
+        cursor.execute(
+            "ALTER TABLE accounts ADD COLUMN health_status TEXT DEFAULT 'unknown'"
+        )
+    if "last_health_check_at" not in columns:
+        cursor.execute(
+            "ALTER TABLE accounts ADD COLUMN last_health_check_at TIMESTAMP"
+        )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_accounts_health_status ON accounts(health_status)"
+    )
+
+
+@register_migration("2026030402", "创建验证码提取规则表")
+def _create_extraction_rules_table(conn: sqlite3.Connection) -> None:
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS extraction_rules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            sender_filter TEXT DEFAULT '',
+            subject_filter TEXT DEFAULT '',
+            regex_pattern TEXT NOT NULL,
+            priority INTEGER DEFAULT 0,
+            is_active INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_extraction_rules_active ON extraction_rules(is_active, priority DESC)"
+    )

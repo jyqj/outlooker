@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react';
-import { Mail, Loader2, Wand2, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { Mail, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -9,8 +10,6 @@ interface VerificationSearchFormProps {
   onEmailChange: (value: string) => void;
   loading: boolean;
   onSearch: (e?: FormEvent) => void;
-  onAutoOtp?: () => void;
-  showAutoOtp?: boolean;
 }
 
 export function VerificationSearchForm({
@@ -18,9 +17,8 @@ export function VerificationSearchForm({
   onEmailChange,
   loading,
   onSearch,
-  onAutoOtp,
-  showAutoOtp = false,
 }: VerificationSearchFormProps) {
+  const { t } = useTranslation();
   return (
     <Card className="shadow-md">
       <CardContent className="pt-6">
@@ -30,7 +28,7 @@ export function VerificationSearchForm({
               htmlFor="email"
               className="text-sm font-medium text-foreground flex items-center gap-2"
             >
-              <Mail className="w-4 h-4" /> 邮箱地址
+              <Mail className="w-4 h-4" /> {t('verification.emailLabel')}
             </label>
             <div className="relative">
               <Input
@@ -38,7 +36,7 @@ export function VerificationSearchForm({
                 type="email"
                 value={email}
                 onChange={(e) => onEmailChange(e.target.value)}
-                placeholder="example@outlook.com"
+                placeholder={t('verification.emailPlaceholder')}
                 className={`text-base ${email ? 'pr-10' : ''}`}
                 required
                 disabled={loading}
@@ -48,7 +46,7 @@ export function VerificationSearchForm({
                   type="button"
                   onClick={() => onEmailChange('')}
                   className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground transition-all duration-150 hover:bg-muted-foreground/10 hover:text-foreground active:scale-[var(--scale-click-icon)] active:bg-muted-foreground/20 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-                  aria-label="清除输入内容"
+                  aria-label={t('verification.clearInput')}
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -66,28 +64,15 @@ export function VerificationSearchForm({
               {loading ? (
                 <>
                   <Loader2 className="w-6 h-6 animate-spin" />
-                  获取中...
+                  {t('verification.fetching')}
                 </>
               ) : (
                 <>
                   <Mail className="w-6 h-6" />
-                  获取最新验证码
+                  {t('verification.fetchButton')}
                 </>
               )}
             </Button>
-            {showAutoOtp && onAutoOtp && (
-              <Button
-                type="button"
-                variant="outline"
-                disabled={loading}
-                onClick={onAutoOtp}
-                className="w-full md:w-auto gap-2 text-base font-semibold py-4"
-                size="lg"
-              >
-                <Wand2 className="w-5 h-5" />
-                自动分配邮箱并接码
-              </Button>
-            )}
           </div>
         </form>
       </CardContent>

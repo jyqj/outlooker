@@ -28,6 +28,11 @@ export {
   renameTagGlobally,
 } from './tags-api';
 
+export {
+  getDashboardSummary,
+  runHealthCheck,
+} from './dashboard-api';
+
 // Backward-compatible type re-exports (consumers may import these from @/lib/api)
 export type {
   TagStatItem,

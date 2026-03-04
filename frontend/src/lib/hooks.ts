@@ -1,10 +1,10 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
-import api, { getAccountsPaged } from '@/lib/api';
+import api, { getAccountsPaged, getDashboardSummary } from '@/lib/api';
 import { CONFIG } from './constants';
 import { showError, showSuccess } from './toast';
 import { logError } from './utils';
-import type { ApiResponse, PaginatedData, Account, SystemConfig, SystemMetrics, Email } from '@/types';
+import type { ApiResponse, PaginatedData, Account, SystemConfig, SystemMetrics, Email, DashboardSummary } from '@/types';
 import { getErrorMessage } from './error';
 import { queryKeys } from './queryKeys';
 import type { TagsData } from '@/types/api';
@@ -94,6 +94,14 @@ export function useSystemMetricsQuery(): UseQueryResult<ApiResponse<SystemMetric
       const res = await api.get<ApiResponse<SystemMetrics>>('/api/system/metrics');
       return res.data;
     },
+  });
+}
+
+export function useDashboardSummaryQuery(): UseQueryResult<ApiResponse<DashboardSummary>> {
+  return useQuery({
+    queryKey: queryKeys.dashboardSummary(),
+    queryFn: () => getDashboardSummary(),
+    refetchInterval: 60_000,
   });
 }
 

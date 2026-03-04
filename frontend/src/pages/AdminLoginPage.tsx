@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Lock, User, Inbox, Loader2, Eye, EyeOff } from 'lucide-react';
 import api, { setAuthTokens } from '@/lib/api';
 import { handleApiError } from '@/lib/error';
-import { MESSAGES } from '@/lib/constants';
 import { useAsyncTask } from '@/lib/hooks';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import type { AdminLoginResponse } from '@/types/models';
 
 export default function AdminLoginPage() {
+  const { t } = useTranslation();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -37,11 +38,11 @@ export default function AdminLoginPage() {
           });
           navigate('/admin');
         } else {
-          setError('登录响应格式错误');
+          setError(t('login.error.responseError'));
         }
       });
     } catch (err) {
-      setError(handleApiError(err, '登录失败', MESSAGES.ERROR_LOGIN_FAILED));
+      setError(handleApiError(err, 'Login failed', t('login.error.loginFailed')));
     }
   };
 
@@ -54,15 +55,15 @@ export default function AdminLoginPage() {
             <div className="bg-primary p-3 rounded-lg text-primary-foreground">
               <Inbox className="w-8 h-8" />
             </div>
-            <h1 className="text-3xl font-bold tracking-tight">Outlooker</h1>
+            <h1 className="text-3xl font-bold tracking-tight">{t('app.title')}</h1>
           </div>
-          <p className="text-muted-foreground">邮箱验证码管理平台</p>
+          <p className="text-muted-foreground">{t('login.subtitle')}</p>
         </div>
 
         {/* Login Card */}
         <Card className="shadow-md">
           <CardHeader>
-            <CardTitle className="text-center">管理员登录</CardTitle>
+            <CardTitle className="text-center">{t('login.title')}</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-6" aria-describedby={error ? "login-error" : undefined}>
@@ -75,14 +76,14 @@ export default function AdminLoginPage() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <label htmlFor="username" className="text-sm font-medium text-foreground flex items-center gap-2">
-                    <User className="w-4 h-4" /> 用户名
+                    <User className="w-4 h-4" /> {t('login.username')}
                   </label>
                   <Input
                     id="username"
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="请输入用户名"
+                    placeholder={t('login.usernamePlaceholder')}
                     required
                     disabled={loading}
                     autoFocus
@@ -91,7 +92,7 @@ export default function AdminLoginPage() {
 
                 <div className="space-y-2">
                   <label htmlFor="password" className="text-sm font-medium text-foreground flex items-center gap-2">
-                    <Lock className="w-4 h-4" /> 密码
+                    <Lock className="w-4 h-4" /> {t('login.password')}
                   </label>
                   <div className="relative">
                     <Input
@@ -99,7 +100,7 @@ export default function AdminLoginPage() {
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="请输入密码"
+                      placeholder={t('login.passwordPlaceholder')}
                       required
                       disabled={loading}
                       className="pr-10"
@@ -108,7 +109,7 @@ export default function AdminLoginPage() {
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground transition-all duration-150 hover:bg-muted-foreground/10 hover:text-foreground active:scale-[var(--scale-click-icon)] focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-                      aria-label={showPassword ? '隐藏密码' : '显示密码'}
+                      aria-label={showPassword ? t('login.hidePassword') : t('login.showPassword')}
                       disabled={loading}
                     >
                       {showPassword ? (
@@ -129,10 +130,10 @@ export default function AdminLoginPage() {
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    登录中...
+                    {t('login.loggingIn')}
                   </>
                 ) : (
-                  '登 录'
+                  t('login.loginButton')
                 )}
               </Button>
             </form>
@@ -141,7 +142,7 @@ export default function AdminLoginPage() {
 
         {/* Footer */}
         <p className="text-center text-sm text-muted-foreground mt-6">
-          © {new Date().getFullYear()} Outlooker. All rights reserved.
+          {t('app.copyright', { year: new Date().getFullYear() })}
         </p>
       </div>
     </div>

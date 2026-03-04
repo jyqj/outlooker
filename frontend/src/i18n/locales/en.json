@@ -1,69 +1,174 @@
 {
     "app": {
         "title": "Outlooker",
-        "description": "Email Verification Code Manager"
+        "description": "Email Verification Code Manager",
+        "copyright": "© {{year}} Outlooker. All rights reserved."
     },
     "nav": {
         "home": "Home",
-        "admin": "Admin",
-        "logout": "Logout"
+        "admin": "Overview",
+        "logout": "Logout",
+        "tagsManage": "Tags",
+        "settings": "Settings",
+        "audit": "Logs"
     },
     "verification": {
         "title": "Get Verification Code",
-        "emailPlaceholder": "Enter email address",
-        "fetchButton": "Get Code",
+        "subtitle": "Enter an email address to fetch the latest code",
+        "emailLabel": "Email Address",
+        "emailPlaceholder": "example@outlook.com",
+        "clearInput": "Clear input",
+        "fetchButton": "Fetch Latest Code",
+        "fetching": "Fetching...",
         "refreshButton": "Refresh",
+        "codeTitle": "Verification Code",
+        "emailBody": "Email Body",
+        "noContent": "(No content)",
+        "code": {
+            "detected": "Code Detected",
+            "notDetected": "No Code Detected",
+            "clickToCopy": "Click to copy code",
+            "copyLabel": "Copy code {{code}}",
+            "notRecognized": "Could not auto-detect a code",
+            "checkBelow": "Please check the email body below",
+            "copied": "Copied to clipboard",
+            "copyFailed": "Copy failed, please select and copy manually"
+        },
+        "waiting": {
+            "start": "Wait for Code",
+            "stop": "Stop Waiting",
+            "message": "Waiting for a new verification code..."
+        },
         "loading": "Fetching emails...",
-        "noCode": "No verification code found",
-        "copySuccess": "Copied to clipboard",
-        "copyFailed": "Copy failed",
+        "loadingSub": "Please wait",
         "error": {
             "accountNotFound": "Email account not found",
             "fetchFailed": "Failed to fetch emails",
-            "emptyEmail": "Please enter an email address"
+            "emptyEmail": "Please enter an email address",
+            "notConfigured": "This email is not configured. Provide a Refresh Token for temporary mode, or contact an admin.",
+            "checkEmail": "Please verify the email address or contact an admin",
+            "retry": "Retry"
         }
     },
     "login": {
         "title": "Admin Login",
+        "subtitle": "Email Verification Code Manager",
         "username": "Username",
         "usernamePlaceholder": "Enter username",
         "password": "Password",
         "passwordPlaceholder": "Enter password",
+        "showPassword": "Show password",
+        "hidePassword": "Hide password",
         "loginButton": "Login",
         "loggingIn": "Logging in...",
         "error": {
             "invalidCredentials": "Invalid username or password",
+            "loginFailed": "Login failed. Please check your credentials.",
+            "responseError": "Invalid login response",
             "rateLimited": "Too many login attempts. Please try again later.",
             "serverError": "Server error. Please try again later."
         }
     },
     "dashboard": {
-        "title": "Account Management",
-        "accounts": "Accounts",
-        "addAccount": "Add Account",
-        "importAccounts": "Import",
-        "exportAccounts": "Export",
-        "search": "Search accounts...",
-        "actions": {
-            "view": "View",
-            "edit": "Edit",
-            "delete": "Delete",
-            "viewEmails": "View Emails"
+        "title": "Outlooker",
+        "searchPlaceholder": "Search email...",
+        "accounts": {
+            "title": "Email Account",
+            "tags": "Tags",
+            "actions": "Actions",
+            "noTags": "No tags",
+            "used": "Used (public pool)",
+            "unused": "Unused (public pool)",
+            "lastUsed": "Last used: {{time}}",
+            "viewEmails": "View emails",
+            "manageTags": "Manage tags"
+        },
+        "overview": {
+            "totalAccounts": "Total Accounts",
+            "totalAccountsSub": "Imported email accounts",
+            "tagDistribution": "Tag Distribution",
+            "tagCount": "tags",
+            "tagged": "Tagged",
+            "untagged": "Untagged",
+            "systemStatus": "System Status",
+            "running": "Running",
+            "cacheHitRate": "Cache hit rate",
+            "goSettings": "Settings",
+            "healthy": "Healthy",
+            "unhealthy": "Unhealthy",
+            "unchecked": "Unchecked",
+            "alerts": "Alerts",
+            "noAlerts": "All clear, no alerts",
+            "recentActivity": "Recent Activity",
+            "noActivity": "No recent activity",
+            "eventType": {
+                "admin_login": "Admin Login",
+                "import": "Import Accounts",
+                "delete": "Delete Account",
+                "batch_delete": "Batch Delete",
+                "pick_account": "Pick Account",
+                "health_check": "Health Check",
+                "tag_update": "Tag Update",
+                "config_update": "Config Update",
+                "default": "Action"
+            }
+        },
+        "healthCheck": {
+            "button": "Health Check",
+            "running": "Checking...",
+            "success": "Checked {{total}} accounts",
+            "failed": "Health check failed"
+        },
+        "healthStatus": {
+            "healthy": "Healthy",
+            "token_expired": "Token Expired",
+            "token_invalid": "Token Invalid",
+            "error": "Error",
+            "unknown": "Unchecked"
+        },
+        "charts": {
+            "healthDistribution": "Account Health",
+            "tagDistribution": "Tag Distribution (Top 10)",
+            "healthy": "Healthy",
+            "token_expired": "Token Expired",
+            "token_invalid": "Token Invalid",
+            "error": "Error",
+            "unknown": "Unchecked"
+        },
+        "toolbar": {
+            "delete": "Delete ({{count}})",
+            "batchTag": "Batch Tag",
+            "cancelSelection": "Deselect",
+            "import": "Import",
+            "exporting": "Exporting...",
+            "export": "Export",
+            "refresh": "Refresh",
+            "healthCheck": "Health Check",
+            "checking": "Checking..."
+        },
+        "table": {
+            "selectAll": "Select all on page ({{count}} accounts)",
+            "deselectAll": "Deselect all on page",
+            "select": "Select {{email}}",
+            "deselect": "Deselect {{email}}",
+            "loadFailed": "Failed to load accounts",
+            "checkNetwork": "Check your network or try again later",
+            "reload": "Reload",
+            "noMatch": "No matching accounts",
+            "noData": "No accounts yet",
+            "tryOtherKeyword": "Try a different search keyword",
+            "clickImport": "Click \"Import\" to add accounts",
+            "importAccounts": "Import Accounts"
         },
         "pagination": {
             "totalRecords": "{{count}} records",
             "perPage": "Per page",
+            "records": "items",
             "page": "Page",
             "jumpTo": "Go to",
             "go": "Go",
             "prev": "Previous",
             "next": "Next"
-        },
-        "tags": {
-            "manage": "Manage Tags",
-            "add": "Add Tag",
-            "remove": "Remove Tag",
-            "replace": "Replace Tag"
         },
         "batch": {
             "selected": "{{count}} selected",
@@ -71,9 +176,54 @@
             "tag": "Batch Tag"
         },
         "confirm": {
-            "delete": "Are you sure you want to delete this account?",
-            "batchDelete": "Are you sure you want to delete {{count}} accounts?"
+            "deleteTitle": "Confirm Delete",
+            "deleteMessage": "Delete {{count}} selected accounts? This cannot be undone.",
+            "deleteButton": "Delete",
+            "cancelButton": "Cancel"
         }
+    },
+    "tags": {
+        "title": "Tag Management",
+        "refresh": "Refresh",
+        "randomPick": "Random Pick",
+        "back": "Back",
+        "loadFailed": "Failed to load tag statistics",
+        "retry": "Retry",
+        "stats": {
+            "total": "Total Accounts",
+            "tagged": "Tagged",
+            "untagged": "Untagged"
+        },
+        "listTitle": "Tags",
+        "tagCount": "{{count}} tags",
+        "manage": "Manage Tags",
+        "add": "Add Tag",
+        "remove": "Remove Tag",
+        "replace": "Replace Tag",
+        "noTags": "No tags yet",
+        "noTagsHint": "Tags will appear here after you assign them to accounts",
+        "untaggedAccounts": "Untagged Accounts",
+        "untaggedMessage": "{{count}} accounts are untagged",
+        "untaggedHint": "These accounts can be picked by any tag operation",
+        "viewUntagged": "View",
+        "pick": "Pick",
+        "view": "View",
+        "rename": "Rename",
+        "delete": "Delete",
+        "deleteConfirm": "Delete tag \"{{name}}\"? It will be removed from all accounts. This cannot be undone.",
+        "deleteConfirmTitle": "Confirm Delete Tag",
+        "deleteSuccess": "Tag deleted",
+        "deleteFailed": "Failed to delete tag",
+        "renameTitle": "Rename Tag",
+        "newName": "New name",
+        "renamePlaceholder": "Enter new tag name",
+        "renameOriginal": "Original: {{name}}",
+        "renameSuccess": "Tag renamed",
+        "renameFailed": "Failed to rename tag",
+        "enterNewName": "Please enter a new tag name",
+        "saving": "Saving...",
+        "accountCount": "{{count}} accounts",
+        "accountCountWithPercent": "{{count}} accounts ({{percent}}%)"
     },
     "email": {
         "subject": "Subject",
@@ -90,16 +240,34 @@
     },
     "import": {
         "title": "Import Accounts",
-        "format": "Format",
-        "formatDescription": "One account per line: email----password----refresh_token",
-        "placeholder": "Paste account data...",
-        "preview": "Preview",
-        "import": "Import",
-        "cancel": "Cancel",
-        "success": "Successfully imported {{count}} accounts",
+        "formatTitle": "Supported formats:",
+        "placeholder": "Paste account data, one per line...",
+        "formatHint": "One account per line, fields separated by four hyphens",
+        "mergeMode": {
+            "update": "Update existing (Update)",
+            "skip": "Skip duplicates (Skip)",
+            "replace": "Clear & replace (Replace)"
+        },
+        "parsing": "Parsing...",
+        "nextStep": "Next: Parse & Preview",
+        "prevStep": "Previous",
+        "parsed": "Parsed:",
+        "errors": "Errors:",
+        "moreItems": "...{{count}} more",
+        "importing": "Importing...",
+        "confirmImport": "Import {{count}} accounts",
+        "result": {
+            "title": "Import Complete",
+            "added": "Added:",
+            "updated": "Updated:",
+            "skipped": "Skipped:",
+            "errors": "Errors:",
+            "done": "Done"
+        },
         "error": {
-            "parseError": "Parse error",
-            "invalidFormat": "Invalid format"
+            "parseError": "Parse failed",
+            "importError": "Import failed",
+            "needParse": "Please parse first"
         }
     },
     "settings": {
@@ -108,8 +276,82 @@
         "refreshCache": "Refresh Cache",
         "save": "Save Settings"
     },
+    "settingsPage": {
+        "title": "Settings",
+        "subtitle": "Manage system configuration and runtime parameters",
+        "save": "Save",
+        "saving": "Saving...",
+        "saveSuccess": "Configuration saved",
+        "saveFailed": "Failed to save configuration",
+        "cacheCleared": "Cache cleared",
+        "cacheClearFailed": "Failed to clear cache",
+        "email": {
+            "title": "Email Fetching",
+            "limit": "Fetch limit",
+            "limitDesc": "Maximum emails per fetch request (1-50)",
+            "perFetch": "per fetch"
+        },
+        "proxy": {
+            "title": "Proxy Settings",
+            "enable": "Enable proxy",
+            "enableDesc": "Route Outlook API and IMAP traffic through a proxy server",
+            "url": "Proxy URL",
+            "hint": "Supports HTTP and SOCKS5 proxies. Changes apply to new connections."
+        },
+        "tokenRefresh": {
+            "title": "Token Auto-Refresh",
+            "enable": "Enable auto-refresh",
+            "enableDesc": "Periodically refresh all account tokens to prevent expiration",
+            "interval": "Refresh interval",
+            "intervalDesc": "Hours between full refresh cycles (1-168)",
+            "hours": "hours"
+        },
+        "webhook": {
+            "title": "Webhook Notifications",
+            "enable": "Enable Webhook",
+            "enableDesc": "Send notifications to a URL when specific events occur",
+            "url": "Webhook URL",
+            "secret": "Signing secret",
+            "secretPlaceholder": "For HMAC-SHA256 signature verification (optional)",
+            "secretHint": "When set, each request includes an X-Signature header for verification",
+            "events": "Event types",
+            "eventsHint": "Comma-separated: verification_code_received, token_refresh_failed"
+        },
+        "maintenance": {
+            "title": "Maintenance",
+            "clearCache": "Clear email cache",
+            "clearCacheDesc": "Remove all cached emails. Next fetch will pull fresh data.",
+            "clearing": "Clearing...",
+            "clear": "Clear Cache"
+        }
+    },
+    "audit": {
+        "title": "Audit Log",
+        "subtitle": "View system operations and security events",
+        "filterPlaceholder": "Filter by event type...",
+        "events": "Events",
+        "noEvents": "No audit events yet",
+        "time": "Time",
+        "type": "Type",
+        "action": "Action",
+        "ip": "IP",
+        "status": "Status",
+        "page": "Page {{page}}"
+    },
+    "notFound": {
+        "title": "Page Not Found",
+        "message": "Sorry, the page you're looking for doesn't exist or has been removed.",
+        "home": "Go Home",
+        "admin": "Admin Panel"
+    },
+    "errorBoundary": {
+        "title": "Page Load Failed",
+        "fallback": "An unknown error occurred. Please retry or contact an admin.",
+        "retry": "Reload"
+    },
     "common": {
         "loading": "Loading...",
+        "loadingResource": "Loading resources...",
         "error": "Error",
         "success": "Success",
         "confirm": "Confirm",

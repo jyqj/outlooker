@@ -1,140 +1,204 @@
-import { useState, useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { Settings2, Users, RefreshCw, Mail } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { Users, Tags, Activity, Settings2, AlertTriangle, Shield, ShieldCheck, ShieldX, Clock } from 'lucide-react';
 import api from '@/lib/api';
-import { MESSAGES } from '@/lib/constants';
 import { queryKeys } from '@/lib/queryKeys';
-import { useSystemConfigQuery, useSystemMetricsQuery, useApiAction } from '@/lib/hooks';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import type { ApiResponse } from '@/types';
+
+interface DashboardSummary {
+  health: Record<string, number>;
+  tags: { total_accounts: number; tagged_accounts: number; untagged_accounts: number; tags: { name: string; count: number }[] };
+  alerts: { level: string; message: string; count: number }[];
+  recent_events: { event_type: string; timestamp: string; action?: string; resource?: string; details?: Record<string, unknown> }[];
+}
+
+function useDashboardSummary() {
+  return useQuery({
+    queryKey: queryKeys.dashboardSummary(),
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<DashboardSummary>>('/api/dashboard/summary');
+      return res.data;
+    },
+    refetchInterval: 60_000,
+  });
+}
 
 export function SystemOverview() {
-  const queryClient = useQueryClient();
-  const { data: configData } = useSystemConfigQuery();
-  const { data: metricsData } = useSystemMetricsQuery();
-  const apiAction = useApiAction();
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { data } = useDashboardSummary();
+  const summary = data?.data;
 
-  const [emailLimit, setEmailLimit] = useState<number | string>(5);
-  const [savingConfig, setSavingConfig] = useState(false);
-  const [refreshingCache, setRefreshingCache] = useState(false);
+  const health = summary?.health || {};
+  const total = health.total || 0;
+  const healthy = health.healthy || 0;
+  const unhealthy = (health.token_expired || 0) + (health.token_invalid || 0) + (health.error || 0);
+  const unknown = health.unknown || 0;
 
-  const accountsCount = metricsData?.data?.email_manager?.accounts_count || 0;
-  const cachedEmails = metricsData?.data?.email_manager?.email_cache?.total_messages || 0;
+  const tagStats = summary?.tags;
+  const totalTags = tagStats?.tags?.length || 0;
+  const taggedAccounts = tagStats?.tagged_accounts || 0;
+  const untaggedAccounts = tagStats?.untagged_accounts || 0;
+  const taggedPercent = total > 0 ? Math.round((taggedAccounts / total) * 100) : 0;
 
-  useEffect(() => {
-    if (configData?.data?.email_limit) {
-      setEmailLimit(configData.data.email_limit);
-    }
-  }, [configData]);
-
-  const handleConfigSave = async () => {
-    setSavingConfig(true);
-    try {
-      await apiAction(
-        () => api.post('/api/system/config', { email_limit: Number(emailLimit) }),
-        {
-          successMessage: MESSAGES.SUCCESS_CONFIG_UPDATED,
-          errorMessage: MESSAGES.ERROR_CONFIG_UPDATE_FAILED,
-          onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.systemConfig() }),
-        },
-      );
-    } finally {
-      setSavingConfig(false);
-    }
-  };
-
-  const handleCacheRefresh = async () => {
-    setRefreshingCache(true);
-    try {
-      await apiAction(
-        () => api.post('/api/system/cache/refresh'),
-        {
-          successMessage: MESSAGES.SUCCESS_CACHE_REFRESHED,
-          errorMessage: MESSAGES.ERROR_CACHE_REFRESH_FAILED,
-          onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: queryKeys.systemMetrics() });
-            queryClient.invalidateQueries({ queryKey: queryKeys.accounts() });
-          },
-        },
-      );
-    } finally {
-      setRefreshingCache(false);
-    }
-  };
+  const alerts = summary?.alerts || [];
+  const recentEvents = summary?.recent_events || [];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      {/* Accounts Count Card */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">账户总数</CardTitle>
-          <Users className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-3xl font-bold">{accountsCount}</div>
-          <p className="text-xs text-muted-foreground mt-1">已导入的邮箱账户</p>
-        </CardContent>
-      </Card>
+    <div className="space-y-4">
+      {/* Row 1: Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Account Overview */}
+        <Card className="hover:border-primary/20 transition-colors">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {t('dashboard.overview.totalAccounts')}
+            </CardTitle>
+            <div className="p-1.5 rounded-lg bg-primary/10">
+              <Users className="h-4 w-4 text-primary" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-extrabold tracking-tight">{total}</div>
+            {total > 0 && unknown < total && (
+              <div className="flex items-center gap-3 mt-2 text-xs">
+                <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                  <ShieldCheck className="w-3 h-3" /> {healthy}
+                </span>
+                {unhealthy > 0 && (
+                  <span className="flex items-center gap-1 text-red-500">
+                    <ShieldX className="w-3 h-3" /> {unhealthy}
+                  </span>
+                )}
+                {unknown > 0 && (
+                  <span className="flex items-center gap-1 text-muted-foreground">
+                    <Shield className="w-3 h-3" /> {unknown}
+                  </span>
+                )}
+              </div>
+            )}
+            {unknown === total && total > 0 && (
+              <p className="text-xs text-muted-foreground mt-1">{t('dashboard.overview.totalAccountsSub')}</p>
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Cached Emails Card */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">缓存邮件</CardTitle>
-          <Mail className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-3xl font-bold">{cachedEmails}</div>
-              <p className="text-xs text-muted-foreground mt-1">已缓存的邮件数量</p>
+        {/* Tag Distribution */}
+        <Card className="hover:border-primary/20 transition-colors">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {t('dashboard.overview.tagDistribution')}
+            </CardTitle>
+            <div className="p-1.5 rounded-lg bg-info/10">
+              <Tags className="h-4 w-4 text-info" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-extrabold tracking-tight">{totalTags}</span>
+              <span className="text-sm text-muted-foreground">{t('dashboard.overview.tagCount')}</span>
+            </div>
+            {total > 0 && (
+              <div className="mt-2 space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">{t('dashboard.overview.tagged')}: {taggedAccounts}</span>
+                  <span className="text-muted-foreground">{t('dashboard.overview.untagged')}: {untaggedAccounts}</span>
+                </div>
+                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${taggedPercent}%` }} />
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* System Status */}
+        <Card className="hover:border-primary/20 transition-colors">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {t('dashboard.overview.systemStatus')}
+            </CardTitle>
+            <div className="p-1.5 rounded-lg bg-success/10">
+              <Activity className="h-4 w-4 text-success" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+              <span className="text-sm font-medium">{t('dashboard.overview.running')}</span>
             </div>
             <Button
               variant="outline"
               size="sm"
-              onClick={handleCacheRefresh}
-              disabled={refreshingCache}
-              className="h-8 text-xs gap-1"
+              onClick={() => navigate('/admin/settings')}
+              className="w-full gap-1.5 text-xs"
             >
-              <RefreshCw className={`w-3 h-3 ${refreshingCache ? 'animate-spin' : ''}`} />
-              {refreshingCache ? '清理中' : '清理'}
+              <Settings2 className="w-3 h-3" />
+              {t('dashboard.overview.goSettings')}
             </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
 
-      {/* Email Limit Config Card */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">邮件获取限制</CardTitle>
-          <Settings2 className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-3">
-            <Input
-              type="number"
-              min={1}
-              max={50}
-              value={emailLimit}
-              onChange={(e) => setEmailLimit(e.target.value)}
-              className="w-20 text-center font-bold"
-            />
-            <span className="text-sm text-muted-foreground">封/次</span>
-            <Button
-              size="sm"
-              onClick={handleConfigSave}
-              disabled={savingConfig}
-              className="ml-auto"
-            >
-              {savingConfig ? '...' : '保存'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Row 2: Alerts + Recent Activity */}
+      {(alerts.length > 0 || recentEvents.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Alerts */}
+          {alerts.length > 0 && (
+            <Card className="border-warning/30">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <AlertTriangle className="w-4 h-4 text-warning" />
+                  {t('dashboard.overview.alerts')}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {alerts.map((alert, i) => (
+                  <div
+                    key={i}
+                    className={`flex items-center justify-between text-sm rounded-md px-3 py-2 ${
+                      alert.level === 'error'
+                        ? 'bg-destructive/10 text-destructive'
+                        : 'bg-warning/10 text-warning'
+                    }`}
+                  >
+                    <span>{alert.message}</span>
+                    <span className="font-bold">{alert.count}</span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
-      {metricsData?.data?.warning && (
-        <div className="md:col-span-3 rounded-md bg-yellow-500/10 p-3 text-sm text-yellow-900 dark:text-yellow-200 border border-yellow-500/30">
-          {metricsData.data.warning}
+          {/* Recent Activity */}
+          {recentEvents.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <Clock className="w-4 h-4 text-muted-foreground" />
+                  {t('dashboard.overview.recentActivity')}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {recentEvents.slice(0, 5).map((evt, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground truncate max-w-[60%]">
+                        {evt.action || evt.event_type}
+                        {evt.resource && ` · ${evt.resource}`}
+                      </span>
+                      <span className="text-muted-foreground shrink-0">
+                        {evt.timestamp ? new Date(evt.timestamp).toLocaleTimeString() : ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
     </div>

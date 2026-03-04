@@ -85,7 +85,7 @@ describe('AdminLoginPage', () => {
     await user.click(screen.getByRole('button', { name: '登 录' }));
 
     await waitFor(() => {
-      expect(screen.getByText(/登录失败/)).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toBeInTheDocument();
     });
   });
 });

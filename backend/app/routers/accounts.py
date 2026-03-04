@@ -16,8 +16,11 @@ from ..models import (
     ImportRequest,
     ParseImportTextRequest,
     PickAccountRequest,
+    RenameTagRequest,
+    ValidateTagRequest,
     create_paginated_response,
 )
+from ..auth.oauth import get_access_token
 from ..services import db_manager, email_manager, imap_pool, load_accounts_config, merge_accounts_data_to_db, parse_account_line
 from ..settings import get_settings
 from ..utils.pagination import paginate_items
@@ -89,6 +92,8 @@ async def get_accounts_paged(
                 "email": e,
                 "is_used": bool(info.get("is_used")),
                 "last_used_at": info.get("last_used_at"),
+                "health_status": info.get("health_status", "unknown"),
+                "last_health_check_at": info.get("last_health_check_at"),
             }
         )
 
@@ -540,19 +545,14 @@ async def get_all_tags_list(admin: AdminUser) -> ApiResponse:
 @handle_exceptions("验证标签")
 async def validate_tag(
     admin: AdminUser,
-    request: dict[str, str],
+    request: ValidateTagRequest,
 ) -> ApiResponse:
     """验证标签名称格式（需要管理员认证）
 
     验证标签名称是否符合格式要求，但不实际创建标签。
     标签会在被分配给账户时自动创建。
-
-    请求体:
-    {
-        "name": "标签名称"
-    }
     """
-    tag_name = (request.get("name") or "").strip()
+    tag_name = request.name.strip()
     if not tag_name:
         raise ValidationError(message="标签名称不能为空", field="name")
 
@@ -606,18 +606,12 @@ async def delete_tag_globally(
 async def rename_tag_globally(
     tag_name: str,
     admin: AdminUser,
-    request: dict[str, str],
+    request: RenameTagRequest,
 ) -> ApiResponse:
-    """重命名标签（在所有账户中，需要管理员认证）
-
-    请求体:
-    {
-        "new_name": "新标签名称"
-    }
-    """
+    """重命名标签（在所有账户中，需要管理员认证）"""
     tag_name = tag_name.strip()
     validate_tags([tag_name])
-    new_name = (request.get("new_name") or "").strip()
+    new_name = request.new_name.strip()
 
     if not tag_name:
         raise ValidationError(message="原标签名称不能为空", field="tag_name")
@@ -648,4 +642,94 @@ async def rename_tag_globally(
         success=True,
         message=f"已将标签 '{tag_name}' 重命名为 '{new_name}'，影响 {affected} 个账户",
         data={"old_name": tag_name, "new_name": new_name, "affected_accounts": affected}
+    )
+
+
+# ============================================================================
+# 健康检测 API
+# ============================================================================
+
+
+@router.post("/api/accounts/health-check", tags=["健康检测"])
+@handle_exceptions("健康检测")
+async def health_check_accounts(
+    admin: AdminUser,
+) -> ApiResponse:
+    """批量检测所有账号的 token 有效性"""
+    import asyncio
+
+    accounts = await load_accounts_config()
+    if not accounts:
+        return ApiResponse(success=True, message="没有账户", data={"total": 0})
+
+    sem = asyncio.Semaphore(10)
+    results: dict[str, str] = {}
+
+    async def check_one(email: str, info: dict) -> None:
+        async with sem:
+            rt = info.get("refresh_token", "")
+            if not rt:
+                results[email] = "token_invalid"
+                await db_manager.update_account_health(email, "token_invalid")
+                return
+            try:
+                access, new_rt = await get_access_token(rt, check_only=True)
+                if access:
+                    results[email] = "healthy"
+                    await db_manager.update_account_health(
+                        email, "healthy",
+                        refresh_token=new_rt if new_rt and new_rt != rt else None,
+                    )
+                else:
+                    results[email] = "token_expired"
+                    await db_manager.update_account_health(email, "token_expired")
+            except Exception:
+                results[email] = "error"
+                await db_manager.update_account_health(email, "error")
+
+    tasks = [check_one(e, info) for e, info in accounts.items()]
+    await asyncio.gather(*tasks, return_exceptions=True)
+
+    summary: dict[str, int] = {}
+    for status in results.values():
+        summary[status] = summary.get(status, 0) + 1
+
+    return ApiResponse(
+        success=True,
+        message=f"检测完成 {len(results)} 个账户",
+        data={"total": len(results), "summary": summary, "details": results},
+    )
+
+
+@router.get("/api/dashboard/summary", tags=["仪表盘"])
+@handle_exceptions("获取仪表盘概要")
+async def get_dashboard_summary(admin: AdminUser) -> ApiResponse:
+    """聚合仪表盘所需的全部数据"""
+    import asyncio
+
+    health_task = db_manager.get_health_summary()
+    tags_task = db_manager.get_tag_statistics()
+    events_task = db_manager.get_audit_events(limit=5)
+
+    health, tags, events = await asyncio.gather(health_task, tags_task, events_task)
+
+    alerts: list[dict] = []
+    expired = health.get("token_expired", 0)
+    invalid = health.get("token_invalid", 0)
+    errors = health.get("error", 0)
+    if expired > 0:
+        alerts.append({"level": "warning", "message": f"{expired} 个账户 Token 已过期", "count": expired})
+    if invalid > 0:
+        alerts.append({"level": "error", "message": f"{invalid} 个账户 Token 无效", "count": invalid})
+    if errors > 0:
+        alerts.append({"level": "error", "message": f"{errors} 个账户检测异常", "count": errors})
+
+    return ApiResponse(
+        success=True,
+        data={
+            "health": health,
+            "tags": tags,
+            "alerts": alerts,
+            "recent_events": events,
+        },
     )

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import api, { clearAuthTokens } from '@/lib/api';
 import { showSuccess, showError } from '@/lib/toast';
@@ -18,6 +19,7 @@ import {
   DashboardHeader, 
   DashboardToolbar, 
   AccountsTable,
+  DashboardCharts,
 } from './dashboard/components';
 import { 
   useAccountSelection, 
@@ -36,6 +38,7 @@ const BatchTagModal = React.lazy(() => import('./dashboard/components/BatchTagMo
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 export default function AdminDashboardPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -127,6 +130,19 @@ export default function AdminDashboardPage() {
     queryClient.invalidateQueries({ queryKey: queryKeys.accounts() });
   }, [queryClient]);
 
+  const [healthChecking, setHealthChecking] = useState(false);
+  const handleHealthCheck = useCallback(async () => {
+    setHealthChecking(true);
+    try {
+      const res = await api.post('/api/accounts/health-check');
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboardSummary() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.accounts() });
+      const total = res.data?.data?.total ?? 0;
+      showSuccess(t('dashboard.healthCheck.success', { total }));
+    } catch { showError(t('dashboard.healthCheck.failed')); }
+    finally { setHealthChecking(false); }
+  }, [queryClient, t]);
+
   return (
     <div className="min-h-screen bg-muted/60 flex flex-col font-sans">
       <DashboardHeader onLogout={handleLogout} />
@@ -138,15 +154,19 @@ export default function AdminDashboardPage() {
           selectedCount={selection.selectedCount}
           batchLoading={batchOps.batchLoading}
           exporting={modals.exporting}
+          healthChecking={healthChecking}
           onBatchDelete={batchOps.handleBatchDelete}
           onOpenBatchTagModal={() => batchOps.openBatchTagModal('add')}
           onClearSelection={selection.clearSelection}
           onImport={modals.openImport}
           onExport={handleExport}
           onRefresh={handleRefresh}
+          onHealthCheck={handleHealthCheck}
         />
 
         <SystemOverview />
+
+        <DashboardCharts />
 
         <AccountsTable
           accounts={accounts}
@@ -164,7 +184,7 @@ export default function AdminDashboardPage() {
       </main>
 
       {/* Modals with Suspense */}
-      <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">正在加载资源...</div>}>
+      <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">{t('common.loadingResource')}</div>}>
         <ImportModal
           isOpen={modals.showImport}
           onClose={modals.closeImport}
@@ -210,10 +230,10 @@ export default function AdminDashboardPage() {
         isOpen={batchOps.deleteConfirm.isOpen}
         onClose={batchOps.closeDeleteConfirm}
         onConfirm={batchOps.executeBatchDelete}
-        title="确认删除"
-        message={`确定要删除选中的 ${batchOps.deleteConfirm.count} 个账户吗？此操作不可恢复。`}
-        confirmText="删除"
-        cancelText="取消"
+        title={t('dashboard.confirm.deleteTitle')}
+        message={t('dashboard.confirm.deleteMessage', { count: batchOps.deleteConfirm.count })}
+        confirmText={t('dashboard.confirm.deleteButton')}
+        cancelText={t('dashboard.confirm.cancelButton')}
         variant="danger"
         loading={batchOps.batchLoading}
       />

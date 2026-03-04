@@ -8,7 +8,14 @@ from pathlib import Path
 from typing import Any
 
 from ..db import db_manager
-from .constants import MAX_EMAIL_LIMIT, MIN_EMAIL_LIMIT, SYSTEM_CONFIG_DEFAULTS
+from .constants import (
+    BOOL_CONFIG_KEYS,
+    INT_CONFIG_KEYS,
+    MAX_EMAIL_LIMIT,
+    MIN_EMAIL_LIMIT,
+    STR_CONFIG_KEYS,
+    SYSTEM_CONFIG_DEFAULTS,
+)
 from .constants import SYSTEM_CONFIG_FILE as DEFAULT_SYSTEM_CONFIG_FILE
 
 logger = logging.getLogger(__name__)
@@ -48,13 +55,27 @@ async def _write_system_config_file(config: dict[str, Any]) -> None:
 
 def _cast_system_value(key: str, value: Any) -> Any:
     if value is None:
-        return value
-    if key == "email_limit":
+        return SYSTEM_CONFIG_DEFAULTS.get(key)
+
+    if key in BOOL_CONFIG_KEYS:
+        if isinstance(value, str):
+            return value.lower() in ("true", "1", "yes")
+        return bool(value)
+
+    if key in INT_CONFIG_KEYS:
         try:
-            limit = int(value)
+            v = int(value)
         except (TypeError, ValueError):
-            return SYSTEM_CONFIG_DEFAULTS[key]
-        return max(MIN_EMAIL_LIMIT, min(MAX_EMAIL_LIMIT, limit))
+            return SYSTEM_CONFIG_DEFAULTS.get(key)
+        if key == "email_limit":
+            return max(MIN_EMAIL_LIMIT, min(MAX_EMAIL_LIMIT, v))
+        if key == "token_refresh_interval_hours":
+            return max(1, min(168, v))
+        return v
+
+    if key in STR_CONFIG_KEYS:
+        return str(value).strip()
+
     return value
 
 

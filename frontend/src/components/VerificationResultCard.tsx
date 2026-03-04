@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -16,11 +17,12 @@ interface VerificationResultCardProps {
 }
 
 export function VerificationResultCard({ result, onRefresh }: VerificationResultCardProps) {
+  const { t } = useTranslation();
   return (
     <Card className="shadow-md">
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">验证码</CardTitle>
+          <CardTitle className="text-lg">{t('verification.codeTitle')}</CardTitle>
           <Button
             variant="outline"
             size="sm"
@@ -28,7 +30,7 @@ export function VerificationResultCard({ result, onRefresh }: VerificationResult
             className="gap-2"
           >
             <RefreshCw className="w-4 h-4" />
-            刷新
+            {t('verification.refreshButton')}
           </Button>
         </div>
       </CardHeader>
@@ -45,7 +47,7 @@ export function VerificationResultCard({ result, onRefresh }: VerificationResult
         {/* 邮件正文 */}
         <div>
           <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-            邮件正文
+            {t('verification.emailBody')}
           </h3>
           <div className="bg-muted p-5 rounded-lg border border-border max-h-96 overflow-y-auto">
             {result.body?.contentType === 'html' ? (
@@ -55,7 +57,7 @@ export function VerificationResultCard({ result, onRefresh }: VerificationResult
               />
             ) : (
               <pre className="whitespace-pre-wrap font-sans text-sm text-foreground leading-relaxed">
-                {result.body?.content || '(无内容)'}
+                {result.body?.content || t('verification.noContent')}
               </pre>
             )}
           </div>

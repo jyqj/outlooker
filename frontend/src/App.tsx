@@ -1,14 +1,18 @@
 import React, { Suspense, type ReactNode } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import VerificationPage from './pages/VerificationPage';
 import AdminLoginPage from './pages/AdminLoginPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import NotFoundPage from './pages/NotFoundPage';
 import ToastContainer from './components/Toast';
+import ErrorBoundary from './components/ErrorBoundary';
 import { getStoredAccessToken, isAccessTokenValid } from './lib/api';
 import { LoadingSpinner } from './components/ui';
 
 const TagsPage = React.lazy(() => import('./pages/tags/TagsPage'));
+const SettingsPage = React.lazy(() => import('./pages/settings/SettingsPage'));
+const AuditPage = React.lazy(() => import('./pages/audit/AuditPage'));
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -22,17 +26,28 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   return <>{children}</>;
 };
 
+function RouteErrorBoundary({ children }: { children: ReactNode }) {
+  return (
+    <ErrorBoundary onReset={() => window.location.reload()}>
+      {children}
+    </ErrorBoundary>
+  );
+}
+
 function App() {
+  const { t } = useTranslation();
   return (
     <>
       <Routes>
-        <Route path="/" element={<VerificationPage />} />
-        <Route path="/admin/login" element={<AdminLoginPage />} />
+        <Route path="/" element={<RouteErrorBoundary><VerificationPage /></RouteErrorBoundary>} />
+        <Route path="/admin/login" element={<RouteErrorBoundary><AdminLoginPage /></RouteErrorBoundary>} />
         <Route
           path="/admin"
           element={
             <ProtectedRoute>
-              <AdminDashboardPage />
+              <RouteErrorBoundary>
+                <AdminDashboardPage />
+              </RouteErrorBoundary>
             </ProtectedRoute>
           }
         />
@@ -40,9 +55,35 @@ function App() {
           path="/admin/tags"
           element={
             <ProtectedRoute>
-              <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><LoadingSpinner size="lg" text="加载中..." /></div>}>
-                <TagsPage />
-              </Suspense>
+              <RouteErrorBoundary>
+                <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><LoadingSpinner size="lg" text={t('common.loading')} /></div>}>
+                  <TagsPage />
+                </Suspense>
+              </RouteErrorBoundary>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/audit"
+          element={
+            <ProtectedRoute>
+              <RouteErrorBoundary>
+                <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><LoadingSpinner size="lg" text={t('common.loading')} /></div>}>
+                  <AuditPage />
+                </Suspense>
+              </RouteErrorBoundary>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/settings"
+          element={
+            <ProtectedRoute>
+              <RouteErrorBoundary>
+                <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><LoadingSpinner size="lg" text={t('common.loading')} /></div>}>
+                  <SettingsPage />
+                </Suspense>
+              </RouteErrorBoundary>
             </ProtectedRoute>
           }
         />

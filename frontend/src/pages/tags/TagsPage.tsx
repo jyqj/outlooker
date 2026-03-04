@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -62,6 +63,7 @@ function TagsPageSkeleton() {
 }
 
 export default function TagsPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { data, isLoading, isError, refetch } = useTagStatsQuery();
   
@@ -112,13 +114,13 @@ export default function TagsPage() {
     try {
       const result = await deleteTagGlobally(deleteDialog.tagName);
       if (result.success) {
-        showSuccess(result.message || '标签已删除');
+        showSuccess(result.message || t('tags.deleteSuccess'));
         refetch();
       } else {
-        showError(result.message || '删除标签失败');
+        showError(result.message || t('tags.deleteFailed'));
       }
     } catch {
-      showError('删除标签失败');
+      showError(t('tags.deleteFailed'));
     } finally {
       closeDeleteDialog();
     }
@@ -127,22 +129,22 @@ export default function TagsPage() {
   // Rename tag handler
   const handleRenameConfirm = useCallback(async () => {
     if (!renameDialog.newName.trim() || renameDialog.newName === renameDialog.oldName) {
-      showError('请输入新的标签名称');
+      showError(t('tags.enterNewName'));
       return;
     }
     setRenameLoading(true);
     try {
       const result = await renameTagGlobally(renameDialog.oldName, renameDialog.newName.trim());
       if (result.success) {
-        showSuccess(result.message || '标签已重命名');
+        showSuccess(result.message || t('tags.renameSuccess'));
         refetch();
         closeRenameDialog();
       } else {
-        showError(result.message || '重命名标签失败');
+        showError(result.message || t('tags.renameFailed'));
         setRenameLoading(false);
       }
     } catch {
-      showError('重命名标签失败');
+      showError(t('tags.renameFailed'));
       setRenameLoading(false);
     }
   }, [renameDialog.oldName, renameDialog.newName, setRenameLoading, closeRenameDialog, refetch]);
@@ -163,9 +165,9 @@ export default function TagsPage() {
           <TagsPageSkeleton />
         ) : isError ? (
           <Card className="p-6 text-center">
-            <p className="text-destructive mb-4">加载标签统计失败</p>
+            <p className="text-destructive mb-4">{t('tags.loadFailed')}</p>
             <Button variant="outline" onClick={() => refetch()}>
-              重试
+              {t('tags.retry')}
             </Button>
           </Card>
         ) : stats ? (

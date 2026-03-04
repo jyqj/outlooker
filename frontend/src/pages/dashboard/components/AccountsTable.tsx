@@ -301,7 +301,7 @@ export function AccountsTable({
             </div>
           ) : (
             /* Standard table view */
-            <table className="w-full text-left text-sm" role="grid" aria-label="邮箱账户列表">
+            <table className="w-full text-left text-sm min-w-[640px]" role="grid" aria-label="邮箱账户列表">
               <thead className="bg-muted text-muted-foreground font-medium border-b">
                 <tr role="row">
                   <th className="px-4 py-4 w-12" scope="col">

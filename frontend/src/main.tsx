@@ -3,12 +3,12 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter as Router } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ThemeProvider } from './components/ThemeProvider';
 import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
-import './i18n'; // Initialize i18n
+import './i18n';
 import './index.css';
 
-// Initialize Sentry for error tracking (only if DSN is configured)
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN;
 if (sentryDsn) {
   Sentry.init({
@@ -18,9 +18,7 @@ if (sentryDsn) {
       Sentry.browserTracingIntegration(),
       Sentry.replayIntegration(),
     ],
-    // Performance Monitoring
     tracesSampleRate: import.meta.env.PROD ? 0.1 : 1.0,
-    // Session Replay
     replaysSessionSampleRate: 0.1,
     replaysOnErrorSampleRate: 1.0,
   });
@@ -44,8 +42,6 @@ const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error('Root element not found');
 }
-
-import { ThemeProvider } from './components/ThemeProvider';
 
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>

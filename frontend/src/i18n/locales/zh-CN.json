@@ -1,69 +1,165 @@
 {
     "app": {
         "title": "Outlooker",
-        "description": "邮箱验证码管理"
+        "description": "邮箱验证码管理平台",
+        "copyright": "© {{year}} Outlooker. All rights reserved."
     },
     "nav": {
         "home": "首页",
-        "admin": "管理后台",
-        "logout": "退出登录"
+        "admin": "概览",
+        "logout": "退出",
+        "tagsManage": "标签",
+        "settings": "设置",
+        "audit": "日志"
     },
     "verification": {
-        "title": "验证码获取",
-        "emailPlaceholder": "请输入邮箱地址",
-        "fetchButton": "获取验证码",
+        "title": "获取邮箱验证码",
+        "subtitle": "输入邮箱地址，快速获取最新验证码",
+        "emailLabel": "邮箱地址",
+        "emailPlaceholder": "example@outlook.com",
+        "clearInput": "清除输入内容",
+        "fetchButton": "获取最新验证码",
+        "fetching": "获取中...",
         "refreshButton": "刷新",
+        "codeTitle": "验证码",
+        "emailBody": "邮件正文",
+        "noContent": "(无内容)",
+        "code": {
+            "detected": "检测到的验证码",
+            "notDetected": "暂未检测到验证码",
+            "clickToCopy": "点击复制验证码",
+            "copyLabel": "复制验证码 {{code}}",
+            "notRecognized": "未自动识别到验证码",
+            "checkBelow": "请查看下方邮件正文",
+            "copied": "已复制到剪贴板",
+            "copyFailed": "复制失败，请手动选择复制"
+        },
+        "waiting": {
+            "start": "等待验证码",
+            "stop": "停止等待",
+            "message": "正在等待新验证码到达..."
+        },
         "loading": "正在获取邮件...",
-        "noCode": "暂无验证码",
-        "copySuccess": "已复制到剪贴板",
-        "copyFailed": "复制失败",
+        "loadingSub": "请稍候",
         "error": {
             "accountNotFound": "未找到该邮箱账户",
             "fetchFailed": "获取邮件失败",
-            "emptyEmail": "请输入邮箱地址"
+            "emptyEmail": "请输入邮箱地址",
+            "notConfigured": "该邮箱未配置。请提供 Refresh Token 使用临时模式，或联系管理员。",
+            "checkEmail": "请检查邮箱地址是否正确，或联系管理员确认该邮箱已配置",
+            "retry": "重试"
         }
     },
     "login": {
         "title": "管理员登录",
+        "subtitle": "邮箱验证码管理平台",
         "username": "用户名",
         "usernamePlaceholder": "请输入用户名",
         "password": "密码",
         "passwordPlaceholder": "请输入密码",
-        "loginButton": "登录",
+        "showPassword": "显示密码",
+        "hidePassword": "隐藏密码",
+        "loginButton": "登 录",
         "loggingIn": "登录中...",
         "error": {
             "invalidCredentials": "用户名或密码错误",
+            "loginFailed": "登录失败，请检查用户名或密码",
+            "responseError": "登录响应格式错误",
             "rateLimited": "登录尝试过于频繁，请稍后再试",
             "serverError": "服务器错误，请稍后再试"
         }
     },
     "dashboard": {
-        "title": "账户管理",
-        "accounts": "账户列表",
-        "addAccount": "添加账户",
-        "importAccounts": "批量导入",
-        "exportAccounts": "导出账户",
-        "search": "搜索账户...",
-        "actions": {
-            "view": "查看",
-            "edit": "编辑",
-            "delete": "删除",
-            "viewEmails": "查看邮件"
+        "title": "Outlooker",
+        "searchPlaceholder": "搜索邮箱...",
+        "accounts": {
+            "title": "邮箱账户",
+            "tags": "标签",
+            "actions": "操作",
+            "noTags": "无标签",
+            "used": "已使用(公共池)",
+            "unused": "未使用(公共池)",
+            "lastUsed": "最后使用：{{time}}",
+            "viewEmails": "查看邮件",
+            "manageTags": "管理标签"
+        },
+        "overview": {
+            "totalAccounts": "账户总数",
+            "totalAccountsSub": "已导入的邮箱账户",
+            "tagDistribution": "标签分布",
+            "tagCount": "个标签",
+            "tagged": "已标记",
+            "untagged": "未标记",
+            "systemStatus": "系统状态",
+            "running": "运行正常",
+            "cacheHitRate": "缓存命中率",
+            "goSettings": "系统设置",
+            "healthy": "健康",
+            "unhealthy": "异常",
+            "unchecked": "未检测",
+            "alerts": "系统告警",
+            "noAlerts": "一切正常，无告警",
+            "recentActivity": "最近活动",
+            "noActivity": "暂无活动记录",
+            "eventType": {
+                "admin_login": "管理员登录",
+                "import": "导入账户",
+                "delete": "删除账户",
+                "batch_delete": "批量删除",
+                "pick_account": "取号",
+                "health_check": "健康检测",
+                "tag_update": "标签更新",
+                "config_update": "配置更新",
+                "default": "操作"
+            }
+        },
+        "healthCheck": {
+            "button": "健康检测",
+            "running": "检测中...",
+            "success": "检测完成：{{total}} 个账户",
+            "failed": "健康检测失败"
+        },
+        "healthStatus": {
+            "healthy": "健康",
+            "token_expired": "Token 过期",
+            "token_invalid": "Token 无效",
+            "error": "异常",
+            "unknown": "未检测"
+        },
+        "toolbar": {
+            "delete": "删除 ({{count}})",
+            "batchTag": "批量标签",
+            "cancelSelection": "取消选择",
+            "import": "导入",
+            "exporting": "导出中...",
+            "export": "导出",
+            "refresh": "刷新",
+            "healthCheck": "健康检测",
+            "checking": "检测中..."
+        },
+        "table": {
+            "selectAll": "全选当前页 ({{count}} 个账户)",
+            "deselectAll": "取消全选当前页",
+            "select": "选择 {{email}}",
+            "deselect": "取消选择 {{email}}",
+            "loadFailed": "加载账户列表失败",
+            "checkNetwork": "请检查网络连接或稍后重试",
+            "reload": "重新加载",
+            "noMatch": "未找到匹配的账户",
+            "noData": "暂无账户数据",
+            "tryOtherKeyword": "尝试使用其他关键词搜索",
+            "clickImport": "点击\"导入\"按钮添加账户",
+            "importAccounts": "导入账户"
         },
         "pagination": {
             "totalRecords": "共 {{count}} 条记录",
             "perPage": "每页",
+            "records": "条",
             "page": "页",
             "jumpTo": "跳转到",
             "go": "跳转",
             "prev": "上一页",
             "next": "下一页"
-        },
-        "tags": {
-            "manage": "管理标签",
-            "add": "添加标签",
-            "remove": "移除标签",
-            "replace": "替换标签"
         },
         "batch": {
             "selected": "已选择 {{count}} 项",
@@ -71,9 +167,54 @@
             "tag": "批量标签"
         },
         "confirm": {
-            "delete": "确定要删除该账户吗？",
-            "batchDelete": "确定要删除选中的 {{count}} 个账户吗？"
+            "deleteTitle": "确认删除",
+            "deleteMessage": "确定要删除选中的 {{count}} 个账户吗？此操作不可恢复。",
+            "deleteButton": "删除",
+            "cancelButton": "取消"
         }
+    },
+    "tags": {
+        "title": "标签管理",
+        "refresh": "刷新",
+        "randomPick": "随机取号",
+        "back": "返回",
+        "loadFailed": "加载标签统计失败",
+        "retry": "重试",
+        "stats": {
+            "total": "总账户",
+            "tagged": "已标记",
+            "untagged": "未标记"
+        },
+        "listTitle": "标签列表",
+        "tagCount": "{{count}} 个标签",
+        "manage": "管理标签",
+        "add": "添加标签",
+        "remove": "移除标签",
+        "replace": "替换标签",
+        "noTags": "暂无标签",
+        "noTagsHint": "在账户管理中为账户添加标签后，这里会显示统计信息",
+        "untaggedAccounts": "未标记账户",
+        "untaggedMessage": "有 {{count}} 个账户尚未标记",
+        "untaggedHint": "这些账户可以被任何标签的取号操作选中",
+        "viewUntagged": "查看",
+        "pick": "取号",
+        "view": "查看",
+        "rename": "重命名",
+        "delete": "删除",
+        "deleteConfirm": "确定要删除标签 \"{{name}}\" 吗？该标签将从所有账户中移除，此操作不可恢复。",
+        "deleteConfirmTitle": "确认删除标签",
+        "deleteSuccess": "标签已删除",
+        "deleteFailed": "删除标签失败",
+        "renameTitle": "重命名标签",
+        "newName": "新名称",
+        "renamePlaceholder": "输入新标签名称",
+        "renameOriginal": "原标签名：{{name}}",
+        "renameSuccess": "标签已重命名",
+        "renameFailed": "重命名标签失败",
+        "enterNewName": "请输入新的标签名称",
+        "saving": "保存中...",
+        "accountCount": "{{count}} 个账户",
+        "accountCountWithPercent": "{{count}} 个账户 ({{percent}}%)"
     },
     "email": {
         "subject": "主题",
@@ -90,16 +231,34 @@
     },
     "import": {
         "title": "批量导入账户",
-        "format": "格式说明",
-        "formatDescription": "每行一个账户，格式：邮箱----密码----refresh_token",
-        "placeholder": "粘贴账户信息...",
-        "preview": "预览",
-        "import": "导入",
-        "cancel": "取消",
-        "success": "成功导入 {{count}} 个账户",
+        "formatTitle": "支持格式：",
+        "placeholder": "请粘贴账户数据，每行一条...",
+        "formatHint": "每行一条账户数据，使用四个连字符分隔各字段",
+        "mergeMode": {
+            "update": "更新现有 (Update)",
+            "skip": "跳过重复 (Skip)",
+            "replace": "清空并替换 (Replace)"
+        },
+        "parsing": "解析中...",
+        "nextStep": "下一步：解析预览",
+        "prevStep": "上一步",
+        "parsed": "解析成功：",
+        "errors": "错误：",
+        "moreItems": "...还有 {{count}} 条",
+        "importing": "导入中...",
+        "confirmImport": "确认导入 {{count}} 条账户",
+        "result": {
+            "title": "导入完成",
+            "added": "新增：",
+            "updated": "更新：",
+            "skipped": "跳过：",
+            "errors": "错误：",
+            "done": "完成"
+        },
         "error": {
-            "parseError": "解析错误",
-            "invalidFormat": "格式错误"
+            "parseError": "解析失败",
+            "importError": "导入失败",
+            "needParse": "请先完成解析步骤"
         }
     },
     "settings": {
@@ -108,8 +267,82 @@
         "refreshCache": "刷新缓存",
         "save": "保存设置"
     },
+    "settingsPage": {
+        "title": "系统设置",
+        "subtitle": "管理系统配置和运行参数",
+        "save": "保存",
+        "saving": "保存中...",
+        "saveSuccess": "配置已保存",
+        "saveFailed": "保存配置失败",
+        "cacheCleared": "缓存已清理",
+        "cacheClearFailed": "清理缓存失败",
+        "email": {
+            "title": "邮件获取",
+            "limit": "每次获取数量",
+            "limitDesc": "单次获取邮件的最大数量（1-50）",
+            "perFetch": "封/次"
+        },
+        "proxy": {
+            "title": "代理设置",
+            "enable": "启用代理",
+            "enableDesc": "通过代理服务器访问 Outlook API 和 IMAP",
+            "url": "代理地址",
+            "hint": "支持 HTTP 和 SOCKS5 代理，修改后对新连接生效"
+        },
+        "tokenRefresh": {
+            "title": "Token 自动续期",
+            "enable": "启用自动续期",
+            "enableDesc": "定期刷新所有账号的 Refresh Token 防止过期",
+            "interval": "刷新间隔",
+            "intervalDesc": "每隔多少小时执行一次全量刷新（1-168）",
+            "hours": "小时"
+        },
+        "webhook": {
+            "title": "Webhook 通知",
+            "enable": "启用 Webhook",
+            "enableDesc": "当特定事件发生时向指定 URL 发送通知",
+            "url": "Webhook 地址",
+            "secret": "签名密钥",
+            "secretPlaceholder": "用于 HMAC-SHA256 签名验证（可选）",
+            "secretHint": "设置后每次请求会携带 X-Signature 头用于安全验证",
+            "events": "监听事件",
+            "eventsHint": "多个事件用逗号分隔：verification_code_received, token_refresh_failed"
+        },
+        "maintenance": {
+            "title": "系统维护",
+            "clearCache": "清理邮件缓存",
+            "clearCacheDesc": "清空所有账号的邮件缓存，下次获取将重新拉取",
+            "clearing": "清理中...",
+            "clear": "清理缓存"
+        }
+    },
+    "audit": {
+        "title": "审计日志",
+        "subtitle": "查看系统操作记录和安全事件",
+        "filterPlaceholder": "按事件类型筛选...",
+        "events": "事件记录",
+        "noEvents": "暂无审计记录",
+        "time": "时间",
+        "type": "类型",
+        "action": "操作",
+        "ip": "IP",
+        "status": "状态",
+        "page": "第 {{page}} 页"
+    },
+    "notFound": {
+        "title": "页面未找到",
+        "message": "抱歉，您访问的页面不存在或已被移除。",
+        "home": "返回首页",
+        "admin": "管理后台"
+    },
+    "errorBoundary": {
+        "title": "页面加载失败",
+        "fallback": "出现未知错误，请重试或联系管理员。",
+        "retry": "重新加载"
+    },
     "common": {
         "loading": "加载中...",
+        "loadingResource": "正在加载资源...",
         "error": "错误",
         "success": "成功",
         "confirm": "确定",

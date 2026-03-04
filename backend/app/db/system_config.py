@@ -129,6 +129,58 @@ class SystemConfigMixin(RunInThreadMixin):
 
         return await self._run_in_thread(_sync_check)
 
+    # ========================================================================
+    # Extraction Rules CRUD
+    # ========================================================================
+
+    async def get_extraction_rules(self) -> list[dict]:
+        def _sync(conn: sqlite3.Connection) -> list[dict]:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT * FROM extraction_rules WHERE is_active=1 ORDER BY priority DESC"
+            )
+            return [dict(r) for r in cursor.fetchall()]
+        return await self._run_in_thread(_sync)
+
+    async def get_all_extraction_rules(self) -> list[dict]:
+        def _sync(conn: sqlite3.Connection) -> list[dict]:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM extraction_rules ORDER BY priority DESC")
+            return [dict(r) for r in cursor.fetchall()]
+        return await self._run_in_thread(_sync)
+
+    async def upsert_extraction_rule(
+        self, rule_id: int | None, name: str, sender_filter: str,
+        subject_filter: str, regex_pattern: str, priority: int, is_active: bool,
+    ) -> int:
+        def _sync(conn: sqlite3.Connection) -> int:
+            cursor = conn.cursor()
+            if rule_id:
+                cursor.execute(
+                    """UPDATE extraction_rules SET name=?, sender_filter=?, subject_filter=?,
+                       regex_pattern=?, priority=?, is_active=? WHERE id=?""",
+                    (name, sender_filter, subject_filter, regex_pattern, priority, int(is_active), rule_id),
+                )
+                conn.commit()
+                return rule_id
+            else:
+                cursor.execute(
+                    """INSERT INTO extraction_rules (name, sender_filter, subject_filter, regex_pattern, priority, is_active)
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                    (name, sender_filter, subject_filter, regex_pattern, priority, int(is_active)),
+                )
+                conn.commit()
+                return cursor.lastrowid or 0
+        return await self._run_in_thread(_sync)
+
+    async def delete_extraction_rule(self, rule_id: int) -> bool:
+        def _sync(conn: sqlite3.Connection) -> bool:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM extraction_rules WHERE id=?", (rule_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+        return await self._run_in_thread(_sync)
+
     async def execute_health_check(self) -> bool:
         """执行数据库健康检查
         

@@ -1,9 +1,11 @@
+import { useTranslation } from 'react-i18next';
 import { XCircle, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import type { UntaggedAccountsCardProps } from './types';
 
 export function UntaggedAccountsCard({ count, onView }: UntaggedAccountsCardProps) {
+  const { t } = useTranslation();
   if (count <= 0) {
     return null;
   }
@@ -16,9 +18,9 @@ export function UntaggedAccountsCard({ count, onView }: UntaggedAccountsCardProp
             <XCircle className="w-5 h-5" />
           </div>
           <div>
-            <p className="font-medium">有 {count} 个账户尚未标记</p>
+            <p className="font-medium">{t('tags.untaggedMessage', { count })}</p>
             <p className="text-sm text-muted-foreground">
-              这些账户可以被任何标签的取号操作选中
+              {t('tags.untaggedHint')}
             </p>
           </div>
         </div>
@@ -29,7 +31,7 @@ export function UntaggedAccountsCard({ count, onView }: UntaggedAccountsCardProp
           className="gap-1"
         >
           <Eye className="w-4 h-4" />
-          查看
+          {t('tags.viewUntagged')}
         </Button>
       </div>
     </Card>

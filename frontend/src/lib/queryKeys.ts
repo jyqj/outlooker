@@ -7,6 +7,7 @@ export const queryKeys = {
   tagStats: () => ['tag-stats'] as const,
   systemConfig: () => ['system-config'] as const,
   systemMetrics: () => ['system-metrics'] as const,
+  dashboardSummary: () => ['dashboard-summary'] as const,
   emailMessages: (email: string, refreshCounter?: number, page?: number, pageSize?: number) =>
     ['email-messages', email, refreshCounter, page, pageSize] as const,
   emailMessagesBase: (email: string) => ['email-messages', email] as const,

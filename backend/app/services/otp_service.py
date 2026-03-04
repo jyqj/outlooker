@@ -201,6 +201,40 @@ def extract_verification_code(text: str) -> str | None:
     return cast(str, filtered[0]["code"])
 
 
+async def _try_custom_rules(message: dict[str, Any], text: str) -> str | None:
+    """Try custom extraction rules from the database before the default algorithm."""
+    try:
+        from ..db import db_manager
+        rules = await db_manager.get_extraction_rules()
+    except Exception:
+        return None
+
+    sender = ""
+    sender_obj = message.get("sender") or message.get("from") or {}
+    email_addr = sender_obj.get("emailAddress") or {}
+    sender = (email_addr.get("address") or "").lower()
+
+    subject = (message.get("subject") or "").lower()
+
+    for rule in rules:
+        sf = (rule.get("sender_filter") or "").lower()
+        if sf and sf not in sender:
+            continue
+        subf = (rule.get("subject_filter") or "").lower()
+        if subf and subf not in subject:
+            continue
+        pattern = rule.get("regex_pattern", "")
+        if not pattern:
+            continue
+        try:
+            m = re.search(pattern, text)
+            if m:
+                return m.group(1) if m.lastindex else m.group(0)
+        except re.error:
+            continue
+    return None
+
+
 def extract_code_from_message(message: dict[str, Any]) -> str | None:
     """从邮件消息对象中提取验证码。
 

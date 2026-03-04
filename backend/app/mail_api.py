@@ -29,6 +29,7 @@ from .db import db_manager
 from .models import ApiResponse
 from .routers import accounts, auth, emails, public_accounts, system
 from .services import admin_auth_service, email_manager, load_accounts_config
+from .services.token_refresh_service import start_background_refresh, stop_background_refresh
 from .settings import get_settings
 from .version import __version__
 
@@ -96,8 +97,13 @@ async def lifespan(app: FastAPI):
         await admin_auth_service.bootstrap_default_admin()
     except Exception as exc:
         logger.error("初始化默认管理员失败: %s", exc)
+
+    # Start background token refresh
+    start_background_refresh()
+
     yield
     logger.info("正在关闭邮件管理系统...")
+    stop_background_refresh()
     try:
         await email_manager.cleanup_all()
         db_manager.close()
@@ -105,9 +111,33 @@ async def lifespan(app: FastAPI):
         logger.error("清理系统资源时出错: %s", e)
     logger.info("邮件管理系统已关闭")
 
+_API_DESCRIPTION = """
+## Outlooker API
+
+Outlook 邮箱验证码管理平台 REST API。
+
+### 认证方式
+
+- **管理员接口** (`/api/accounts`, `/api/system`, `/api/tags` 等)：Bearer JWT Token
+  - 通过 `POST /api/admin/login` 获取 token
+- **公共接口** (`/api/messages`, `/api/test-email`)：`X-Public-Token` Header
+
+### 主要功能模块
+
+| 模块 | 前缀 | 说明 |
+|------|------|------|
+| 认证 | `/api/admin` | 登录、刷新、登出 |
+| 账户 | `/api/accounts` | CRUD、批量操作、标签、健康检测 |
+| 邮件 | `/api/messages` | 获取邮件、验证码提取 |
+| 标签 | `/api/tags` | 标签管理 |
+| 系统 | `/api/system` | 配置、指标、缓存、提取规则 |
+| 审计 | `/api/audit` | 审计日志 |
+| 仪表盘 | `/api/dashboard` | 聚合概要 |
+"""
+
 app = FastAPI(
-    title="Outlook 邮件管理系统",
-    description="基于 FastAPI + React 的现代化邮件管理系统",
+    title="Outlooker API",
+    description=_API_DESCRIPTION,
     version=__version__,
     lifespan=lifespan,
     docs_url="/docs",

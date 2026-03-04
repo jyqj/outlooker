@@ -9,7 +9,7 @@ from ..core.decorators import handle_exceptions
 from ..core.exceptions import DatabaseError, ServiceUnavailableError
 from ..core.metrics import api_metrics, get_metrics, get_metrics_content_type
 from ..dependencies import AdminUser
-from ..models import ApiResponse, SystemConfigRequest
+from ..models import ApiResponse, SystemConfigBatchUpdate, SystemConfigRequest
 from ..services import (
     db_manager,
     email_manager,
@@ -195,6 +195,39 @@ async def update_system_config(admin: AdminUser, request: SystemConfigRequest) -
         raise DatabaseError(message="保存系统配置失败")
 
 
+@router.put("/api/system/config")
+@handle_exceptions("批量更新系统配置")
+async def batch_update_system_config(
+    admin: AdminUser,
+    request: SystemConfigBatchUpdate,
+) -> ApiResponse:
+    """批量更新系统配置（需要管理员认证）"""
+    from ..services.constants import SYSTEM_CONFIG_DEFAULTS
+
+    updated = {}
+    errors = []
+    for key, value in request.configs.items():
+        if key not in SYSTEM_CONFIG_DEFAULTS:
+            errors.append(f"未知配置项: {key}")
+            continue
+        ok = await set_system_config_value(key, value)
+        if ok:
+            config = await load_system_config()
+            updated[key] = config.get(key, value)
+        else:
+            errors.append(f"保存失败: {key}")
+
+    msg = f"已更新 {len(updated)} 项配置"
+    if errors:
+        msg += f"，{len(errors)} 项失败"
+
+    return ApiResponse(
+        success=len(updated) > 0 or len(errors) == 0,
+        message=msg,
+        data={"updated": updated, "errors": errors},
+    )
+
+
 @router.post("/api/system/cache/refresh")
 @handle_exceptions("刷新缓存")
 async def refresh_cache(admin: AdminUser) -> ApiResponse:
@@ -282,6 +315,62 @@ async def prometheus_metrics(request: Request):
         content=get_metrics(),
         media_type=get_metrics_content_type()
     )
+
+
+# ============================================================================
+# Audit Events API
+# ============================================================================
+
+
+@router.get("/api/audit/events", tags=["审计日志"])
+@handle_exceptions("获取审计日志")
+async def get_audit_events_api(
+    admin: AdminUser,
+    event_type: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> ApiResponse:
+    """获取审计日志（分页 + 可选类型筛选）"""
+    events = await db_manager.get_audit_events(
+        event_type=event_type, limit=min(limit, 200), offset=offset,
+    )
+    return ApiResponse(success=True, data={"events": events, "limit": limit, "offset": offset})
+
+
+# ============================================================================
+# Extraction Rules API
+# ============================================================================
+
+
+@router.get("/api/system/rules", tags=["提取规则"])
+@handle_exceptions("获取提取规则")
+async def get_extraction_rules(admin: AdminUser) -> ApiResponse:
+    rules = await db_manager.get_all_extraction_rules()
+    return ApiResponse(success=True, data=rules)
+
+
+@router.post("/api/system/rules", tags=["提取规则"])
+@handle_exceptions("保存提取规则")
+async def save_extraction_rule(admin: AdminUser, request: dict) -> ApiResponse:
+    rule_id = await db_manager.upsert_extraction_rule(
+        rule_id=request.get("id"),
+        name=request.get("name", ""),
+        sender_filter=request.get("sender_filter", ""),
+        subject_filter=request.get("subject_filter", ""),
+        regex_pattern=request.get("regex_pattern", ""),
+        priority=request.get("priority", 0),
+        is_active=request.get("is_active", True),
+    )
+    return ApiResponse(success=True, data={"id": rule_id}, message="规则已保存")
+
+
+@router.delete("/api/system/rules/{rule_id}", tags=["提取规则"])
+@handle_exceptions("删除提取规则")
+async def delete_extraction_rule(rule_id: int, admin: AdminUser) -> ApiResponse:
+    ok = await db_manager.delete_extraction_rule(rule_id)
+    if ok:
+        return ApiResponse(success=True, message="规则已删除")
+    return ApiResponse(success=False, message="规则不存在")
 
 
 def _is_allowed_metrics_access(ip: str) -> bool:

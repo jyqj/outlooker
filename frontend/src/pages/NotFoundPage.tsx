@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Home, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
 export default function NotFoundPage() {
+  const { t } = useTranslation();
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-muted/60 px-4">
       <div className="text-center space-y-6 max-w-md">
@@ -21,10 +23,10 @@ export default function NotFoundPage() {
         {/* Message */}
         <div className="space-y-2">
           <h2 className="text-2xl font-bold text-foreground">
-            页面未找到
+            {t('notFound.title')}
           </h2>
           <p className="text-muted-foreground">
-            抱歉，您访问的页面不存在或已被移除。
+            {t('notFound.message')}
           </p>
         </div>
 
@@ -33,13 +35,13 @@ export default function NotFoundPage() {
           <Button asChild variant="default" className="gap-2">
             <Link to="/">
               <Home className="w-4 h-4" />
-              返回首页
+              {t('notFound.home')}
             </Link>
           </Button>
           <Button asChild variant="outline" className="gap-2">
             <Link to="/admin">
               <ArrowLeft className="w-4 h-4" />
-              管理后台
+              {t('notFound.admin')}
             </Link>
           </Button>
         </div>

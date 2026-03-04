@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Dialog } from '@/components/ui/Dialog';
@@ -12,6 +13,7 @@ export function TagRenameDialog({
   onConfirm, 
   onCancel 
 }: TagRenameDialogProps) {
+  const { t } = useTranslation();
   const isValid = newName.trim() && newName !== oldName;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -25,24 +27,24 @@ export function TagRenameDialog({
     <Dialog
       isOpen={isOpen}
       onClose={onCancel}
-      title="重命名标签"
+      title={t('tags.renameTitle')}
       className="max-w-md"
     >
       <div className="space-y-4 py-2">
         <div className="space-y-2">
           <label htmlFor="rename-tag-input" className="text-sm font-medium">
-            新标签名称
+            {t('tags.newName')}
           </label>
           <Input
             id="rename-tag-input"
             value={newName}
             onChange={(e) => onNewNameChange(e.target.value)}
-            placeholder="输入新标签名称"
+            placeholder={t('tags.renamePlaceholder')}
             disabled={loading}
             onKeyDown={handleKeyDown}
           />
           <p className="text-xs text-muted-foreground">
-            原标签名：{oldName}
+            {t('tags.renameOriginal', { name: oldName })}
           </p>
         </div>
         <div className="flex justify-end gap-3 pt-2">
@@ -51,13 +53,13 @@ export function TagRenameDialog({
             onClick={onCancel}
             disabled={loading}
           >
-            取消
+            {t('common.cancel')}
           </Button>
           <Button
             onClick={onConfirm}
             disabled={loading || !isValid}
           >
-            {loading ? '保存中...' : '保存'}
+            {loading ? t('tags.saving') : t('common.save')}
           </Button>
         </div>
       </div>

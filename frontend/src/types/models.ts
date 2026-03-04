@@ -5,6 +5,8 @@
 /**
  * Email account information
  */
+export type HealthStatus = 'healthy' | 'token_expired' | 'token_invalid' | 'error' | 'unknown';
+
 export interface Account {
   email: string;
   password?: string;
@@ -13,6 +15,45 @@ export interface Account {
   is_used: boolean;
   last_used_at: string | null;
   tags?: string[];
+  health_status?: HealthStatus;
+  last_health_check_at?: string | null;
+}
+
+export interface DashboardSummary {
+  health: {
+    total: number;
+    healthy?: number;
+    token_expired?: number;
+    token_invalid?: number;
+    error?: number;
+    unknown?: number;
+  };
+  tags: {
+    total_accounts: number;
+    tagged_accounts: number;
+    untagged_accounts: number;
+    tags: Array<{ name: string; count: number; percentage: number }>;
+  };
+  alerts: Array<{
+    level: 'warning' | 'error' | 'info';
+    message: string;
+    count: number;
+  }>;
+  recent_events: Array<{
+    id?: number;
+    event_type: string;
+    action?: string;
+    resource?: string;
+    details?: string;
+    timestamp: string;
+    success?: boolean;
+  }>;
+}
+
+export interface HealthCheckResult {
+  total: number;
+  summary: Record<string, number>;
+  details: Record<string, string>;
 }
 
 /**
@@ -66,6 +107,14 @@ export interface OTPInfo {
  */
 export interface SystemConfig {
   email_limit: number;
+  proxy_enabled: boolean;
+  proxy_url: string;
+  token_refresh_enabled: boolean;
+  token_refresh_interval_hours: number;
+  webhook_enabled: boolean;
+  webhook_url: string;
+  webhook_secret: string;
+  webhook_events: string;
 }
 
 /**
