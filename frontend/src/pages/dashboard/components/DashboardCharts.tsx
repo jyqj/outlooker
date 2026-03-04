@@ -4,12 +4,7 @@ import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveCo
 import api from '@/lib/api';
 import { queryKeys } from '@/lib/queryKeys';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import type { ApiResponse } from '@/types';
-
-interface DashboardSummary {
-  health: Record<string, number>;
-  tags: { tags: { name: string; count: number }[] };
-}
+import type { ApiResponse, DashboardSummary } from '@/types';
 
 const HEALTH_COLORS: Record<string, string> = {
   healthy: '#22c55e',

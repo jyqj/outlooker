@@ -1,6 +1,6 @@
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
@@ -25,7 +25,7 @@ router = APIRouter(tags=["系统配置"])
 settings = get_settings()
 
 # 应用启动时间
-_startup_time = datetime.utcnow()
+_startup_time = datetime.now(timezone.utc)
 
 # 允许访问指标的 IP 白名单（可配置）
 METRICS_ALLOWED_IPS = {"127.0.0.1", "::1", "localhost"}
@@ -34,7 +34,7 @@ METRICS_ALLOWED_IPS = {"127.0.0.1", "::1", "localhost"}
 @router.get("/api/health")
 async def basic_health_check() -> dict:
     """基础健康检查（用于负载均衡器）"""
-    return {"status": "healthy", "timestamp": datetime.utcnow().isoformat() + "Z"}
+    return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat() + "Z"}
 
 
 @router.get("/api/health/detailed")
@@ -60,7 +60,7 @@ async def detailed_health_check() -> dict:
             if "error" in db_health:
                 checks["database"]["error"] = db_health["error"]
     except Exception as e:
-        logger.error(f"Database health check failed: {e}")
+        logger.error("Database health check failed: %s", e)
         checks["database"] = {"status": "unhealthy", "error": "Internal error"}
         overall_healthy = False
     
@@ -74,7 +74,7 @@ async def detailed_health_check() -> dict:
             "cache_hit_rate": email_metrics.get("cache_hit_rate"),
         }
     except Exception as e:
-        logger.error(f"Email service health check failed: {e}")
+        logger.error("Email service health check failed: %s", e)
         checks["email_service"] = {"status": "unhealthy", "error": "Internal error"}
     
     # 3. 缓存检查
@@ -85,17 +85,17 @@ async def detailed_health_check() -> dict:
             **cache_stats,
         }
     except Exception as e:
-        logger.error(f"Email cache health check failed: {e}")
+        logger.error("Email cache health check failed: %s", e)
         checks["email_cache"] = {"status": "unhealthy", "error": "Internal error"}
     
     # 4. 计算运行时间
-    uptime_seconds = (datetime.utcnow() - _startup_time).total_seconds()
+    uptime_seconds = (datetime.now(timezone.utc) - _startup_time).total_seconds()
     
     return {
         "status": "healthy" if overall_healthy else "degraded",
         "version": APP_VERSION,
         "environment": settings.app_env,
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
         "uptime_seconds": round(uptime_seconds, 2),
         "checks": checks,
     }
@@ -117,21 +117,21 @@ async def readiness_check(response: Response) -> dict:
         email_ok = email_manager.is_ready() if hasattr(email_manager, 'is_ready') else True
         
         if db_ok and email_ok:
-            return {"status": "ready", "timestamp": datetime.utcnow().isoformat() + "Z"}
+            return {"status": "ready", "timestamp": datetime.now(timezone.utc).isoformat() + "Z"}
         else:
             response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
             return {
                 "status": "not_ready",
-                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
                 "database": "ok" if db_ok else "failed",
                 "email_service": "ok" if email_ok else "failed",
             }
     except Exception as e:
-        logger.error(f"Readiness check failed: {e}")
+        logger.error("Readiness check failed: %s", e)
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return {
             "status": "not_ready",
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
             "error": "Internal error",
         }
 
@@ -143,7 +143,7 @@ async def liveness_check() -> dict:
     
     仅检查应用进程是否响应。
     """
-    return {"status": "alive", "timestamp": datetime.utcnow().isoformat() + "Z"}
+    return {"status": "alive", "timestamp": datetime.now(timezone.utc).isoformat() + "Z"}
 
 
 async def _check_database_health() -> dict[str, Any]:
@@ -159,7 +159,7 @@ async def _check_database_health() -> dict[str, Any]:
             "latency_ms": round(latency_ms, 2),
         }
     except Exception as e:
-        logger.error(f"Database health check error: {e}")
+        logger.error("Database health check error: %s", e)
         return {
             "connected": False,
             "error": "Internal error",
@@ -236,7 +236,7 @@ async def refresh_cache(admin: AdminUser) -> ApiResponse:
     await db_manager.reset_email_cache()
     await db_manager.upsert_system_metric(
         "cache_reset_at",
-        {"timestamp": datetime.utcnow().isoformat() + "Z"},
+        {"timestamp": datetime.now(timezone.utc).isoformat() + "Z"},
     )
     return ApiResponse(success=True, message="缓存已刷新")
 

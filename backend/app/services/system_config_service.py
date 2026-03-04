@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,10 @@ logger = logging.getLogger(__name__)
 
 _system_config_lock = asyncio.Lock()
 
+_config_cache: dict[str, Any] | None = None
+_config_cache_ts: float = 0.0
+_CONFIG_CACHE_TTL = 30.0
+
 
 def _get_system_config_file() -> Path:
     services_module = sys.modules.get("app.services")
@@ -39,7 +44,7 @@ def _read_system_config_file() -> dict[str, Any]:
         with config_path.open("r", encoding="utf-8") as fp:
             return json.load(fp)
     except Exception as exc:
-        logger.warning(f"读取系统配置文件失败: {exc}")
+        logger.warning("读取系统配置文件失败: %s", exc)
         return {}
 
 
@@ -50,7 +55,7 @@ async def _write_system_config_file(config: dict[str, Any]) -> None:
             with config_path.open("w", encoding="utf-8") as fp:
                 json.dump(config, fp, ensure_ascii=False, indent=2)
         except Exception as exc:
-            logger.error(f"写入系统配置文件失败: {exc}", exc_info=True)
+            logger.error("写入系统配置文件失败: %s", exc, exc_info=True)
 
 
 def _cast_system_value(key: str, value: Any) -> Any:
@@ -80,10 +85,14 @@ def _cast_system_value(key: str, value: Any) -> Any:
 
 
 async def load_system_config() -> dict[str, Any]:
+    global _config_cache, _config_cache_ts
+
+    if _config_cache is not None and (time.monotonic() - _config_cache_ts) < _CONFIG_CACHE_TTL:
+        return dict(_config_cache)
+
     file_config = _read_system_config_file()
     config: dict[str, Any] = {}
 
-    # DB 作为唯一运行时配置源：当 DB 缺失时，用文件/默认值做一次性初始化写入
     async with _system_config_lock:
         for key, default_value in SYSTEM_CONFIG_DEFAULTS.items():
             db_value = await db_manager.get_system_config(key)
@@ -99,12 +108,24 @@ async def load_system_config() -> dict[str, Any]:
             except Exception as exc:
                 logger.warning("写入系统配置到数据库失败(%s): %s", key, exc)
 
+    _config_cache = dict(config)
+    _config_cache_ts = time.monotonic()
     return config
+
+
+def invalidate_config_cache() -> None:
+    """Invalidate the in-memory config cache so the next read hits the DB."""
+    global _config_cache, _config_cache_ts
+    _config_cache = None
+    _config_cache_ts = 0.0
 
 
 async def set_system_config_value(key: str, value: Any) -> bool:
     casted = _cast_system_value(key, value)
-    return await db_manager.set_system_config(key, str(casted))
+    result = await db_manager.set_system_config(key, str(casted))
+    if result:
+        invalidate_config_cache()
+    return result
 
 
 async def get_system_config_value(key: str, default: Any | None = None) -> Any:

@@ -24,34 +24,15 @@ CLIENT_ID = _settings.client_id
 
 
 class AccountsMixin(RunInThreadMixin):
-    """Mixin providing account-related database operations.
-    
-    标签方法已迁移为使用关系表实现（TagsMixin._v2 方法）。
-    此处的方法作为向后兼容的接口，内部委托给 v2 方法。
-    """
+    """Mixin providing account-related database operations."""
 
     async def get_account_tags(self, email: str) -> list[str]:
-        """Get tags for an account.
-        
-        已迁移为使用关系表实现。
-        """
-        # 委托给 v2 方法（使用关系表）
         return await self.get_account_tags_v2(email)
 
     async def set_account_tags(self, email: str, tags: list[str]) -> bool:
-        """Set tags for an account.
-        
-        已迁移为使用关系表实现。
-        """
-        # 委托给 v2 方法（使用关系表）
         return await self.set_account_tags_v2(email, tags)
 
     async def get_all_tags(self) -> list[str]:
-        """Get all unique tags across all accounts.
-        
-        已迁移为使用关系表实现。
-        """
-        # 委托给 v2 方法（使用关系表）
         return await self.get_all_tags_v2()
 
     async def get_accounts_with_tags(self) -> dict[str, list[str]]:

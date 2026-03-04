@@ -280,6 +280,7 @@
             "title": "邮件获取",
             "limit": "每次获取数量",
             "limitDesc": "单次获取邮件的最大数量（1-50）",
+            "limitError": "邮件获取数量必须在 1-50 之间",
             "perFetch": "封/次"
         },
         "proxy": {
@@ -287,6 +288,7 @@
             "enable": "启用代理",
             "enableDesc": "通过代理服务器访问 Outlook API 和 IMAP",
             "url": "代理地址",
+            "urlError": "代理地址格式不正确",
             "hint": "支持 HTTP 和 SOCKS5 代理，修改后对新连接生效"
         },
         "tokenRefresh": {
@@ -295,6 +297,7 @@
             "enableDesc": "定期刷新所有账号的 Refresh Token 防止过期",
             "interval": "刷新间隔",
             "intervalDesc": "每隔多少小时执行一次全量刷新（1-168）",
+            "intervalError": "刷新间隔必须在 1-168 小时之间",
             "hours": "小时"
         },
         "webhook": {
@@ -302,6 +305,7 @@
             "enable": "启用 Webhook",
             "enableDesc": "当特定事件发生时向指定 URL 发送通知",
             "url": "Webhook 地址",
+            "urlError": "Webhook 地址格式不正确",
             "secret": "签名密钥",
             "secretPlaceholder": "用于 HMAC-SHA256 签名验证（可选）",
             "secretHint": "设置后每次请求会携带 X-Signature 头用于安全验证",

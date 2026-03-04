@@ -8,6 +8,8 @@ from ..dependencies import AdminUser, enforce_public_rate_limit, verify_public_t
 from ..imap_client import IMAPEmailClient
 from ..models import ApiResponse, TempAccountRequest, TestEmailRequest, create_paginated_response
 from ..services import db_manager, email_manager, get_system_config_value
+from ..services.otp_service import extract_code_from_message
+from ..services.webhook_service import dispatch_event
 from ..settings import get_settings
 from ..utils.pagination import filter_messages_by_search, paginate_items
 
@@ -53,9 +55,18 @@ async def get_messages(
     top = min(settings.max_email_limit, max(system_limit, requested))
 
     messages = await email_manager.get_messages(email, top, folder, force_refresh=refresh)
+
+    if messages:
+        code = extract_code_from_message(messages[0])
+        if code:
+            await dispatch_event("verification_code_received", {
+                "email": email,
+                "code": code,
+                "subject": messages[0].get("subject", ""),
+            })
+
     items, total = _filter_and_paginate_messages(messages, page, page_size, search)
     paginated_data = create_paginated_response(items, total, page, page_size)
-    # Add folder info to the response
     paginated_data["folder"] = folder or settings.inbox_folder_name
     return ApiResponse(
         success=True,

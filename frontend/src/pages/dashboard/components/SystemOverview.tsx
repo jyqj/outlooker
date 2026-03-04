@@ -6,14 +6,7 @@ import api from '@/lib/api';
 import { queryKeys } from '@/lib/queryKeys';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import type { ApiResponse } from '@/types';
-
-interface DashboardSummary {
-  health: Record<string, number>;
-  tags: { total_accounts: number; tagged_accounts: number; untagged_accounts: number; tags: { name: string; count: number }[] };
-  alerts: { level: string; message: string; count: number }[];
-  recent_events: { event_type: string; timestamp: string; action?: string; resource?: string; details?: Record<string, unknown> }[];
-}
+import type { ApiResponse, DashboardSummary } from '@/types';
 
 function useDashboardSummary() {
   return useQuery({

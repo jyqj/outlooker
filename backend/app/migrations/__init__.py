@@ -11,7 +11,6 @@ import logging
 import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import List, Set
 
 from ..settings import get_settings
 

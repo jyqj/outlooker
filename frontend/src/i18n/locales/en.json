@@ -289,6 +289,7 @@
             "title": "Email Fetching",
             "limit": "Fetch limit",
             "limitDesc": "Maximum emails per fetch request (1-50)",
+            "limitError": "Email limit must be between 1 and 50",
             "perFetch": "per fetch"
         },
         "proxy": {
@@ -296,6 +297,7 @@
             "enable": "Enable proxy",
             "enableDesc": "Route Outlook API and IMAP traffic through a proxy server",
             "url": "Proxy URL",
+            "urlError": "Invalid proxy URL format",
             "hint": "Supports HTTP and SOCKS5 proxies. Changes apply to new connections."
         },
         "tokenRefresh": {
@@ -304,6 +306,7 @@
             "enableDesc": "Periodically refresh all account tokens to prevent expiration",
             "interval": "Refresh interval",
             "intervalDesc": "Hours between full refresh cycles (1-168)",
+            "intervalError": "Refresh interval must be between 1 and 168 hours",
             "hours": "hours"
         },
         "webhook": {
@@ -311,6 +314,7 @@
             "enable": "Enable Webhook",
             "enableDesc": "Send notifications to a URL when specific events occur",
             "url": "Webhook URL",
+            "urlError": "Invalid webhook URL format",
             "secret": "Signing secret",
             "secretPlaceholder": "For HMAC-SHA256 signature verification (optional)",
             "secretHint": "When set, each request includes an X-Signature header for verification",

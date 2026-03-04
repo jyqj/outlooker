@@ -60,7 +60,7 @@ async def get_access_token(refresh_token: str, check_only: bool = False) -> tupl
         try:
             token_data = response.json()
         except Exception as json_err:
-            logger.error(f"解析 access_token 响应 JSON 时出错: {json_err}")
+            logger.error("解析 access_token 响应 JSON 时出错: %s", json_err)
             if check_only:
                 return None, None
             raise HTTPException(status_code=401, detail="无法解析服务器响应") from json_err
@@ -69,8 +69,9 @@ async def get_access_token(refresh_token: str, check_only: bool = False) -> tupl
         new_refresh_token = token_data.get('refresh_token')
 
         if not access_token:
-            error_msg = f"获取 access_token 失败: {token_data.get('error_description', '响应中未找到 access_token')}"
-            logger.error(error_msg)
+            error_desc = token_data.get('error_description', '响应中未找到 access_token')
+            error_msg = f"获取 access_token 失败: {error_desc}"
+            logger.error("获取 access_token 失败: %s", error_desc)
             if check_only:
                 return None, None
             raise HTTPException(status_code=401, detail=error_msg)
@@ -84,23 +85,23 @@ async def get_access_token(refresh_token: str, check_only: bool = False) -> tupl
         # 重新抛出 HTTPException（包括我们上面抛出的 401）
         raise
     except httpx.HTTPStatusError as http_err:
-        logger.error(f"请求 access_token 时发生HTTP错误: {http_err}")
+        logger.error("请求 access_token 时发生HTTP错误: %s", http_err)
         if http_err.response is not None:
-            logger.error(f"服务器响应状态码: {http_err.response.status_code}")
-            logger.debug(f"响应详情(仅调试): {http_err.response.text[:200] if http_err.response.text else ''}")
+            logger.error("服务器响应状态码: %s", http_err.response.status_code)
+            logger.debug("响应详情(仅调试): %s", http_err.response.text[:200] if http_err.response.text else '')
 
         if check_only:
             return None, None
         raise HTTPException(status_code=401, detail="Refresh token已过期或无效，需要重新获取授权") from http_err
 
     except httpx.RequestError as e:
-        logger.error(f"请求 access_token 时发生网络错误: {e}")
+        logger.error("请求 access_token 时发生网络错误: %s", e)
         if check_only:
             return None, None
         raise HTTPException(status_code=500, detail="Token acquisition failed") from e
 
     except Exception as e:
-        logger.error(f"获取 access_token 时发生未知错误: {e}")
+        logger.error("获取 access_token 时发生未知错误: %s", e)
         if check_only:
             return None, None
         raise HTTPException(status_code=500, detail="Token acquisition failed") from e

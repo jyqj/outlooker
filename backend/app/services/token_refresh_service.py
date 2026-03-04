@@ -7,12 +7,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from ..auth.oauth import get_access_token
 from ..db import db_manager
 from .system_config_service import get_system_config_value
+from .webhook_service import dispatch_event
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,7 @@ async def _refresh_cycle() -> dict[str, Any]:
             except Exception as exc:
                 logger.warning("Token refresh failed for %s: %s", email, exc)
                 await db_manager.update_account_health(email, "error")
+                await dispatch_event("token_refresh_failed", {"email": email, "error": str(exc)})
                 failed += 1
 
     tasks = [refresh_one(e, info) for e, info in accounts.items()]
@@ -61,7 +63,7 @@ async def _refresh_cycle() -> dict[str, Any]:
     summary = {"total": len(accounts), "refreshed": refreshed, "failed": failed}
     await db_manager.upsert_system_metric("token_refresh", {
         **summary,
-        "last_run_at": datetime.utcnow().isoformat() + "Z",
+        "last_run_at": datetime.now(timezone.utc).isoformat() + "Z",
     })
     logger.info("Token refresh cycle: %s", summary)
     return summary

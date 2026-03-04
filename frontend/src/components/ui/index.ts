@@ -13,3 +13,4 @@ export { LoadingSpinner, spinnerVariants, type LoadingSpinnerProps } from './Loa
 export { Skeleton, type SkeletonProps } from './Skeleton';
 export { Textarea, type TextareaProps } from './Textarea';
 export { StatsCard, type StatsCardProps } from './StatsCard';
+export { Toggle, type ToggleProps } from './Toggle';

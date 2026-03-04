@@ -20,37 +20,9 @@ import { queryKeys } from '@/lib/queryKeys';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Toggle } from '@/components/ui/Toggle';
 import type { SystemConfig } from '@/types';
 import { DashboardHeader } from '../dashboard/components/DashboardHeader';
-
-function Toggle({
-  checked,
-  onChange,
-  disabled,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
-        checked ? 'bg-primary' : 'bg-muted-foreground/25'
-      }`}
-    >
-      <span
-        className={`pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform ${
-          checked ? 'translate-x-5' : 'translate-x-0'
-        }`}
-      />
-    </button>
-  );
-}
 
 const DEFAULT_CONFIG: SystemConfig = {
   email_limit: 5,
@@ -88,7 +60,28 @@ export default function SettingsPage() {
     setDirty(true);
   };
 
+  const validateConfig = (): string | null => {
+    if (config.email_limit < 1 || config.email_limit > 50) return t('settingsPage.email.limitError');
+    if (config.proxy_enabled && config.proxy_url) {
+      try { new URL(config.proxy_url); } catch { return t('settingsPage.proxy.urlError'); }
+    }
+    if (config.token_refresh_enabled) {
+      if (config.token_refresh_interval_hours < 1 || config.token_refresh_interval_hours > 168)
+        return t('settingsPage.tokenRefresh.intervalError');
+    }
+    if (config.webhook_enabled && config.webhook_url) {
+      try { new URL(config.webhook_url); } catch { return t('settingsPage.webhook.urlError'); }
+    }
+    return null;
+  };
+
   const handleSave = async () => {
+    const error = validateConfig();
+    if (error) {
+      const { showToast } = await import('@/lib/toast');
+      showToast(error, 'error');
+      return;
+    }
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {};
