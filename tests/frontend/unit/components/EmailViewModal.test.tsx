@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import EmailViewModal from '@/components/EmailViewModal';
+import EmailViewModal from '@/components/email-view/EmailViewModal';
 import api from '@/lib/api';
 
 vi.mock('@/lib/api', () => ({
@@ -61,7 +61,7 @@ describe('EmailViewModal', () => {
     );
 
     expect(screen.getByText(mockEmail)).toBeInTheDocument();
-    expect(screen.getByText('最新邮件预览')).toBeInTheDocument();
+    expect(screen.getByTitle('刷新邮件')).toBeInTheDocument();
   });
 
   it('shows loading state while fetching', async () => {
@@ -73,7 +73,7 @@ describe('EmailViewModal', () => {
       <EmailViewModal email={mockEmail} isOpen={true} onClose={mockOnClose} />
     );
 
-    expect(screen.getByText('正在获取邮件...')).toBeInTheDocument();
+    expect(screen.getByText('加载中...')).toBeInTheDocument();
   });
 
   it('shows error state on fetch failure', async () => {
@@ -84,7 +84,7 @@ describe('EmailViewModal', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('加载邮件失败')).toBeInTheDocument();
+      expect(screen.getByText('加载失败')).toBeInTheDocument();
     });
   });
 
@@ -101,7 +101,7 @@ describe('EmailViewModal', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('该邮箱暂无邮件')).toBeInTheDocument();
+      expect(screen.getByText('暂无邮件')).toBeInTheDocument();
     });
   });
 
@@ -134,10 +134,10 @@ describe('EmailViewModal', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Test Subject')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Test Subject' })).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Sender Name')).toBeInTheDocument();
+    expect(screen.getAllByText('Sender Name').length).toBeGreaterThan(0);
     expect(screen.getByText('sender@example.com')).toBeInTheDocument();
     expect(screen.getByText('Test email body content')).toBeInTheDocument();
   });
@@ -188,7 +188,7 @@ describe('EmailViewModal', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('该邮箱暂无邮件')).toBeInTheDocument();
+      expect(screen.getByText('暂无邮件')).toBeInTheDocument();
     });
 
     const refreshButton = screen.getByTitle('刷新邮件');
@@ -261,7 +261,7 @@ describe('EmailViewModal', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('(无主题)')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: '(无主题)' })).toBeInTheDocument();
     });
   });
 });

@@ -72,7 +72,7 @@ async def lifespan(app: FastAPI):
     # 验证环境配置
     warnings = validate_environment()
     for warning in warnings:
-        logger.warning(f"[配置警告] {warning}")
+        logger.warning("[配置警告] %s", warning)
 
     # 生产环境关键配置安全检查
     if settings.is_production:
@@ -102,7 +102,7 @@ async def lifespan(app: FastAPI):
         await email_manager.cleanup_all()
         db_manager.close()
     except Exception as e:
-        logger.error(f"清理系统资源时出错: {e}")
+        logger.error("清理系统资源时出错: %s", e)
     logger.info("邮件管理系统已关闭")
 
 app = FastAPI(
@@ -135,7 +135,7 @@ app.include_router(public_accounts.router)
 # 添加验证错误处理器
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    logger.error(f"Pydantic验证错误: {exc}")
+    logger.error("Pydantic验证错误: %s", exc)
     return JSONResponse(
         status_code=422,
         content=ApiResponse(
@@ -151,7 +151,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 @app.exception_handler(AppException)
 async def app_exception_handler(request: Request, exc: AppException):
     """统一处理应用自定义异常"""
-    logger.warning(f"应用异常: {exc.error_code} - {exc.message}")
+    logger.warning("应用异常: %s - %s", exc.error_code, exc.message)
     return JSONResponse(
         status_code=exc.status_code,
         content=ApiResponse(
@@ -224,7 +224,7 @@ async def main():
             print(f"{i}. {subject} - {from_addr}")
 
     except Exception as e:
-        logger.error(f"程序执行出错: {e}")
+        logger.error("程序执行出错: %s", e)
         raise
 
 if __name__ == '__main__':

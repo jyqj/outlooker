@@ -119,7 +119,7 @@ function TagManageModalContent({ email, currentTags = [], onClose, onSuccess }: 
                 {tag}
                 <button
                   onClick={() => handleRemoveTag(tag)}
-                  className="hover:bg-muted-foreground/20 rounded-full p-0.5 transition-colors focus:outline-none focus:ring-2 focus:ring-ring rounded"
+                  className="rounded-full p-1 transition-all duration-150 hover:bg-muted-foreground/20 active:scale-[var(--scale-click-icon)] active:bg-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-ring"
                   aria-label={`移除标签 ${tag}`}
                 >
                   <X className="w-3 h-3" aria-hidden="true" />

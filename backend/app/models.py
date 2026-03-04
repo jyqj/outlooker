@@ -120,6 +120,19 @@ class PickAccountRequest(BaseModel):
     return_credentials: bool = False  # 是否返回凭证信息
 
 
+class BatchDeleteRequest(BaseModel):
+    """批量删除请求模型"""
+    emails: list[str]
+    soft: bool = False
+
+
+class BatchTagsRequest(BaseModel):
+    """批量标签操作请求模型"""
+    emails: list[str]
+    tags: list[str] = []
+    mode: str = "add"  # "add" | "remove" | "set"
+
+
 # ============================================================================
 # 响应模型
 # ============================================================================

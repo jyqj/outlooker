@@ -16,6 +16,8 @@ export interface ConfirmDialogProps {
   cancelText?: string;
   variant?: ConfirmDialogVariant;
   loading?: boolean;
+  /** 自定义 Dialog 容器的 className，可用于调整嵌套场景下的 z-index */
+  dialogClassName?: string;
 }
 
 const variantConfig = {
@@ -50,6 +52,7 @@ export function ConfirmDialog({
   cancelText = '取消',
   variant = 'danger',
   loading = false,
+  dialogClassName,
 }: ConfirmDialogProps) {
   const confirmButtonRef = React.useRef<HTMLButtonElement>(null);
   const config = variantConfig[variant];
@@ -78,6 +81,8 @@ export function ConfirmDialog({
       isOpen={isOpen}
       onClose={onClose}
       className="max-w-md"
+      containerClassName={dialogClassName}
+      disableClose={loading}
     >
       <div 
         className="flex flex-col items-center text-center p-4"

@@ -41,13 +41,14 @@ export default function VerificationPage() {
           loading={loading}
           onSearch={handleSearch}
           onAutoOtp={handleAutoOtp}
+          showAutoOtp
         />
 
         {/* 加载状态 */}
         {loading && <LoadingCard />}
 
         {/* 错误提示 */}
-        {error && !loading && <ErrorCard error={error} />}
+        {error && !loading && <ErrorCard error={error} onRetry={() => handleSearch(undefined, true)} />}
 
         {/* 验证码结果 */}
         {result && !loading && (
@@ -57,7 +58,7 @@ export default function VerificationPage() {
           />
         )}
       </div>
-      <div className="absolute top-4 right-4">
+      <div className="fixed top-4 right-4 z-50">
         <ThemeToggle />
       </div>
     </div>

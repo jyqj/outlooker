@@ -104,16 +104,16 @@ export default function PickAccountForm({
               aria-describedby="target-tag-hint"
             />
             {availableTags.length > 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  onIsCustomTagChange(false);
-                  onCustomTagChange('');
-                }}
-                className="text-sm text-primary hover:underline"
-              >
-                从已有标签选择
-              </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onIsCustomTagChange(false);
+                    onCustomTagChange('');
+                  }}
+                  className="text-sm text-primary hover:underline active:opacity-80"
+                >
+                  从已有标签选择
+                </button>
             )}
           </div>
         )}
@@ -165,7 +165,7 @@ export default function PickAccountForm({
                 {t}
                 <button
                   onClick={() => handleRemoveExcludeTag(t)}
-                  className="hover:bg-muted-foreground/20 rounded-full p-0.5 transition-colors focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="rounded-full p-1 transition-all duration-150 hover:bg-muted-foreground/20 active:scale-[var(--scale-click-icon)] active:bg-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-ring"
                   aria-label={`移除排除标签 ${t}`}
                 >
                   <X className="w-3 h-3" aria-hidden="true" />

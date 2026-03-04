@@ -30,8 +30,12 @@ export default function VerificationCodeCard({ code, showFallback = false }: Ver
       </h4>
       {hasCode ? (
         <div
-          className="flex items-center justify-center gap-3 cursor-pointer group bg-card p-5 rounded-lg hover:shadow-md transition-all border-2 border-primary"
+          role="button"
+          tabIndex={0}
+          className="flex items-center justify-center gap-3 cursor-pointer group bg-card p-5 rounded-lg hover:shadow-md active:scale-[0.98] active:shadow-sm transition-all duration-150 border-2 border-primary"
           onClick={handleCopy}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCopy(); } }}
+          aria-label={`复制验证码 ${code}`}
           title="点击复制验证码"
         >
           <span className="text-5xl md:text-6xl font-mono font-black tracking-wider text-primary select-all">

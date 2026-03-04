@@ -1,4 +1,4 @@
-export { BatchTagModal } from './BatchTagModal';
+export { default as BatchTagModal } from './BatchTagModal';
 export { SystemOverview } from './SystemOverview';
 export { AccountTableRow } from './AccountTableRow';
 export { Pagination } from './Pagination';

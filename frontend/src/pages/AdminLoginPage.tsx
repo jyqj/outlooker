@@ -41,9 +41,7 @@ export default function AdminLoginPage() {
         }
       });
     } catch (err) {
-      handleApiError(err, '登录失败');
-      const apiMessage = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setError(apiMessage || MESSAGES.ERROR_LOGIN_FAILED);
+      setError(handleApiError(err, '登录失败', MESSAGES.ERROR_LOGIN_FAILED));
     }
   };
 
@@ -109,7 +107,7 @@ export default function AdminLoginPage() {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded transition-colors"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground transition-all duration-150 hover:bg-muted-foreground/10 hover:text-foreground active:scale-[var(--scale-click-icon)] focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
                       aria-label={showPassword ? '隐藏密码' : '显示密码'}
                       disabled={loading}
                     >
@@ -143,7 +141,7 @@ export default function AdminLoginPage() {
 
         {/* Footer */}
         <p className="text-center text-sm text-muted-foreground mt-6">
-          © 2024 Outlooker. All rights reserved.
+          © {new Date().getFullYear()} Outlooker. All rights reserved.
         </p>
       </div>
     </div>

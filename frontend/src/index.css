@@ -63,6 +63,18 @@
   --z-popover: 300;
   --z-toast: 400;
 
+  /* Opacity tokens for consistent transparency */
+  --opacity-overlay: 0.6;
+  --opacity-hover: 0.9;
+  --opacity-active: 0.8;
+  --opacity-selected: 0.05;
+  --opacity-disabled: 0.5;
+
+  /* Scale tokens for click feedback */
+  --scale-click: 0.98;
+  --scale-click-sm: 0.95;
+  --scale-click-icon: 0.9;
+
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
   --animate-fade-in: fade-in 0.2s ease-out;
@@ -168,6 +180,35 @@
 
   body {
     @apply bg-background text-foreground font-sans;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image:
+      radial-gradient(1200px 800px at 10% -10%, hsl(var(--primary) / 0.14), transparent 60%),
+      radial-gradient(900px 600px at 110% 10%, hsl(var(--info) / 0.10), transparent 55%),
+      radial-gradient(800px 500px at 50% 110%, hsl(var(--warning) / 0.10), transparent 60%);
+  }
+
+  .dark body::before {
+    background-image:
+      radial-gradient(1200px 800px at 10% -10%, hsl(var(--primary) / 0.10), transparent 60%),
+      radial-gradient(900px 600px at 110% 10%, hsl(var(--info) / 0.08), transparent 55%),
+      radial-gradient(800px 500px at 50% 110%, hsl(var(--warning) / 0.08), transparent 60%);
+  }
+
+  button,
+  [role="button"] {
+    touch-action: manipulation;
+  }
+
+  a,
+  button {
+    -webkit-tap-highlight-color: transparent;
   }
 
   /* Theme transition animation - only applied when actively switching themes */

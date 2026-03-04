@@ -1,3 +1,4 @@
+import React from 'react';
 import { AlertCircle, ChevronLeft, ChevronRight, Inbox } from 'lucide-react';
 import { formatRelativeTime } from '@/lib/utils';
 import { Button } from '../ui/Button';
@@ -8,7 +9,7 @@ import type { EmailListViewProps } from './types';
  * 邮件列表视图组件
  * 显示邮件列表和分页控件
  */
-export function EmailListView({
+export const EmailListView = React.memo(function EmailListView({
   messages,
   selectedMessageId,
   isLoading,
@@ -67,10 +68,10 @@ export function EmailListView({
               key={msg.id}
               type="button"
               onClick={() => onSelectMessage(msg.id)}
-              className={`w-full text-left p-3 border-b border-border cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary ${
+              className={`w-full text-left p-3 border-b border-border cursor-pointer transition-colors active:opacity-90 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary ${
                 isSelected
-                  ? 'bg-primary/10 border-l-2 border-l-primary'
-                  : 'hover:bg-muted'
+                  ? 'bg-primary/10 border-l-2 border-l-primary active:bg-primary/15'
+                  : 'hover:bg-muted active:bg-muted/70'
               }`}
               aria-current={isSelected ? 'true' : undefined}
             >
@@ -127,4 +128,4 @@ export function EmailListView({
       )}
     </>
   );
-}
+});

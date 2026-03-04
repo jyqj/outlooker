@@ -43,7 +43,7 @@ def handle_exceptions(operation_name: str) -> Callable[[F], F]:
             except (HTTPException, AppException):
                 raise
             except Exception as e:
-                logger.exception(f"{operation_name}失败: {e}")
+                logger.exception("%s失败: %s", operation_name, e)
                 raise DatabaseError(message=f"{operation_name}失败")
         return wrapper  # type: ignore
     return decorator

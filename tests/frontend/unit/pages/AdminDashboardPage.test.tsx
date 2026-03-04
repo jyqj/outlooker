@@ -8,16 +8,20 @@ import { MESSAGES } from '@/lib/constants';
 import { logError } from '@/lib/utils';
 import type { ReactElement } from 'react';
 
-const { mockClearAuthTokens } = vi.hoisted(() => ({
+const { apiDefaultMock, mockClearAuthTokens } = vi.hoisted(() => ({
+  apiDefaultMock: {
+    get: vi.fn(),
+    post: vi.fn(),
+  },
   mockClearAuthTokens: vi.fn(),
 }));
 
 vi.mock('@/lib/api', () => ({
-  default: {
-    get: vi.fn(),
-    post: vi.fn(),
-  },
+  default: apiDefaultMock,
   clearAuthTokens: mockClearAuthTokens,
+  // useAccountsQuery 依赖该命名导出（内部会调用 default.get）
+  getAccountsPaged: (params: unknown) =>
+    apiDefaultMock.get('/api/accounts/paged', { params }).then((res: { data: unknown }) => res.data),
 }));
 
 vi.mock('@/lib/toast', () => ({
@@ -326,7 +330,7 @@ describe('AdminDashboardPage', () => {
     const user = userEvent.setup();
     renderWithProviders(<AdminDashboardPage />);
 
-    const importButton = await screen.findByText(/导入/);
+    const importButton = await screen.findByRole('button', { name: /导入/ });
     await user.click(importButton);
 
     // ImportModal should be visible
@@ -362,11 +366,8 @@ describe('AdminDashboardPage', () => {
             success: true,
             data: {
               email_manager: {
-                cache_hits: 42,
-                cache_misses: 8,
-                client_reuses: 20,
-                client_creates: 5,
-                accounts_count: 10,
+                accounts_count: 42,
+                email_cache: { total_messages: 8 },
               },
             },
           },
@@ -386,8 +387,10 @@ describe('AdminDashboardPage', () => {
     renderWithProviders(<AdminDashboardPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('42')).toBeInTheDocument(); // cache hits
-      expect(screen.getByText('8')).toBeInTheDocument(); // cache misses
+      expect(screen.getByText('账户总数')).toBeInTheDocument();
+      expect(screen.getByText('缓存邮件')).toBeInTheDocument();
+      expect(screen.getByText('42')).toBeInTheDocument();
+      expect(screen.getByText('8')).toBeInTheDocument();
     });
   });
 

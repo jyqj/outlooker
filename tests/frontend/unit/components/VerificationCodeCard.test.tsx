@@ -3,7 +3,7 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 import VerificationCodeCard from '@/components/VerificationCodeCard';
 
 // Mock clipboard API
-const mockWriteText = vi.fn();
+const mockWriteText = vi.fn(() => Promise.resolve());
 Object.assign(navigator, {
   clipboard: {
     writeText: mockWriteText,
@@ -14,6 +14,7 @@ describe('VerificationCodeCard', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     mockWriteText.mockClear();
+    mockWriteText.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -47,7 +48,9 @@ describe('VerificationCodeCard', () => {
 
     const codeContainer = screen.getByText('654321').closest('div[title="点击复制验证码"]');
     if (codeContainer) {
-      fireEvent.click(codeContainer);
+      await act(async () => {
+        fireEvent.click(codeContainer);
+      });
     }
 
     expect(mockWriteText).toHaveBeenCalledWith('654321');
@@ -58,7 +61,9 @@ describe('VerificationCodeCard', () => {
 
     const codeContainer = screen.getByText('111222').closest('div[title="点击复制验证码"]');
     if (codeContainer) {
-      fireEvent.click(codeContainer);
+      await act(async () => {
+        fireEvent.click(codeContainer);
+      });
     }
 
     expect(screen.getByText('✓ 已复制到剪贴板')).toBeInTheDocument();
@@ -69,7 +74,9 @@ describe('VerificationCodeCard', () => {
 
     const codeContainer = screen.getByText('333444').closest('div[title="点击复制验证码"]');
     if (codeContainer) {
-      fireEvent.click(codeContainer);
+      await act(async () => {
+        fireEvent.click(codeContainer);
+      });
     }
 
     expect(screen.getByText('✓ 已复制到剪贴板')).toBeInTheDocument();
@@ -113,12 +120,14 @@ describe('VerificationCodeCard', () => {
     expect(buttons.length).toBeGreaterThan(0);
   });
 
-  it('shows check icon after copying', () => {
+  it('shows check icon after copying', async () => {
     render(<VerificationCodeCard code="123456" />);
 
     const codeContainer = screen.getByText('123456').closest('div[title="点击复制验证码"]');
     if (codeContainer) {
-      fireEvent.click(codeContainer);
+      await act(async () => {
+        fireEvent.click(codeContainer);
+      });
     }
 
     // The check icon should be visible (indicated by the confirmation message)

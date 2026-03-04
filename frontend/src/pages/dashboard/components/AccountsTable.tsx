@@ -50,7 +50,7 @@ const VirtualizedAccountRow = React.memo(function VirtualizedAccountRow({
       <div className="px-4 py-4 w-12 flex-shrink-0" role="gridcell">
         <button
           onClick={() => onToggleSelect(account.email)}
-          className="p-1 hover:bg-muted-foreground/10 rounded focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+          className="p-1 hover:bg-muted-foreground/10 rounded transition-all duration-150 active:scale-[var(--scale-click-icon)] focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
           aria-label={isSelected ? `取消选择 ${account.email}` : `选择 ${account.email}`}
           aria-pressed={isSelected}
           type="button"
@@ -99,12 +99,12 @@ const VirtualizedAccountRow = React.memo(function VirtualizedAccountRow({
       </div>
       {/* Actions column */}
       <div className="px-4 py-4 w-24 flex-shrink-0 text-right" role="gridcell">
-        <div className="flex gap-2 justify-end" role="group" aria-label="账户操作">
+        <div className="flex gap-1 md:gap-2 justify-end" role="group" aria-label="账户操作">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => onViewEmails(account.email)}
-            className="h-8 w-8 text-muted-foreground hover:text-primary"
+            className="h-10 w-10 md:h-8 md:w-8 text-muted-foreground hover:text-primary"
             title="查看邮件"
             aria-label={`查看 ${account.email} 的邮件`}
           >
@@ -113,7 +113,7 @@ const VirtualizedAccountRow = React.memo(function VirtualizedAccountRow({
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-green-600"
+            className="h-10 w-10 md:h-8 md:w-8 text-muted-foreground hover:text-green-600"
             title="管理标签"
             aria-label={`管理 ${account.email} 的标签`}
             onClick={() => onManageTags(account.email)}
@@ -259,7 +259,7 @@ export function AccountsTable({
       <div className="px-4 py-4 w-12 flex-shrink-0" role="columnheader">
         <button
           onClick={toggleSelectAll}
-          className="p-1 hover:bg-muted-foreground/10 rounded focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+          className="p-1 hover:bg-muted-foreground/10 rounded transition-all duration-150 active:scale-[var(--scale-click-icon)] focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
           title={isAllSelected ? '取消全选当前页' : `全选当前页 (${accounts.length} 个账户)`}
           aria-label={isAllSelected ? '取消全选所有账户' : '全选所有账户'}
           aria-pressed={isAllSelected}
@@ -283,7 +283,7 @@ export function AccountsTable({
       {/* 水平滚动容器，带有渐变遮罩提示 */}
       <div className="relative">
         {/* 右侧渐变遮罩提示可滚动 - 仅在移动端显示 */}
-        <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-card to-transparent pointer-events-none z-10 md:hidden" aria-hidden="true" />
+        <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-card/80 to-transparent pointer-events-none z-10 md:hidden" aria-hidden="true" />
         <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent" role="region" aria-label="账户列表，可水平滚动查看更多内容">
           
           {/* Virtualized view for large datasets */}
@@ -307,7 +307,7 @@ export function AccountsTable({
                   <th className="px-4 py-4 w-12" scope="col">
                     <button
                       onClick={toggleSelectAll}
-                      className="p-1 hover:bg-muted-foreground/10 rounded focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                      className="p-1 hover:bg-muted-foreground/10 rounded transition-all duration-150 active:scale-[var(--scale-click-icon)] focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
                       title={isAllSelected ? '取消全选当前页' : `全选当前页 (${accounts.length} 个账户)`}
                       aria-label={isAllSelected ? '取消全选所有账户' : '全选所有账户'}
                       aria-pressed={isAllSelected}

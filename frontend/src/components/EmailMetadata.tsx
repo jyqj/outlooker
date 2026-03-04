@@ -53,7 +53,7 @@ export function EmailMetadata({
 
   return (
     <div
-      className={`space-y-3 text-sm bg-muted p-4 rounded-lg border border-border ${className || ''}`}
+      className={cn("space-y-3 text-sm bg-muted p-4 rounded-lg border border-border", className)}
     >
       {showSubject && (
         <div>

@@ -12,6 +12,20 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // NOTE:
+      // Vitest 单测文件位于仓库根目录的 ../tests/**，其路径不在 frontend/ 目录树内，
+      // 默认的 node_modules 向上查找不会命中 frontend/node_modules，导致 react/jsx-dev-runtime
+      // 以及 @testing-library/* 等依赖解析失败。
+      // 这里通过 alias 强制这些依赖从 frontend/node_modules 解析，保证 npm test 可运行。
+      "react": path.resolve(__dirname, "./node_modules/react"),
+      "react-dom": path.resolve(__dirname, "./node_modules/react-dom"),
+      "react-router-dom": path.resolve(__dirname, "./node_modules/react-router-dom"),
+      "@tanstack/react-query": path.resolve(__dirname, "./node_modules/@tanstack/react-query"),
+      "@testing-library/react": path.resolve(__dirname, "./node_modules/@testing-library/react"),
+      "@testing-library/user-event": path.resolve(__dirname, "./node_modules/@testing-library/user-event"),
+      // JSX transform 可能会注入这些子路径导入
+      "react/jsx-runtime": path.resolve(__dirname, "./node_modules/react/jsx-runtime.js"),
+      "react/jsx-dev-runtime": path.resolve(__dirname, "./node_modules/react/jsx-dev-runtime.js"),
     },
     preserveSymlinks: false,
   },

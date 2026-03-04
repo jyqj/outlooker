@@ -1,6 +1,6 @@
-import { useCallback, useMemo, useState, useEffect } from 'react';
+import { useCallback, useRef, useState, useEffect } from 'react';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
-import api, { getAccountsPaged } from './api';
+import api, { getAccountsPaged } from '@/lib/api';
 import { CONFIG } from './constants';
 import { showError, showSuccess } from './toast';
 import { logError } from './utils';
@@ -119,18 +119,17 @@ export function useApiAction<T = unknown>(
   requestFn: () => Promise<{ data: ApiResponse<T> }>,
   overrideOptions?: ApiActionOptions<T>
 ) => Promise<ApiActionResult<T>> {
-  const baseOptions = useMemo(
-    () => ({
-      showSuccessToast: true,
-      showErrorToast: true,
-      ...defaultOptions,
-    }),
-    [defaultOptions]
-  );
+  const optionsRef = useRef(defaultOptions);
+  optionsRef.current = defaultOptions;
 
   return useCallback(
     async (requestFn, overrideOptions = {}) => {
-      const options = { ...baseOptions, ...overrideOptions };
+      const options = {
+        showSuccessToast: true,
+        showErrorToast: true,
+        ...optionsRef.current,
+        ...overrideOptions,
+      };
       try {
         const response = await requestFn();
         const payload = response?.data;
@@ -164,7 +163,7 @@ export function useApiAction<T = unknown>(
         return { ok: false, error };
       }
     },
-    [baseOptions]
+    []
   );
 }
 

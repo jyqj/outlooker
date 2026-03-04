@@ -39,38 +39,33 @@ class TagsMixin(RunInThreadMixin):
             try:
                 cursor = conn.cursor()
                 
-                # 1. 删除现有关联
-                cursor.execute("""
-                    DELETE FROM account_tag_relations WHERE account_email = ?
-                """, (email,))
+                cursor.execute(
+                    "DELETE FROM account_tag_relations WHERE account_email = ?",
+                    (email,),
+                )
                 
-                # 2. 添加新标签
-                for tag_name in tags:
-                    if not tag_name or not tag_name.strip():
-                        continue
-                    tag_name = tag_name.strip()
+                cleaned = [t.strip() for t in tags if t and t.strip()]
+                if cleaned:
+                    cursor.executemany(
+                        "INSERT OR IGNORE INTO tags (name) VALUES (?)",
+                        [(t,) for t in cleaned],
+                    )
+                    placeholders = ",".join(["?"] * len(cleaned))
+                    cursor.execute(
+                        f"SELECT id, name FROM tags WHERE name IN ({placeholders})",
+                        cleaned,
+                    )
+                    tag_ids = {row[1]: row[0] for row in cursor.fetchall()}
                     
-                    # 确保标签存在
-                    cursor.execute("""
-                        INSERT OR IGNORE INTO tags (name) VALUES (?)
-                    """, (tag_name,))
-                    
-                    # 获取标签 ID
-                    cursor.execute("SELECT id FROM tags WHERE name = ?", (tag_name,))
-                    tag_row = cursor.fetchone()
-                    if not tag_row:
-                        continue
-                    
-                    # 创建关联
-                    cursor.execute("""
-                        INSERT OR IGNORE INTO account_tag_relations (account_email, tag_id)
-                        VALUES (?, ?)
-                    """, (email, tag_row[0]))
+                    cursor.executemany(
+                        "INSERT OR IGNORE INTO account_tag_relations (account_email, tag_id) VALUES (?, ?)",
+                        [(email, tag_ids[t]) for t in cleaned if t in tag_ids],
+                    )
                 
                 conn.commit()
                 return True
             except Exception as e:
-                logger.error(f"设置账户标签失败: {e}")
+                logger.error("设置账户标签失败: %s", e)
                 conn.rollback()
                 return False
         
@@ -83,29 +78,30 @@ class TagsMixin(RunInThreadMixin):
             try:
                 cursor = conn.cursor()
                 
-                for tag_name in tags:
-                    if not tag_name or not tag_name.strip():
-                        continue
-                    tag_name = tag_name.strip()
-                    
-                    cursor.execute("""
-                        INSERT OR IGNORE INTO tags (name) VALUES (?)
-                    """, (tag_name,))
-                    
-                    cursor.execute("SELECT id FROM tags WHERE name = ?", (tag_name,))
-                    tag_row = cursor.fetchone()
-                    if not tag_row:
-                        continue
-                    
-                    cursor.execute("""
-                        INSERT OR IGNORE INTO account_tag_relations (account_email, tag_id)
-                        VALUES (?, ?)
-                    """, (email, tag_row[0]))
+                cleaned = [t.strip() for t in tags if t and t.strip()]
+                if not cleaned:
+                    return True
+                
+                cursor.executemany(
+                    "INSERT OR IGNORE INTO tags (name) VALUES (?)",
+                    [(t,) for t in cleaned],
+                )
+                placeholders = ",".join(["?"] * len(cleaned))
+                cursor.execute(
+                    f"SELECT id, name FROM tags WHERE name IN ({placeholders})",
+                    cleaned,
+                )
+                tag_ids = {row[1]: row[0] for row in cursor.fetchall()}
+                
+                cursor.executemany(
+                    "INSERT OR IGNORE INTO account_tag_relations (account_email, tag_id) VALUES (?, ?)",
+                    [(email, tag_ids[t]) for t in cleaned if t in tag_ids],
+                )
                 
                 conn.commit()
                 return True
             except Exception as e:
-                logger.error(f"添加标签失败: {e}")
+                logger.error("添加标签失败: %s", e)
                 conn.rollback()
                 return False
         
@@ -118,20 +114,30 @@ class TagsMixin(RunInThreadMixin):
             try:
                 cursor = conn.cursor()
                 
-                for tag_name in tags:
-                    if not tag_name:
-                        continue
-                    
-                    cursor.execute("""
-                        DELETE FROM account_tag_relations
-                        WHERE account_email = ?
-                        AND tag_id = (SELECT id FROM tags WHERE name = ?)
-                    """, (email, tag_name.strip()))
+                cleaned = [t.strip() for t in tags if t and t.strip()]
+                if not cleaned:
+                    return True
+                
+                placeholders = ",".join(["?"] * len(cleaned))
+                cursor.execute(
+                    f"SELECT id FROM tags WHERE name IN ({placeholders})",
+                    cleaned,
+                )
+                tag_ids = [row[0] for row in cursor.fetchall()]
+                
+                if not tag_ids:
+                    return True
+                
+                id_placeholders = ",".join(["?"] * len(tag_ids))
+                cursor.execute(
+                    f"DELETE FROM account_tag_relations WHERE account_email = ? AND tag_id IN ({id_placeholders})",
+                    [email] + tag_ids,
+                )
                 
                 conn.commit()
                 return True
             except Exception as e:
-                logger.error(f"移除标签失败: {e}")
+                logger.error("移除标签失败: %s", e)
                 conn.rollback()
                 return False
         
@@ -370,17 +376,19 @@ class TagsMixin(RunInThreadMixin):
             failed = 0
 
             try:
-                # 预先确保所有标签存在
+                cleaned_tags = [t.strip() for t in tags if t and t.strip()]
                 tag_ids: dict[str, int] = {}
-                for tag_name in tags:
-                    if not tag_name or not tag_name.strip():
-                        continue
-                    tag_name = tag_name.strip()
-                    cursor.execute("INSERT OR IGNORE INTO tags (name) VALUES (?)", (tag_name,))
-                    cursor.execute("SELECT id FROM tags WHERE name = ?", (tag_name,))
-                    row = cursor.fetchone()
-                    if row:
-                        tag_ids[tag_name] = row[0]
+                if cleaned_tags:
+                    cursor.executemany(
+                        "INSERT OR IGNORE INTO tags (name) VALUES (?)",
+                        [(t,) for t in cleaned_tags],
+                    )
+                    placeholders = ",".join(["?"] * len(cleaned_tags))
+                    cursor.execute(
+                        f"SELECT id, name FROM tags WHERE name IN ({placeholders})",
+                        cleaned_tags,
+                    )
+                    tag_ids = {row[1]: row[0] for row in cursor.fetchall()}
 
                 for email in emails:
                     try:

@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { ChevronDown, Plus } from 'lucide-react';
 import type { TagDropdownProps } from './types';
 
@@ -14,11 +15,12 @@ export default function TagDropdown({
   onClose,
   dropdownRef,
 }: TagDropdownProps) {
-  // Handle keyboard navigation for dropdown button
+  const listId = useId();
+
   const handleButtonKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       onClose();
-    } else if (e.key === 'ArrowDown') {
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       if (!isOpen) {
         onToggle();
@@ -26,7 +28,6 @@ export default function TagDropdown({
     }
   };
 
-  // Handle keyboard navigation for dropdown menu
   const handleMenuKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       onClose();
@@ -34,8 +35,15 @@ export default function TagDropdown({
       e.preventDefault();
       const target = e.target as HTMLElement;
       const button = target.closest('button[role="option"]') as HTMLButtonElement;
-      if (button) {
-        button.click();
+      if (button) button.click();
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const target = e.target as HTMLElement;
+      const sibling = e.key === 'ArrowDown'
+        ? target.nextElementSibling as HTMLElement
+        : target.previousElementSibling as HTMLElement;
+      if (sibling?.matches('button[role="option"]')) {
+        sibling.focus();
       }
     }
   };
@@ -46,10 +54,10 @@ export default function TagDropdown({
         type="button"
         onClick={onToggle}
         onKeyDown={handleButtonKeyDown}
-        className="w-full flex items-center justify-between px-3 py-2 border rounded-md bg-background hover:bg-muted/50 transition-colors text-left"
+        className="w-full flex items-center justify-between px-3 py-2 border rounded-md bg-background text-left transition-all duration-150 hover:bg-muted/50 active:scale-[var(--scale-click)] active:bg-muted/70 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
         aria-haspopup="listbox"
         aria-expanded={isOpen}
-        aria-controls="tag-dropdown-list"
+        aria-controls={listId}
         aria-label="选择目标标签"
       >
         <span className={value ? 'text-foreground' : 'text-muted-foreground'}>
@@ -63,10 +71,10 @@ export default function TagDropdown({
       {isOpen && (
         <div
           role="listbox"
-          id="tag-dropdown-list"
+          id={listId}
           aria-label="可用标签列表"
           onKeyDown={handleMenuKeyDown}
-          className="absolute z-50 w-full mt-1 py-1 bg-popover border rounded-md shadow-lg max-h-48 overflow-auto"
+          className="absolute z-[300] w-full mt-1 py-1 bg-popover border rounded-md shadow-lg max-h-48 overflow-auto"
         >
           {availableTags.map((t) => (
             <button
@@ -75,7 +83,7 @@ export default function TagDropdown({
               role="option"
               aria-selected={value === t}
               onClick={() => onSelect(t)}
-              className={`w-full px-3 py-2 text-left hover:bg-muted transition-colors ${
+              className={`w-full px-3 py-2 text-left transition-colors hover:bg-muted active:bg-muted/80 ${
                 value === t ? 'bg-muted font-medium' : ''
               }`}
             >
@@ -88,7 +96,7 @@ export default function TagDropdown({
             role="option"
             aria-selected={false}
             onClick={() => onSelect('__custom__')}
-            className="w-full px-3 py-2 text-left hover:bg-muted transition-colors text-primary flex items-center gap-2"
+            className="w-full px-3 py-2 text-left transition-colors hover:bg-muted active:bg-muted/80 text-primary flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
             输入新标签

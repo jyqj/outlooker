@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 """
-Unified exception handling module for the application.
+统一异常处理模块
 
-This module defines custom exceptions that can be used throughout the application
-for consistent error handling and API responses.
+定义应用自定义异常，确保错误处理和 API 响应的一致性。
 """
 
 from typing import Any
 
 
 class AppException(Exception):
-    """Base exception class for application-specific errors."""
+    """应用异常基类"""
 
     def __init__(
         self,
@@ -26,7 +25,6 @@ class AppException(Exception):
         super().__init__(self.message)
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert exception to a dictionary for API responses."""
         result = {
             "success": False,
             "message": self.message,
@@ -37,49 +35,55 @@ class AppException(Exception):
         return result
 
 
-# Authentication Exceptions
-class AuthenticationError(AppException):
-    """Raised when authentication fails."""
+# ============================================================================
+# 认证异常
+# ============================================================================
 
-    def __init__(self, message: str = "Authentication failed", **kwargs):
+class AuthenticationError(AppException):
+    """认证失败"""
+
+    def __init__(self, message: str = "认证失败", **kwargs):
         super().__init__(message, status_code=401, **kwargs)
 
 
 class TokenExpiredError(AuthenticationError):
-    """Raised when a token has expired."""
+    """令牌已过期"""
 
-    def __init__(self, message: str = "Token has expired"):
+    def __init__(self, message: str = "令牌已过期"):
         super().__init__(message, error_code="TOKEN_EXPIRED")
 
 
 class InvalidTokenError(AuthenticationError):
-    """Raised when a token is invalid."""
+    """无效令牌"""
 
-    def __init__(self, message: str = "Invalid token"):
+    def __init__(self, message: str = "无效的令牌"):
         super().__init__(message, error_code="INVALID_TOKEN")
 
 
 class InvalidCredentialsError(AuthenticationError):
-    """Raised when credentials are invalid."""
+    """凭证无效"""
 
-    def __init__(self, message: str = "Invalid username or password"):
+    def __init__(self, message: str = "用户名或密码错误"):
         super().__init__(message, error_code="INVALID_CREDENTIALS")
 
 
-# Authorization Exceptions
-class AuthorizationError(AppException):
-    """Raised when user lacks permission."""
+# ============================================================================
+# 授权异常
+# ============================================================================
 
-    def __init__(self, message: str = "Permission denied", **kwargs):
+class AuthorizationError(AppException):
+    """权限不足"""
+
+    def __init__(self, message: str = "权限不足", **kwargs):
         super().__init__(message, status_code=403, **kwargs)
 
 
 class RateLimitExceededError(AuthorizationError):
-    """Raised when rate limit is exceeded."""
+    """请求频率超限"""
 
     def __init__(
         self,
-        message: str = "Rate limit exceeded",
+        message: str = "请求过于频繁，请稍后再试",
         retry_after: int | None = None,
     ):
         details = {"retry_after": retry_after} if retry_after else {}
@@ -87,24 +91,27 @@ class RateLimitExceededError(AuthorizationError):
 
 
 class AccountLockedError(AuthorizationError):
-    """Raised when account is locked due to too many failed attempts."""
+    """账户已锁定"""
 
     def __init__(
         self,
-        message: str = "Account temporarily locked",
+        message: str = "账户已被临时锁定",
         lockout_remaining: int | None = None,
     ):
         details = {"lockout_remaining_seconds": lockout_remaining} if lockout_remaining else {}
         super().__init__(message, error_code="ACCOUNT_LOCKED", details=details)
 
 
-# Resource Exceptions
+# ============================================================================
+# 资源异常
+# ============================================================================
+
 class ResourceNotFoundError(AppException):
-    """Raised when a requested resource is not found."""
+    """资源未找到"""
 
     def __init__(
         self,
-        message: str = "Resource not found",
+        message: str = "资源未找到",
         resource_type: str | None = None,
         resource_id: str | None = None,
     ):
@@ -117,85 +124,94 @@ class ResourceNotFoundError(AppException):
 
 
 class AccountNotFoundError(ResourceNotFoundError):
-    """Raised when an email account is not found."""
+    """账户未找到"""
 
     def __init__(self, email: str):
         super().__init__(
-            message=f"Account not found: {email}",
+            message=f"账户未找到: {email}",
             resource_type="account",
             resource_id=email,
         )
 
 
 class EmailNotFoundError(ResourceNotFoundError):
-    """Raised when an email message is not found."""
+    """邮件未找到"""
 
     def __init__(self, message_id: str):
         super().__init__(
-            message=f"Email not found: {message_id}",
+            message=f"邮件未找到: {message_id}",
             resource_type="email",
             resource_id=message_id,
         )
 
 
-# IMAP Exceptions
-class IMAPError(AppException):
-    """Base exception for IMAP-related errors."""
+# ============================================================================
+# IMAP 异常
+# ============================================================================
 
-    def __init__(self, message: str = "IMAP operation failed", **kwargs):
+class IMAPError(AppException):
+    """IMAP 操作异常基类"""
+
+    def __init__(self, message: str = "IMAP 操作失败", **kwargs):
         super().__init__(message, status_code=502, **kwargs)
 
 
 class IMAPConnectionError(IMAPError):
-    """Raised when IMAP connection fails."""
+    """IMAP 连接失败"""
 
-    def __init__(self, message: str = "Failed to connect to IMAP server"):
+    def __init__(self, message: str = "无法连接到 IMAP 服务器"):
         super().__init__(message, error_code="IMAP_CONNECTION_FAILED")
 
 
 class IMAPAuthenticationError(IMAPError):
-    """Raised when IMAP authentication fails."""
+    """IMAP 认证失败"""
 
-    def __init__(self, message: str = "IMAP authentication failed"):
+    def __init__(self, message: str = "IMAP 认证失败"):
         super().__init__(message, error_code="IMAP_AUTH_FAILED")
 
 
 class TokenRefreshError(IMAPError):
-    """Raised when OAuth token refresh fails."""
+    """OAuth 令牌刷新失败"""
 
-    def __init__(self, message: str = "Failed to refresh access token"):
+    def __init__(self, message: str = "刷新访问令牌失败"):
         super().__init__(message, error_code="TOKEN_REFRESH_FAILED")
 
 
-# Database Exceptions
-class DatabaseError(AppException):
-    """Base exception for database-related errors."""
+# ============================================================================
+# 数据库异常
+# ============================================================================
 
-    def __init__(self, message: str = "Database operation failed", **kwargs):
+class DatabaseError(AppException):
+    """数据库操作异常基类"""
+
+    def __init__(self, message: str = "数据库操作失败", **kwargs):
         super().__init__(message, status_code=500, **kwargs)
 
 
 class DatabaseConnectionError(DatabaseError):
-    """Raised when database connection fails."""
+    """数据库连接失败"""
 
-    def __init__(self, message: str = "Failed to connect to database"):
+    def __init__(self, message: str = "无法连接到数据库"):
         super().__init__(message, error_code="DB_CONNECTION_FAILED")
 
 
 class DuplicateEntryError(DatabaseError):
-    """Raised when trying to create a duplicate entry."""
+    """重复记录"""
 
-    def __init__(self, message: str = "Entry already exists"):
+    def __init__(self, message: str = "记录已存在"):
         super().__init__(message, status_code=409, error_code="DUPLICATE_ENTRY")
 
 
-# Validation Exceptions
+# ============================================================================
+# 验证异常
+# ============================================================================
+
 class ValidationError(AppException):
-    """Raised when input validation fails."""
+    """输入验证失败"""
 
     def __init__(
         self,
-        message: str = "Validation failed",
+        message: str = "数据验证失败",
         field: str | None = None,
         **kwargs,
     ):
@@ -204,37 +220,40 @@ class ValidationError(AppException):
 
 
 class InvalidEmailFormatError(ValidationError):
-    """Raised when email format is invalid."""
+    """邮箱格式无效"""
 
     def __init__(self, email: str):
         super().__init__(
-            message=f"Invalid email format: {email}",
+            message=f"邮箱格式无效: {email}",
             field="email",
             error_code="INVALID_EMAIL_FORMAT",
         )
 
 
 class ConfigurationError(AppException):
-    """Raised when there's a configuration error."""
+    """配置错误"""
 
-    def __init__(self, message: str = "Configuration error", **kwargs):
+    def __init__(self, message: str = "配置错误", **kwargs):
         super().__init__(message, status_code=500, **kwargs)
 
 
-# Service Exceptions
-class ServiceUnavailableError(AppException):
-    """Raised when a service is temporarily unavailable."""
+# ============================================================================
+# 服务异常
+# ============================================================================
 
-    def __init__(self, message: str = "Service temporarily unavailable", **kwargs):
+class ServiceUnavailableError(AppException):
+    """服务暂不可用"""
+
+    def __init__(self, message: str = "服务暂时不可用", **kwargs):
         super().__init__(message, status_code=503, **kwargs)
 
 
 class ExternalServiceError(AppException):
-    """Raised when an external service call fails."""
+    """外部服务调用失败"""
 
     def __init__(
         self,
-        message: str = "External service error",
+        message: str = "外部服务调用失败",
         service_name: str | None = None,
         **kwargs,
     ):

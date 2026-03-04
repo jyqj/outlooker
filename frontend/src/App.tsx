@@ -5,19 +5,18 @@ import AdminLoginPage from './pages/AdminLoginPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import NotFoundPage from './pages/NotFoundPage';
 import ToastContainer from './components/Toast';
-import { getStoredAccessToken } from './lib/api';
+import { getStoredAccessToken, isAccessTokenValid } from './lib/api';
+import { LoadingSpinner } from './components/ui';
 
-// Lazy load TagsPage for better performance
 const TagsPage = React.lazy(() => import('./pages/tags/TagsPage'));
 
 interface ProtectedRouteProps {
   children: ReactNode;
 }
 
-// Protected Route Component
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const token = getStoredAccessToken();
-  if (!token) {
+  if (!token || !isAccessTokenValid()) {
     return <Navigate to="/admin/login" replace />;
   }
   return <>{children}</>;
@@ -41,7 +40,7 @@ function App() {
           path="/admin/tags"
           element={
             <ProtectedRoute>
-              <Suspense fallback={<div className="min-h-screen flex items-center justify-center">加载中...</div>}>
+              <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><LoadingSpinner size="lg" text="加载中..." /></div>}>
                 <TagsPage />
               </Suspense>
             </ProtectedRoute>

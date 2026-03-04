@@ -313,7 +313,7 @@ export function getStoredAccessToken(): string | null {
   return sessionStorage.getItem(STORAGE_KEYS.access);
 }
 
-function isAccessTokenValid(): boolean {
+export function isAccessTokenValid(): boolean {
   const expiresAt = Number(sessionStorage.getItem(STORAGE_KEYS.accessExp) || 0);
   if (!expiresAt) return false;
   return expiresAt - Date.now() > TIMING.TOKEN_CLOCK_SKEW;

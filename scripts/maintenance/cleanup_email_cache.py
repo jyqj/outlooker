@@ -21,7 +21,7 @@ from typing import Optional
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root / "backend"))
 
-from app.database import db_manager  # type: ignore
+from app.db import db_manager
 
 
 async def cleanup_cache(days: int = 30) -> None:

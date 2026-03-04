@@ -59,7 +59,7 @@ class IMAPEmailClient:
         # Token管理锁
         self._token_lock = asyncio.Lock()
 
-        logger.debug(f"IMAPEmailClient初始化 ({email})，采用按需连接策略")
+        logger.debug("IMAPEmailClient初始化 (%s)，采用按需连接策略", email)
 
     def is_token_expired(self) -> bool:
         """检查access token是否过期或即将过期"""
@@ -70,20 +70,20 @@ class IMAPEmailClient:
         """确保token有效（异步版本，带并发控制）"""
         async with self._token_lock:
             if not self.access_token or self.is_token_expired():
-                logger.info(f"{self.email} access token已过期或不存在，需要刷新")
+                logger.info("%s access token已过期或不存在，需要刷新", self.email)
                 await self.refresh_access_token()
 
     async def refresh_access_token(self) -> None:
         """刷新访问令牌"""
         try:
-            logger.info(f"🔑 正在刷新 {self.email} 的访问令牌...")
+            logger.info("正在刷新 %s 的访问令牌...", self.email)
             access_token, new_refresh_token = await get_access_token(self.refresh_token)
 
             if access_token:
                 self.access_token = access_token
                 self.expires_at = time.time() + settings.imap_token_expire_seconds
                 expires_at_str = datetime.fromtimestamp(self.expires_at).strftime('%Y-%m-%d %H:%M:%S')
-                logger.info(f"✓ Token刷新成功（有效期至: {expires_at_str}）")
+                logger.info("Token刷新成功（有效期至: %s）", expires_at_str)
                 if new_refresh_token and new_refresh_token != self.refresh_token:
                     self.refresh_token = new_refresh_token
                     try:
@@ -100,7 +100,7 @@ class IMAPEmailClient:
         except asyncio.CancelledError:
             raise
         except Exception as e:
-            logger.exception(f"✗ Token刷新失败 {self.email}: {e}")
+            logger.exception("Token刷新失败 %s: %s", self.email, e)
             raise HTTPException(status_code=500, detail="Failed to refresh access token") from e
 
     async def create_imap_connection(self, mailbox_to_select=INBOX_FOLDER_NAME):
@@ -113,7 +113,7 @@ class IMAPEmailClient:
         for attempt in range(max_retries):
             try:
                 if attempt > 0:
-                    logger.info(f"🔄 重试连接 IMAP (第{attempt+1}次)")
+                    logger.info("重试连接 IMAP (第%s次)", attempt + 1)
 
                 def _sync_connect():
                     imap_conn = imaplib.IMAP4_SSL(IMAP_SERVER, IMAP_PORT)
@@ -135,11 +135,11 @@ class IMAPEmailClient:
                 imap_conn = await asyncio.wait_for(
                     asyncio.to_thread(_sync_connect), timeout=float(timeout)
                 )
-                logger.info(f"🔌 IMAP连接已建立 → {mailbox_to_select}")
+                logger.info("IMAP连接已建立 → %s", mailbox_to_select)
                 return imap_conn
 
             except TimeoutError:
-                logger.error(f"创建IMAP连接超时 ({self.email}), 第{attempt+1}次尝试")
+                logger.error("创建IMAP连接超时 (%s), 第%s次尝试", self.email, attempt + 1)
                 if attempt < max_retries - 1:
                     await asyncio.sleep(1)
                     continue
@@ -148,12 +148,12 @@ class IMAPEmailClient:
                 if "authentication failed" in str(e).lower() or "authenticate" in str(e).lower():
                      raise IMAPAuthenticationError(f"认证失败: {e}")
 
-                logger.error(f"创建IMAP连接失败 ({self.email}), 第{attempt+1}次尝试: {e}")
+                logger.error("创建IMAP连接失败 (%s), 第%s次尝试: %s", self.email, attempt + 1, e)
                 if attempt < max_retries - 1:
                     await asyncio.sleep(1)
                     continue
 
-        logger.error(f"经过{max_retries}次尝试，仍无法创建IMAP连接 ({self.email})")
+        logger.error("经过%s次尝试，仍无法创建IMAP连接 (%s)", max_retries, self.email)
         raise IMAPConnectionError(f"Failed to connect to IMAP server for {self.email} after {max_retries} retries")
 
     def close_imap_connection(self, imap_conn):
@@ -166,17 +166,17 @@ class IMAPEmailClient:
                     if current_state == 'SELECTED':
                         imap_conn.close()
                 except Exception as e:
-                    logger.debug(f"关闭邮箱时出现预期错误: {e}")
+                    logger.debug("关闭邮箱时出现预期错误: %s", e)
 
                 try:
                     if current_state != 'LOGOUT':
                         imap_conn.logout()
                 except Exception as e:
-                    logger.debug(f"登出时出现预期错误: {e}")
+                    logger.debug("登出时出现预期错误: %s", e)
 
-                logger.info("🔌 IMAP连接已关闭")
+                logger.info("IMAP连接已关闭")
             except Exception as e:
-                logger.debug(f"关闭IMAP连接时发生预期错误: {e}")
+                logger.debug("关闭IMAP连接时发生预期错误: %s", e)
 
     @asynccontextmanager
     async def _imap_connection(self, folder_id: str):
@@ -221,8 +221,6 @@ class IMAPEmailClient:
         Returns:
             UID字节列表(已按最新在前排序)
         """
-        import time
-
         # 快速扫描邮件UID列表(毫秒级操作)
         scan_start = time.time()
         typ, uid_data = imap_conn.uid('search', None, "ALL")
@@ -234,7 +232,7 @@ class IMAPEmailClient:
 
         uids = uid_data[0].split()
         scan_time = (time.time() - scan_start) * 1000
-        logger.info(f"📋 扫描完成: 共 {len(uids)} 封邮件 (耗时: {scan_time:.0f}ms)")
+        logger.info("扫描完成: 共 %s 封邮件 (耗时: %.0fms)", len(uids), scan_time)
 
         # 只获取最新的top条邮件
         uids = uids[-top:] if len(uids) > top else uids
@@ -256,9 +254,9 @@ class IMAPEmailClient:
                 try:
                     await db_manager.cache_email(self.email, msg_id, msg, folder=folder_id)
                 except Exception as cache_exc:
-                    logger.debug(f"缓存邮件失败(忽略): {cache_exc}")
+                    logger.debug("缓存邮件失败(忽略): %s", cache_exc)
         except Exception as exc:
-            logger.debug(f"批量缓存邮件时发生预期错误: {exc}")
+            logger.debug("批量缓存邮件时发生预期错误: %s", exc)
 
     async def get_messages_with_content(self, folder_id: str = INBOX_FOLDER_NAME, top: int = 5) -> list[dict]:
         """获取指定文件夹的邮件（一次性获取完整内容，包括正文）
@@ -272,9 +270,8 @@ class IMAPEmailClient:
             folder_id: 文件夹ID, 默认为'INBOX'
             top: 获取的邮件数量
         """
-        import time
         start_time = time.time()
-        logger.info(f"📧 开始获取 {self.email} 的邮件（文件夹: {folder_id}, 请求数量: {top}）")
+        logger.info("开始获取 %s 的邮件（文件夹: %s, 请求数量: %s）", self.email, folder_id, top)
 
         try:
             async with self._imap_connection(folder_id) as imap_conn:
@@ -288,7 +285,7 @@ class IMAPEmailClient:
 
                     # 2. 获取并解析每封邮件
                     fetch_start = time.time()
-                    logger.info(f"📥 开始获取 {len(uids)} 封邮件的完整内容（包含正文和附件）...")
+                    logger.info("开始获取 %s 封邮件的完整内容（包含正文和附件）...", len(uids))
 
                     messages = []
                     for uid_bytes in uids:
@@ -297,7 +294,8 @@ class IMAPEmailClient:
                             messages.append(msg)
 
                     fetch_time = (time.time() - fetch_start) * 1000
-                    logger.info(f"📬 内容获取完成: {len(messages)} 封邮件 (耗时: {fetch_time:.0f}ms, 平均: {fetch_time/len(messages) if messages else 0:.0f}ms/封)")
+                    avg_time = fetch_time / len(messages) if messages else 0
+                    logger.info("内容获取完成: %s 封邮件 (耗时: %.0fms, 平均: %.0fms/封)", len(messages), fetch_time, avg_time)
 
                     return messages
 
@@ -308,20 +306,20 @@ class IMAPEmailClient:
                 await self._cache_messages(folder_id, messages)
 
             total_time = (time.time() - start_time) * 1000
-            logger.info(f"✅ 完成！总耗时: {total_time:.0f}ms | 获取 {len(messages)} 封完整邮件（已包含正文，前端可缓存）")
+            logger.info("完成！总耗时: %.0fms | 获取 %s 封完整邮件", total_time, len(messages))
             return messages
 
         except asyncio.CancelledError:
-            logger.warning(f"获取邮件操作被取消 ({self.email})")
+            logger.warning("获取邮件操作被取消 (%s)", self.email)
             raise
         except IMAPAuthenticationError as e:
-            logger.error(f"认证失败 {self.email}: {e}")
+            logger.error("认证失败 %s: %s", self.email, e)
             raise HTTPException(status_code=401, detail="邮箱认证失败，请检查账户凭证")
         except IMAPConnectionError as e:
-            logger.error(f"连接失败 {self.email}: {e}")
+            logger.error("连接失败 %s: %s", self.email, e)
             raise HTTPException(status_code=503, detail="邮箱服务连接失败，请稍后重试")
         except Exception as e:
-            logger.error(f"获取邮件失败 {self.email}: {e}")
+            logger.error("获取邮件失败 %s: %s", self.email, e)
             raise HTTPException(status_code=500, detail="Failed to retrieve emails")
 
     async def get_messages_since_uid(
@@ -335,8 +333,6 @@ class IMAPEmailClient:
         - 仅在缓存已有数据且需要刷新时使用
         - 返回“新邮件列表”（最新在前）；调用方可再从缓存读取组合结果
         """
-        import time
-
         try:
             since_uid_int = int(since_uid or 0)
         except (TypeError, ValueError):
@@ -401,15 +397,15 @@ class IMAPEmailClient:
             logger.warning("增量获取邮件操作被取消 (%s)", self.email)
             raise
         except IMAPAuthenticationError as e:
-            logger.error(f"认证失败 {self.email}: {e}")
+            logger.error("认证失败 %s: %s", self.email, e)
             raise HTTPException(status_code=401, detail="邮箱认证失败，请检查账户凭证")
         except IMAPConnectionError as e:
-            logger.error(f"连接失败 {self.email}: {e}")
+            logger.error("连接失败 %s: %s", self.email, e)
             raise HTTPException(status_code=503, detail="邮箱服务连接失败，请稍后重试")
         except Exception as e:
-            logger.error(f"增量获取邮件失败 {self.email}: {e}")
+            logger.error("增量获取邮件失败 %s: %s", self.email, e)
             raise HTTPException(status_code=500, detail="Failed to retrieve emails")
 
     async def cleanup(self):
         """清理资源"""
-        logger.debug(f"IMAPEmailClient清理完成 ({self.email})")
+        logger.debug("IMAPEmailClient清理完成 (%s)", self.email)

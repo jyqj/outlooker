@@ -33,118 +33,100 @@ const renderWithQueryClient = (ui: React.ReactElement) => {
 };
 
 describe('SystemOverview', () => {
+  const apiGet = api.get as unknown as ReturnType<typeof vi.fn>;
+  const apiPost = api.post as unknown as ReturnType<typeof vi.fn>;
+
   beforeEach(() => {
     vi.clearAllMocks();
+
+    apiGet.mockImplementation((url: string) => {
+      if (url === '/api/system/config') {
+        return Promise.resolve({
+          data: { success: true, data: { email_limit: 5 } },
+        });
+      }
+      if (url === '/api/system/metrics') {
+        return Promise.resolve({
+          data: {
+            success: true,
+            data: {
+              email_manager: {
+                accounts_count: 2,
+                email_cache: { total_messages: 10 },
+              },
+            },
+          },
+        });
+      }
+      return Promise.resolve({ data: { success: true, data: {} } });
+    });
+
+    apiPost.mockResolvedValue({ data: { success: true } });
   });
 
-  it('renders email limit config card', () => {
+  it('renders overview cards', () => {
     renderWithQueryClient(<SystemOverview />);
+    expect(screen.getByText('账户总数')).toBeInTheDocument();
+    expect(screen.getByText('缓存邮件')).toBeInTheDocument();
     expect(screen.getByText('邮件获取限制')).toBeInTheDocument();
   });
 
-  it('renders system metrics card', () => {
+  it('renders metrics values from API', async () => {
     renderWithQueryClient(<SystemOverview />);
-    expect(screen.getByText('系统指标')).toBeInTheDocument();
-  });
-
-  it('displays email limit input', () => {
-    renderWithQueryClient(<SystemOverview />);
-    const input = screen.getByRole('spinbutton');
-    expect(input).toBeInTheDocument();
-  });
-
-  it('displays save button for config', () => {
-    renderWithQueryClient(<SystemOverview />);
-    expect(screen.getByRole('button', { name: '保存' })).toBeInTheDocument();
-  });
-
-  it('displays refresh cache button', () => {
-    renderWithQueryClient(<SystemOverview />);
-    expect(screen.getByRole('button', { name: '刷新缓存' })).toBeInTheDocument();
-  });
-
-  it('displays metrics labels', () => {
-    renderWithQueryClient(<SystemOverview />);
-    
-    expect(screen.getByText('缓存命中')).toBeInTheDocument();
-    expect(screen.getByText('缓存未命中')).toBeInTheDocument();
-    expect(screen.getByText('IMAP 复用')).toBeInTheDocument();
-    expect(screen.getByText('IMAP 创建')).toBeInTheDocument();
-    expect(screen.getByText('缓存命中率')).toBeInTheDocument();
-  });
-
-  it('allows changing email limit value', () => {
-    renderWithQueryClient(<SystemOverview />);
-    
-    const input = screen.getByRole('spinbutton');
-    fireEvent.change(input, { target: { value: '10' } });
-    
-    expect(input).toHaveValue(10);
+    expect(await screen.findByText('2')).toBeInTheDocument();
+    expect(await screen.findByText('10')).toBeInTheDocument();
   });
 
   it('calls API when save button is clicked', async () => {
-    (api.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      data: { success: true },
-    });
-
     renderWithQueryClient(<SystemOverview />);
-    
+
     const input = screen.getByRole('spinbutton');
     fireEvent.change(input, { target: { value: '15' } });
-    
-    const saveButton = screen.getByRole('button', { name: '保存' });
-    fireEvent.click(saveButton);
+
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
 
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith('/api/system/config', { email_limit: 15 });
     });
   });
 
-  it('shows saving state when save is in progress', async () => {
-    (api.post as ReturnType<typeof vi.fn>).mockImplementation(
+  it('shows saving state while saving', () => {
+    apiPost.mockImplementation(
       () => new Promise((resolve) => setTimeout(() => resolve({ data: { success: true } }), 100))
     );
 
     renderWithQueryClient(<SystemOverview />);
-    
-    const saveButton = screen.getByRole('button', { name: '保存' });
-    fireEvent.click(saveButton);
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
 
-    expect(screen.getByText('保存中...')).toBeInTheDocument();
+    // 当前实现使用省略号表示保存中状态
+    expect(screen.getByRole('button', { name: '...' })).toBeInTheDocument();
   });
 
-  it('calls API when refresh cache button is clicked', async () => {
-    (api.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      data: { success: true },
-    });
-
+  it('calls API when cache clear button is clicked', async () => {
     renderWithQueryClient(<SystemOverview />);
-    
-    const refreshButton = screen.getByRole('button', { name: '刷新缓存' });
-    fireEvent.click(refreshButton);
+
+    fireEvent.click(screen.getByRole('button', { name: '清理' }));
 
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith('/api/system/cache/refresh');
     });
   });
 
-  it('shows refreshing state when cache refresh is in progress', async () => {
-    (api.post as ReturnType<typeof vi.fn>).mockImplementation(
+  it('shows refreshing state while clearing cache', () => {
+    apiPost.mockImplementation(
       () => new Promise((resolve) => setTimeout(() => resolve({ data: { success: true } }), 100))
     );
 
     renderWithQueryClient(<SystemOverview />);
-    
-    const refreshButton = screen.getByRole('button', { name: '刷新缓存' });
-    fireEvent.click(refreshButton);
+    fireEvent.click(screen.getByRole('button', { name: '清理' }));
 
-    expect(screen.getByText('刷新中...')).toBeInTheDocument();
+    expect(screen.getByText('清理中')).toBeInTheDocument();
   });
 
-  it('renders with two-column grid layout', () => {
+  it('renders with three-column grid layout on desktop', () => {
     const { container } = renderWithQueryClient(<SystemOverview />);
     const grid = container.querySelector('.grid');
     expect(grid).toHaveClass('grid-cols-1');
-    expect(grid).toHaveClass('md:grid-cols-2');
+    expect(grid).toHaveClass('md:grid-cols-3');
   });
 });

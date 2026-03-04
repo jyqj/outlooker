@@ -41,7 +41,7 @@ describe('ToastContainer', () => {
     });
 
     const toast = screen.getByText('Success message').closest('div');
-    expect(toast).toHaveClass('bg-green-50');
+    expect(toast).toHaveClass('bg-success/10');
   });
 
   it('renders error toast with correct styling', () => {
@@ -52,7 +52,7 @@ describe('ToastContainer', () => {
     });
 
     const toast = screen.getByText('Error message').closest('div');
-    expect(toast).toHaveClass('bg-red-50');
+    expect(toast).toHaveClass('bg-destructive/10');
   });
 
   it('renders warning toast with correct styling', () => {
@@ -63,7 +63,7 @@ describe('ToastContainer', () => {
     });
 
     const toast = screen.getByText('Warning message').closest('div');
-    expect(toast).toHaveClass('bg-yellow-50');
+    expect(toast).toHaveClass('bg-warning/10');
   });
 
   it('renders info toast with correct styling', () => {
@@ -74,7 +74,7 @@ describe('ToastContainer', () => {
     });
 
     const toast = screen.getByText('Info message').closest('div');
-    expect(toast).toHaveClass('bg-blue-50');
+    expect(toast).toHaveClass('bg-info/10');
   });
 
   it('auto-dismisses toast after duration', async () => {
@@ -159,6 +159,6 @@ describe('ToastContainer', () => {
     });
 
     const toast = screen.getByText('Unknown type').closest('div');
-    expect(toast).toHaveClass('bg-blue-50');
+    expect(toast).toHaveClass('bg-info/10');
   });
 });

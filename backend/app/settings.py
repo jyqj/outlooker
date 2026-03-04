@@ -2,15 +2,14 @@
 """
 Application settings powered by pydantic-settings.
 
-配置采用嵌套模型组织，支持分组访问和向后兼容的平坦访问：
-- settings.imap.server / settings.imap_server (向后兼容)
-- settings.cache.email_ttl_seconds / settings.email_cache_ttl_seconds (向后兼容)
-- settings.rate_limit.max_login_attempts / settings.max_login_attempts (向后兼容)
-- settings.email.default_limit / settings.default_email_limit (向后兼容)
+设计说明:
+- 平坦字段 (如 settings.imap_server) 用于环境变量映射，是 pydantic-settings 的要求
+- 嵌套模型 (如 settings.imap.server) 用于分组访问，在 services/constants.py 中使用
+- 新代码推荐使用嵌套模型访问，如 settings.imap.server、settings.rate_limit.max_login_attempts
 """
 
 import logging
-from functools import lru_cache
+from functools import cached_property, lru_cache
 from pathlib import Path
 
 from pydantic import BaseModel, Field, field_validator
@@ -191,7 +190,7 @@ class AppSettings(BaseSettings):
     # 嵌套配置模型访问器（分组访问）
     # ========================================================================
 
-    @property
+    @cached_property
     def imap(self) -> IMAPConfig:
         """IMAP 配置分组"""
         return IMAPConfig(
@@ -206,7 +205,7 @@ class AppSettings(BaseSettings):
             junk_folder=self.junk_folder_name,
         )
 
-    @property
+    @cached_property
     def cache(self) -> CacheConfig:
         """缓存配置分组"""
         return CacheConfig(
@@ -215,7 +214,7 @@ class AppSettings(BaseSettings):
             warmup_concurrency=self.cache_warmup_concurrency,
         )
 
-    @property
+    @cached_property
     def rate_limit(self) -> RateLimitConfig:
         """速率限制配置分组"""
         return RateLimitConfig(
@@ -225,7 +224,7 @@ class AppSettings(BaseSettings):
             public_api_rate_limit=self.public_api_rate_limit,
         )
 
-    @property
+    @cached_property
     def email(self) -> EmailConfig:
         """邮件配置分组"""
         return EmailConfig(
@@ -234,7 +233,7 @@ class AppSettings(BaseSettings):
             min_limit=self.min_email_limit,
         )
 
-    @property
+    @cached_property
     def pagination(self) -> PaginationConfig:
         """分页配置分组"""
         return PaginationConfig(
@@ -242,7 +241,7 @@ class AppSettings(BaseSettings):
             max_page_size=self.max_page_size,
         )
 
-    @property
+    @cached_property
     def auth(self) -> AuthConfig:
         """认证配置分组"""
         return AuthConfig(
@@ -250,7 +249,7 @@ class AppSettings(BaseSettings):
             refresh_token_expire_days=self.refresh_token_expire_days,
         )
 
-    @property
+    @cached_property
     def storage(self) -> StorageConfig:
         """存储配置分组"""
         return StorageConfig(

@@ -14,7 +14,6 @@ import { isTagsData } from '@/types/api';
 
 // Dashboard sub-components
 import { 
-  BatchTagModal, 
   SystemOverview, 
   DashboardHeader, 
   DashboardToolbar, 
@@ -31,6 +30,7 @@ import {
 const ImportModal = React.lazy(() => import('@/components/ImportModal'));
 const EmailViewModal = React.lazy(() => import('@/components/email-view').then(m => ({ default: m.EmailViewModal })));
 const TagManageModal = React.lazy(() => import('@/components/TagManageModal'));
+const BatchTagModal = React.lazy(() => import('./dashboard/components/BatchTagModal'));
 
 // Import ConfirmDialog
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -188,20 +188,22 @@ export default function AdminDashboardPage() {
             onSuccess={() => queryClient.invalidateQueries({ queryKey: queryKeys.tags() })}
           />
         )}
-      </Suspense>
 
-      {/* Batch Tag Modal */}
-      <BatchTagModal
-        isOpen={batchOps.batchTagModal.isOpen}
-        mode={batchOps.batchTagModal.mode}
-        selectedCount={selection.selectedCount}
-        batchTags={batchOps.batchTags}
-        loading={batchOps.batchLoading}
-        onTagsChange={batchOps.setBatchTags}
-        onModeChange={batchOps.setTagMode}
-        onSubmit={batchOps.handleBatchTagSubmit}
-        onClose={batchOps.closeBatchTagModal}
-      />
+        {/* Batch Tag Modal */}
+        {batchOps.batchTagModal.isOpen && (
+          <BatchTagModal
+            isOpen={batchOps.batchTagModal.isOpen}
+            mode={batchOps.batchTagModal.mode}
+            selectedCount={selection.selectedCount}
+            batchTags={batchOps.batchTags}
+            loading={batchOps.batchLoading}
+            onTagsChange={batchOps.setBatchTags}
+            onModeChange={batchOps.setTagMode}
+            onSubmit={batchOps.handleBatchTagSubmit}
+            onClose={batchOps.closeBatchTagModal}
+          />
+        )}
+      </Suspense>
 
       {/* Delete Confirm Dialog */}
       <ConfirmDialog

@@ -32,7 +32,7 @@ export function AccountTableRow({
       <td className="px-4 py-4" role="gridcell">
         <button
           onClick={() => onToggleSelect(account.email)}
-          className="p-1 hover:bg-muted-foreground/10 rounded focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+          className="p-1 hover:bg-muted-foreground/10 rounded transition-all duration-150 active:scale-[var(--scale-click-icon)] focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
           aria-label={isSelected ? `取消选择 ${account.email}` : `选择 ${account.email}`}
           aria-pressed={isSelected}
           type="button"
@@ -78,12 +78,12 @@ export function AccountTableRow({
         </div>
       </td>
       <td className="px-4 py-4 text-right" role="gridcell">
-        <div className="flex gap-2 justify-end" role="group" aria-label="账户操作">
+        <div className="flex gap-1 md:gap-2 justify-end" role="group" aria-label="账户操作">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => onViewEmails(account.email)}
-            className="h-8 w-8 text-muted-foreground hover:text-primary"
+            className="h-10 w-10 md:h-8 md:w-8 text-muted-foreground hover:text-primary"
             title="查看邮件"
             aria-label={`查看 ${account.email} 的邮件`}
           >
@@ -92,7 +92,7 @@ export function AccountTableRow({
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-green-600"
+            className="h-10 w-10 md:h-8 md:w-8 text-muted-foreground hover:text-green-600"
             title="管理标签"
             aria-label={`管理 ${account.email} 的标签`}
             onClick={() => onManageTags(account.email)}

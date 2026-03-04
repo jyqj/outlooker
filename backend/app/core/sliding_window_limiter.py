@@ -180,7 +180,7 @@ async def check_public_api_rate_limit(request: Request) -> None:
             resource=str(request.url.path),
             action=request.method,
             success=False,
-            error_message="Rate limit exceeded",
+            error_message="请求过于频繁",
         )
         
         raise HTTPException(

@@ -25,7 +25,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root / "backend"))
 
-from app.database import db_manager
+from app.db import db_manager
 from app.security import encrypt_if_needed, is_encrypted
 
 async def migrate_accounts():

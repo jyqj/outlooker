@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mail, RefreshCw } from 'lucide-react';
+import { Mail, RefreshCw, ArrowLeft } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { extractCodeFromMessage } from '@/lib/utils';
@@ -33,6 +33,8 @@ export default function EmailViewModal({
   const [deleteId, setDeleteId] = React.useState<string | null>(null);
   const [selectedMessageId, setSelectedMessageId] = React.useState<string | null>(null);
   const [page, setPage] = React.useState(1);
+  // 移动端视图状态：'list' 显示邮件列表，'detail' 显示邮件详情
+  const [mobileView, setMobileView] = React.useState<'list' | 'detail'>('list');
 
   // 模态框关闭时重置状态
   React.useEffect(() => {
@@ -41,6 +43,7 @@ export default function EmailViewModal({
       setDeleteId(null);
       setSelectedMessageId(null);
       setPage(1);
+      setMobileView('list');
     }
   }, [isOpen, email]);
 
@@ -81,14 +84,14 @@ export default function EmailViewModal({
     pageSize: PAGE_SIZE,
   });
 
-  // 解析响应数据
+  // 解析响应数据（API 可能返回 Email[] 或 MessagesData）
   const payload = data?.data;
+  const isMessagesData = (v: unknown): v is MessagesData =>
+    !!v && typeof v === 'object' && !Array.isArray(v);
   const messages: Email[] = Array.isArray(payload)
     ? payload
-    : (payload as MessagesData)?.items || [];
-  const paginationData = !Array.isArray(payload)
-    ? (payload as MessagesData)?.pagination
-    : null;
+    : isMessagesData(payload) ? payload.items ?? [] : [];
+  const paginationData = isMessagesData(payload) ? payload.pagination ?? null : null;
   const totalPages = paginationData?.total_pages || 1;
 
   // 当前选中的邮件（默认选中第一封）
@@ -144,11 +147,15 @@ export default function EmailViewModal({
         </div>
       </div>
 
-      {/* Content - Two Column Layout */}
+      {/* Content - Two Column Layout (Desktop) / Single Column (Mobile) */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left: Email List */}
+        {/* Left: Email List - 移动端全屏/桌面端固定宽度 */}
         <nav
-          className="w-80 border-r border-border flex flex-col bg-muted/50"
+          className={`
+            md:w-80 md:border-r md:flex md:flex-col md:bg-muted/50
+            ${mobileView === 'list' ? 'w-full flex flex-col bg-muted/50' : 'hidden'}
+            border-border
+          `}
           aria-label="邮件列表"
         >
           <EmailListView
@@ -165,17 +172,37 @@ export default function EmailViewModal({
                   }
                 : { page, totalPages, total: messages.length }
             }
-            onSelectMessage={setSelectedMessageId}
+            onSelectMessage={(id) => {
+              setSelectedMessageId(id);
+              // 移动端选择邮件后切换到详情视图
+              setMobileView('detail');
+            }}
             onPageChange={setPage}
             onRefresh={handleRefresh}
           />
         </nav>
 
-        {/* Right: Email Detail */}
+        {/* Right: Email Detail - 移动端全屏/桌面端自适应 */}
         <main
-          className="flex-1 overflow-y-auto bg-background"
+          className={`
+            md:flex-1 md:block md:overflow-y-auto md:bg-background
+            ${mobileView === 'detail' ? 'flex-1 overflow-y-auto bg-background' : 'hidden'}
+          `}
           aria-label="邮件详情"
         >
+          {/* 移动端返回按钮 */}
+          <div className="md:hidden p-3 border-b bg-muted/50 flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setMobileView('list')}
+              className="gap-1"
+              aria-label="返回邮件列表"
+            >
+              <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+              返回列表
+            </Button>
+          </div>
           {!isLoading && messages.length > 0 && (
             <EmailDetailView
               message={selectedMessage}
@@ -187,7 +214,7 @@ export default function EmailViewModal({
         </main>
       </div>
 
-      {/* 删除确认对话框 */}
+      {/* 删除确认对话框 - 使用 dialogClassName 提升层级以避免被父级 Dialog 遮挡 */}
       <ConfirmDialog
         isOpen={!!deleteId}
         onClose={() => setDeleteId(null)}
@@ -197,6 +224,7 @@ export default function EmailViewModal({
         confirmText="删除缓存"
         variant="danger"
         loading={deleting}
+        dialogClassName="nested-modal"
       />
     </Dialog>
   );

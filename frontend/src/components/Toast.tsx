@@ -75,7 +75,7 @@ const ToastContainer: React.FC = () => {
 
   return (
     <div
-      className="fixed top-16 right-4 z-50 flex flex-col gap-2 pointer-events-none"
+      className="fixed top-16 left-4 right-4 md:left-auto md:right-4 md:w-auto md:max-w-md z-[400] flex flex-col gap-2 pointer-events-none"
       role="status"
       aria-live="polite"
     >
@@ -123,7 +123,7 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onClose }) => {
   return (
     <div
       className={cn(
-        "border rounded-lg shadow-lg p-4 min-w-80 max-w-md",
+        "border rounded-lg shadow-lg p-4 w-full md:min-w-80 md:w-auto md:max-w-md",
         "flex items-start gap-3 pointer-events-auto",
         "animate-in slide-in-from-right-full duration-300",
         variant
@@ -133,7 +133,7 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onClose }) => {
       <p className="flex-1 text-sm font-medium">{message}</p>
       <button
         onClick={onClose}
-        className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+        className="rounded p-1 text-muted-foreground transition-all duration-150 hover:bg-muted-foreground/10 hover:text-foreground active:scale-[var(--scale-click-icon)] flex-shrink-0"
         aria-label="关闭"
       >
         <X className="w-4 h-4" />

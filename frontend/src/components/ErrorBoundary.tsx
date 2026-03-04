@@ -43,7 +43,7 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
           <button
             type="button"
             onClick={this.handleRetry}
-            className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition"
+            className="px-4 py-2 rounded-md bg-primary text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-[var(--scale-click)] focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
           >
             重新加载
           </button>

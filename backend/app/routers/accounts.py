@@ -1,32 +1,36 @@
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from fastapi.responses import PlainTextResponse
 
+from ..core.decorators import handle_exceptions
+from ..core.exceptions import DatabaseError, DuplicateEntryError, ResourceNotFoundError, ValidationError
 from ..dependencies import AdminUser
 from ..models import (
     AccountCredentials,
     AccountTagRequest,
     ApiResponse,
+    BatchDeleteRequest,
+    BatchTagsRequest,
     ImportRequest,
     ParseImportTextRequest,
+    PickAccountRequest,
     create_paginated_response,
 )
-from ..settings import get_settings
-
-logger = logging.getLogger(__name__)
-from ..core.decorators import handle_exceptions
-from ..core.exceptions import DatabaseError, DuplicateEntryError, ResourceNotFoundError, ValidationError
 from ..services import db_manager, email_manager, imap_pool, load_accounts_config, merge_accounts_data_to_db, parse_account_line
+from ..settings import get_settings
 from ..utils.pagination import paginate_items
 from ..utils.validation import validate_tags
+
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
 router = APIRouter(tags=["账户管理"])
 DEFAULT_ACCOUNT_PAGE_SIZE = 10
 MAX_ACCOUNT_PAGE_SIZE = 100
+MAX_BATCH_SIZE = 100
 
 
 def _mask_secret(value: str) -> str:
@@ -122,47 +126,20 @@ async def get_tag_statistics(admin: AdminUser) -> ApiResponse:
 @handle_exceptions("随机取号")
 async def pick_random_account(
     admin: AdminUser,
-    request: dict[str, str | list[str] | bool],
+    request: PickAccountRequest,
 ) -> ApiResponse:
-    """随机取号：获取一个没有指定标签的账户并自动打标签
-    
-    请求体:
-    {
-        "tag": "注册-Apple",           // 必填：要打的标签
-        "exclude_tags": ["黑名单"],    // 可选：排除有这些标签的账户
-        "return_credentials": false    // 可选：是否返回凭证信息
-    }
-    
-    返回:
-    {
-        "success": true,
-        "data": {
-            "email": "user@example.com",
-            "tags": ["注册-Apple"],
-            "password": "***",           // 仅当 return_credentials=true
-            "refresh_token": "***"       // 仅当 return_credentials=true
-        }
-    }
-    """
-    # 解析请求参数
-    tag = request.get("tag")
-    if not tag or not isinstance(tag, str) or not tag.strip():
+    """随机取号：获取一个没有指定标签的账户并自动打标签"""
+    tag = request.tag.strip()
+    if not tag:
         raise ValidationError(message="请提供要打的标签", field="tag")
 
-    tag = tag.strip()
-    validate_tags([tag])  # 校验标签格式
+    validate_tags([tag])
 
-    exclude_tags_raw = request.get("exclude_tags", [])
-    exclude_tags: list[str] = []
-    if isinstance(exclude_tags_raw, list):
-        exclude_tags = [str(t).strip() for t in exclude_tags_raw if str(t).strip()]
-    elif isinstance(exclude_tags_raw, str) and exclude_tags_raw.strip():
-        exclude_tags = [exclude_tags_raw.strip()]
-
+    exclude_tags = [t.strip() for t in request.exclude_tags if t.strip()]
     if exclude_tags:
-        validate_tags(exclude_tags)  # 校验排除标签格式
+        validate_tags(exclude_tags)
 
-    return_credentials = bool(request.get("return_credentials", False))
+    return_credentials = request.return_credentials
 
     # 随机获取一个符合条件的账户
     account = await db_manager.get_random_account_without_tag(tag, exclude_tags)
@@ -193,7 +170,7 @@ async def pick_random_account(
         response_data["refresh_token"] = account.get("refresh_token", "")
         response_data["client_id"] = account.get("client_id", "")
 
-    logger.info(f"随机取号成功: {email}, 标签: {tag}")
+    logger.info("随机取号成功: %s, 标签: %s", email, tag)
 
     return ApiResponse(
         success=True,
@@ -240,69 +217,31 @@ async def set_account_tags(
     raise DatabaseError(message="保存标签失败")
 
 @router.post("/api/import")
+@handle_exceptions("批量导入账户")
 async def import_accounts_dict(admin: AdminUser, request: ImportRequest) -> ApiResponse:
-    """批量导入邮箱账户（需要管理员认证）
+    """批量导入邮箱账户（需要管理员认证）"""
+    logger.info("收到导入请求，账户数量: %s, 合并模式: %s", len(request.accounts), request.merge_mode)
 
-    使用 Pydantic 模型验证请求数据,确保数据格式正确
+    accounts = request.accounts
+    merge_mode = request.merge_mode
 
-    请求体:
-    {
-        "accounts": [
-            {
-                "email": "user@example.com",
-                "password": "optional",
-                "client_id": "optional",
-                "refresh_token": "required"
-            }
-        ],
-        "merge_mode": "update"  // "update", "skip", "replace"
-    }
-    """
-    try:
+    result = await merge_accounts_data_to_db(accounts, merge_mode)
 
-        logger.info(f"收到导入请求，账户数量: {len(request.accounts)}, 合并模式: {request.merge_mode}")
+    if result.success and (result.added_count > 0 or result.updated_count > 0):
+        await email_manager.invalidate_accounts_cache()
 
-        # Pydantic 已经验证了数据格式,直接使用
-        accounts = request.accounts
-        merge_mode = request.merge_mode
-
-        # 直接合并到数据库
-        result = await merge_accounts_data_to_db(accounts, merge_mode)
-
-        # 清除账户缓存以便重新加载
-        if result.success and (result.added_count > 0 or result.updated_count > 0):
-            await email_manager.invalidate_accounts_cache()
-
-        return ApiResponse(
-            success=result.success,
-            message=result.message,
-            data={
-                "total_count": result.total_count,
-                "added_count": result.added_count,
-                "updated_count": result.updated_count,
-                "skipped_count": result.skipped_count,
-                "error_count": result.error_count,
-                "details": result.details,
-            }
-        )
-
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        logger.exception(f"导入账户失败: {e}")
-        return ApiResponse(
-            success=False,
-            message="导入失败，请检查数据格式或稍后重试",
-            error_code="IMPORT_FAILED",
-            data={
-                "total_count": len(request.accounts),
-                "added_count": 0,
-                "updated_count": 0,
-                "skipped_count": 0,
-                "error_count": len(request.accounts),
-                "details": [{"action": "error", "message": "系统错误，请联系管理员"}],
-            }
-        )
+    return ApiResponse(
+        success=result.success,
+        message=result.message,
+        data={
+            "total_count": result.total_count,
+            "added_count": result.added_count,
+            "updated_count": result.updated_count,
+            "skipped_count": result.skipped_count,
+            "error_count": result.error_count,
+            "details": result.details,
+        }
+    )
 
 @router.post("/api/parse-import-text")
 @handle_exceptions("解析导入文本")
@@ -363,46 +302,40 @@ async def parse_import_text(admin: AdminUser, request: ParseImportTextRequest) -
         )
 
 @router.get("/api/export")
+@handle_exceptions("导出账户配置")
 async def export_accounts_public(admin: AdminUser, format: str = "txt"):
     """导出账户配置（需要管理员认证）"""
-    try:
+    accounts = await load_accounts_config()
 
-        accounts = await load_accounts_config()
+    if not accounts:
+        raise ResourceNotFoundError("暂无账户数据", resource_type="accounts")
 
-        if not accounts:
-            raise ResourceNotFoundError("暂无账户数据", resource_type="accounts")
+    export_lines = [
+        "# Outlook邮件系统账号配置文件",
+        f"# 导出时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        "# 格式: 邮箱----密码----refresh_token----client_id",
+        "# 注意：请妥善保管此文件，包含敏感信息",
+        "",
+    ]
 
-        export_lines = []
-        export_lines.append("# Outlook邮件系统账号配置文件")
-        export_lines.append(f"# 导出时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        export_lines.append("# 格式: 邮箱----密码----refresh_token----client_id")
-        export_lines.append("# 注意：请妥善保管此文件，包含敏感信息")
-        export_lines.append("")
+    for email, account_info in accounts.items():
+        password = account_info.get('password', '')
+        refresh_token = account_info.get('refresh_token', '')
+        client_id = account_info.get('client_id', settings.client_id)
+        export_lines.append(f"{email}----{password}----{refresh_token}----{client_id}")
 
-        for email, account_info in accounts.items():
-            password = account_info.get('password', '')
-            refresh_token = account_info.get('refresh_token', '')
-            client_id = account_info.get('client_id', settings.client_id)
-            line = f"{email}----{password}----{refresh_token}----{client_id}"
-            export_lines.append(line)
+    export_content = "\n".join(export_lines)
+    filename = f"outlook_accounts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
 
-        export_content = "\n".join(export_lines)
-        filename = f"outlook_accounts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-
-        return PlainTextResponse(
-            content=export_content,
-            headers={
-                "Content-Disposition": f"attachment; filename={filename}",
-                "Content-Type": "text/plain; charset=utf-8"
-            }
-        )
-
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        logger.exception(f"导出账户配置失败: {e}")
-        raise ResourceNotFoundError("导出失败")
+    return PlainTextResponse(
+        content=export_content,
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}",
+            "Content-Type": "text/plain; charset=utf-8"
+        }
+    )
 @router.post("/api/accounts", tags=["账户管理"])
+@handle_exceptions("创建账户")
 async def create_account(
     admin: AdminUser,
     request: AccountCredentials,
@@ -423,6 +356,7 @@ async def create_account(
 
 
 @router.put("/api/accounts/{email}", tags=["账户管理"])
+@handle_exceptions("更新账户")
 async def update_account(
     email: str,
     admin: AdminUser,
@@ -446,6 +380,7 @@ async def update_account(
 
 
 @router.delete("/api/accounts/{email}", tags=["账户管理"])
+@handle_exceptions("删除账户")
 async def delete_account(
     email: str,
     admin: AdminUser,
@@ -476,28 +411,23 @@ async def delete_account(
 
 
 @router.post("/api/accounts/batch-delete", tags=["批量操作"])
+@handle_exceptions("批量删除账户")
 async def batch_delete_accounts(
     admin: AdminUser,
-    request: dict[str, list[str] | bool],
+    request: BatchDeleteRequest,
 ) -> ApiResponse:
-    """批量删除账户
-
-    请求体:
-    {
-        "emails": ["email1@example.com", "email2@example.com"],
-        "soft": false  // 可选，默认物理删除
-    }
-    """
-    MAX_BATCH_SIZE = 100
-
-    emails = request.get("emails", [])
-    if not emails or not isinstance(emails, list):
-        return ApiResponse(success=False, message="请提供要删除的账户列表")
+    """批量删除账户"""
+    emails = [e.strip() for e in request.emails if e.strip()]
+    if not emails:
+        raise ValidationError(message="请提供要删除的账户列表", field="emails")
 
     if len(emails) > MAX_BATCH_SIZE:
-        return ApiResponse(success=False, message=f"批量操作最多支持 {MAX_BATCH_SIZE} 条记录，当前 {len(emails)} 条")
+        raise ValidationError(
+            message=f"批量操作最多支持 {MAX_BATCH_SIZE} 条记录，当前 {len(emails)} 条",
+            field="emails",
+        )
 
-    soft_delete = bool(request.get("soft", False))
+    soft_delete = request.soft
 
     if soft_delete:
         # 批量软删除
@@ -527,43 +457,23 @@ async def batch_delete_accounts(
 
 
 @router.post("/api/accounts/batch-tags", tags=["批量操作"])
+@handle_exceptions("批量更新标签")
 async def batch_update_tags(
     admin: AdminUser,
-    request: dict[str, list[str] | str],
+    request: BatchTagsRequest,
 ) -> ApiResponse:
-    """批量更新账户标签
-
-    请求体:
-    {
-        "emails": ["email1@example.com", "email2@example.com"],
-        "tags": ["tag1", "tag2"],
-        "mode": "add" | "remove" | "set"
-    }
-    """
-    MAX_BATCH_SIZE = 100
-
-    emails_raw = request.get("emails", [])
-    tags_raw = request.get("tags", [])
-    mode_raw = request.get("mode", "add")
-
-    emails: list[str] = []
-    if isinstance(emails_raw, list):
-        emails = [str(e).strip() for e in emails_raw if str(e).strip()]
-    elif isinstance(emails_raw, str):
-        emails = [emails_raw.strip()] if emails_raw.strip() else []
-
-    tags: list[str] = []
-    if isinstance(tags_raw, list):
-        tags = [str(t).strip() for t in tags_raw if str(t).strip()]
-    elif isinstance(tags_raw, str):
-        tags = [tags_raw.strip()] if tags_raw.strip() else []
-
-    mode = mode_raw if isinstance(mode_raw, str) else str(mode_raw)
+    """批量更新账户标签"""
+    emails = [e.strip() for e in request.emails if e.strip()]
+    tags: list[str] = [t.strip() for t in request.tags if t.strip()]
+    mode = request.mode
 
     if not emails:
         raise ValidationError(message="请提供要操作的账户列表", field="emails")
     if len(emails) > MAX_BATCH_SIZE:
-        return ApiResponse(success=False, message=f"批量操作最多支持 {MAX_BATCH_SIZE} 条记录，当前 {len(emails)} 条")
+        raise ValidationError(
+            message=f"批量操作最多支持 {MAX_BATCH_SIZE} 条记录，当前 {len(emails)} 条",
+            field="emails",
+        )
     if mode not in ("add", "remove", "set"):
         raise ValidationError(message="无效的操作模式，支持: add, remove, set", field="mode")
 
@@ -589,6 +499,7 @@ async def batch_update_tags(
 
 
 @router.get("/api/accounts/{email}", tags=["账户管理"])
+@handle_exceptions("获取账户详情")
 async def get_account_detail(
     email: str,
     admin: AdminUser,

@@ -47,7 +47,7 @@ export function VerificationSearchForm({
                 <button
                   type="button"
                   onClick={() => onEmailChange('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-full p-0.5 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground transition-all duration-150 hover:bg-muted-foreground/10 hover:text-foreground active:scale-[var(--scale-click-icon)] active:bg-muted-foreground/20 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
                   aria-label="清除输入内容"
                 >
                   <X className="w-4 h-4" />
