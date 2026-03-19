@@ -4,7 +4,7 @@ Audit logging system for tracking security-relevant events.
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
@@ -23,7 +23,7 @@ class AuditEventType(str, Enum):
     LOGOUT = "logout"
     TOKEN_REFRESH = "token_refresh"
     TOKEN_REVOKED = "token_revoked"
-    
+
     # 账户管理
     ACCOUNT_CREATED = "account_created"
     ACCOUNT_UPDATED = "account_updated"
@@ -31,16 +31,16 @@ class AuditEventType(str, Enum):
     ACCOUNT_RESTORED = "account_restored"
     ACCOUNT_IMPORT = "account_import"
     ACCOUNT_EXPORT = "account_export"
-    
+
     # 标签管理
     TAG_CREATED = "tag_created"
     TAG_DELETED = "tag_deleted"
     TAG_RENAMED = "tag_renamed"
     BATCH_TAG_UPDATE = "batch_tag_update"
-    
+
     # 系统配置
     CONFIG_CHANGED = "config_changed"
-    
+
     # API 访问
     PUBLIC_API_ACCESS = "public_api_access"
     RATE_LIMIT_EXCEEDED = "rate_limit_exceeded"
@@ -62,11 +62,11 @@ class AuditEvent(BaseModel):
 
 class AuditLogger:
     """审计日志记录器"""
-    
+
     def __init__(self, db_manager=None):
         self._db_manager = db_manager
         self._logger = logging.getLogger("audit")
-    
+
     async def log(
         self,
         event_type: AuditEventType,
@@ -83,7 +83,7 @@ class AuditLogger:
         """记录审计事件"""
         event = AuditEvent(
             event_type=event_type,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             user_id=user_id,
             ip_address=ip_address,
             user_agent=user_agent,
@@ -93,7 +93,7 @@ class AuditLogger:
             success=success,
             error_message=error_message,
         )
-        
+
         # 记录到日志
         log_level = logging.INFO if success else logging.WARNING
         self._logger.log(
@@ -105,14 +105,14 @@ class AuditLogger:
             resource or "-",
             success,
         )
-        
+
         # 存储到数据库
         if self._db_manager:
             try:
                 await self._db_manager.store_audit_event(event.model_dump())
             except Exception as e:
                 logger.error(f"存储审计事件失败: {e}")
-    
+
     async def log_login(
         self,
         ip_address: str,
@@ -133,7 +133,7 @@ class AuditLogger:
             success=success,
             error_message=reason if not success else None,
         )
-    
+
     async def log_api_access(
         self,
         ip_address: str,
@@ -153,7 +153,7 @@ class AuditLogger:
             success=success,
             error_message=error_message,
         )
-    
+
     async def log_account_operation(
         self,
         event_type: AuditEventType,
@@ -167,7 +167,7 @@ class AuditLogger:
         masked_emails = [mask_email(e) for e in emails[:5]]
         if len(emails) > 5:
             masked_emails.append("...")
-        
+
         await self.log(
             event_type,
             user_id=user_id,

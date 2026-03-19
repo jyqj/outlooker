@@ -5,18 +5,18 @@
 提供可复用的测试数据生成和辅助函数
 """
 
-from typing import Dict, Any, List, Optional
-from datetime import datetime
 import uuid
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 
 def create_test_account(
-    email: Optional[str] = None,
+    email: str | None = None,
     password: str = "test_password",
     client_id: str = "test_client_id",
-    refresh_token: Optional[str] = None,
+    refresh_token: str | None = None,
     **overrides: Any
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """创建测试账户数据
     
     Args:
@@ -33,7 +33,7 @@ def create_test_account(
         email = f"test_{uuid.uuid4().hex[:8]}@example.com"
     if refresh_token is None:
         refresh_token = f"refresh_token_{uuid.uuid4().hex}"
-    
+
     return {
         "email": email,
         "password": password,
@@ -44,15 +44,15 @@ def create_test_account(
 
 
 def create_test_email_message(
-    message_id: Optional[str] = None,
+    message_id: str | None = None,
     subject: str = "Test Subject",
     sender_email: str = "sender@example.com",
     sender_name: str = "Test Sender",
     body_content: str = "Test body content",
     body_type: str = "text",
-    received_datetime: Optional[str] = None,
+    received_datetime: str | None = None,
     **overrides: Any
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """创建测试邮件消息数据
     
     Args:
@@ -72,7 +72,7 @@ def create_test_email_message(
         message_id = str(uuid.uuid4())
     if received_datetime is None:
         received_datetime = datetime.utcnow().isoformat() + "Z"
-    
+
     return {
         "id": message_id,
         "subject": subject,
@@ -92,7 +92,7 @@ def create_test_email_message(
     }
 
 
-def create_test_tag_list(count: int = 3, prefix: str = "tag") -> List[str]:
+def create_test_tag_list(count: int = 3, prefix: str = "tag") -> list[str]:
     """创建测试标签列表
     
     Args:
@@ -108,7 +108,7 @@ def create_test_tag_list(count: int = 3, prefix: str = "tag") -> List[str]:
 def create_test_import_data(
     count: int = 3,
     merge_mode: str = "update"
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """创建测试导入数据
     
     Args:
@@ -126,20 +126,20 @@ def create_test_import_data(
 
 class MockIMAPClient:
     """模拟 IMAP 客户端用于测试"""
-    
-    def __init__(self, messages: Optional[List[Dict]] = None):
+
+    def __init__(self, messages: list[dict] | None = None):
         self.messages = messages or []
         self.connected = False
         self.selected_folder = None
-    
+
     async def get_messages_with_content(
         self,
         folder_id: str = "INBOX",
         top: int = 5
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """模拟获取邮件"""
         return self.messages[:top]
-    
+
     async def cleanup(self) -> None:
         """模拟清理"""
         self.connected = False

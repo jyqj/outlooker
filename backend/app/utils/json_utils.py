@@ -46,7 +46,7 @@ def safe_json_loads(
     """
     if not value:
         return default
-        
+
     try:
         result = json.loads(value)
         # 类型检查：确保返回类型与 default 一致

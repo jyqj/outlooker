@@ -27,7 +27,7 @@ def setup_structured_logging() -> None:
     """配置结构化日志"""
     settings = get_settings()
     log_level = getattr(logging, settings.log_level.upper(), logging.INFO)
-    
+
     # 根据环境选择渲染器
     if settings.is_production:
         # 生产环境：JSON 格式
@@ -35,7 +35,7 @@ def setup_structured_logging() -> None:
     else:
         # 开发环境：彩色控制台
         renderer = structlog.dev.ConsoleRenderer(colors=True)
-    
+
     # 配置 structlog
     structlog.configure(
         processors=[
@@ -63,14 +63,14 @@ def setup_structured_logging() -> None:
         logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,
     )
-    
+
     # 配置标准库 logging
     logging.basicConfig(
         format="%(message)s",
         stream=sys.stdout,
         level=log_level,
     )
-    
+
     # 降低第三方库的日志级别
     for lib in ["httpx", "httpcore", "urllib3", "asyncio"]:
         logging.getLogger(lib).setLevel(logging.WARNING)
@@ -83,10 +83,10 @@ def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
 
 class RequestLogger:
     """请求日志记录器"""
-    
+
     def __init__(self):
         self.logger = get_logger("request")
-    
+
     def log_request(
         self,
         method: str,
@@ -105,13 +105,13 @@ class RequestLogger:
             "duration_ms": round(duration_ms, 2),
             "client_ip": client_ip,
         }
-        
+
         if user_id:
             log_data["user_id"] = user_id
-        
+
         if extra:
             log_data.update(extra)
-        
+
         # 根据状态码选择日志级别
         if status_code >= 500:
             self.logger.error("request_error", **log_data)

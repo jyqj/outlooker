@@ -7,7 +7,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from ..auth.security import decrypt_if_needed
@@ -71,7 +71,7 @@ class AccountCacheService:
 
             self._cache = accounts
             self._metrics["cache_refreshes"] += 1
-            self._metrics["last_refresh_at"] = datetime.now(timezone.utc).isoformat()
+            self._metrics["last_refresh_at"] = datetime.now(UTC).isoformat()
 
             return copy.deepcopy(accounts)
 

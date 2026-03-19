@@ -20,7 +20,7 @@ def setup_app() -> None:
     """
     # 初始化结构化日志
     setup_structured_logging()
-    
+
     # 获取结构化日志器
     struct_logger = get_logger("startup")
     struct_logger.info("structured_logging_initialized", message="结构化日志初始化完成")

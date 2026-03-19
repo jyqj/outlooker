@@ -5,7 +5,6 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from ..auth.jwt import (
     decode_access_token,
 )
-from ..core.decorators import handle_exceptions
 from ..core.exceptions import (
     AccountLockedError,
     AuthenticationError,

@@ -8,9 +8,9 @@
 import pytest
 
 from app.utils.pagination import (
+    filter_messages_by_search,
     normalize_email,
     paginate_items,
-    filter_messages_by_search,
 )
 
 
@@ -81,11 +81,11 @@ class TestPaginateItems:
     def test_paginate_invalid_page(self):
         """测试无效页码（0 或负数）"""
         items = list(range(10))
-        
+
         # 页码 0 应该被修正为 1
         result, total = paginate_items(items, page=0, page_size=5)
         assert result == list(range(5))
-        
+
         # 负数页码也应该被修正为 1
         result, total = paginate_items(items, page=-1, page_size=5)
         assert result == list(range(5))
@@ -93,7 +93,7 @@ class TestPaginateItems:
     def test_paginate_invalid_page_size(self):
         """测试无效每页数量"""
         items = list(range(10))
-        
+
         # page_size 0 应该被修正为 1
         result, total = paginate_items(items, page=1, page_size=0)
         assert result == [0]
@@ -143,53 +143,53 @@ class TestFilterMessagesBySearch:
     def test_filter_by_subject(self, sample_messages):
         """测试按主题搜索"""
         result = filter_messages_by_search(sample_messages, "Meeting")
-        
+
         assert len(result) == 1
         assert result[0]["subject"] == "Meeting Tomorrow"
 
     def test_filter_by_sender(self, sample_messages):
         """测试按发件人搜索"""
         result = filter_messages_by_search(sample_messages, "alice")
-        
+
         assert len(result) == 1
         assert "alice" in result[0]["from"]["emailAddress"]["address"]
 
     def test_filter_by_body_preview(self, sample_messages):
         """测试按正文预览搜索"""
         result = filter_messages_by_search(sample_messages, "invoice")
-        
+
         assert len(result) == 1
         assert "Invoice" in result[0]["subject"]
 
     def test_filter_case_insensitive(self, sample_messages):
         """测试大小写不敏感搜索"""
         result = filter_messages_by_search(sample_messages, "MEETING")
-        
+
         assert len(result) == 1
         assert result[0]["subject"] == "Meeting Tomorrow"
 
     def test_filter_no_match(self, sample_messages):
         """测试无匹配结果"""
         result = filter_messages_by_search(sample_messages, "nonexistent")
-        
+
         assert len(result) == 0
 
     def test_filter_empty_search(self, sample_messages):
         """测试空搜索词返回所有结果"""
         result = filter_messages_by_search(sample_messages, "")
-        
+
         assert len(result) == 3
 
     def test_filter_none_search(self, sample_messages):
         """测试 None 搜索词返回所有结果"""
         result = filter_messages_by_search(sample_messages, None)
-        
+
         assert len(result) == 3
 
     def test_filter_partial_match(self, sample_messages):
         """测试部分匹配"""
         result = filter_messages_by_search(sample_messages, "example.com")
-        
+
         assert len(result) == 2  # alice 和 bob 都是 example.com
 
     def test_filter_missing_fields(self):
@@ -198,7 +198,7 @@ class TestFilterMessagesBySearch:
             {"subject": "Test"},  # 缺少 from 和 bodyPreview
             {},  # 空邮件
         ]
-        
+
         # 不应该崩溃
         result = filter_messages_by_search(messages, "Test")
         assert len(result) == 1

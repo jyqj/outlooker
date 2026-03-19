@@ -11,9 +11,9 @@ from .utils.request_utils import get_client_ip
 
 if TYPE_CHECKING:
     from .db.manager import DatabaseManager
+    from .services.account_cache_service import AccountCacheService
     from .services.email_service import EmailManager
     from .services.imap_client_pool import IMAPClientPool
-    from .services.account_cache_service import AccountCacheService
 
 settings = get_settings()
 
@@ -26,7 +26,7 @@ settings = get_settings()
 
 
 @lru_cache
-def get_db_manager() -> "DatabaseManager":
+def get_db_manager() -> DatabaseManager:
     """获取数据库管理器实例
     
     使用 lru_cache 确保单例模式，同时支持测试时清除缓存替换实例。
@@ -36,21 +36,21 @@ def get_db_manager() -> "DatabaseManager":
 
 
 @lru_cache
-def get_email_manager() -> "EmailManager":
+def get_email_manager() -> EmailManager:
     """获取邮件管理器实例"""
     from .services import email_manager
     return email_manager
 
 
 @lru_cache
-def get_imap_pool() -> "IMAPClientPool":
+def get_imap_pool() -> IMAPClientPool:
     """获取 IMAP 连接池实例"""
     from .services import imap_pool
     return imap_pool
 
 
 @lru_cache
-def get_account_cache() -> "AccountCacheService":
+def get_account_cache() -> AccountCacheService:
     """获取账户缓存服务实例"""
     from .services import account_cache
     return account_cache

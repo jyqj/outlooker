@@ -5,16 +5,17 @@ IMAP 解析器单元测试
 测试 imap_parser 模块中的邮件解析功能
 """
 
-import pytest
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from unittest.mock import Mock, MagicMock
+from email.mime.text import MIMEText
+from unittest.mock import MagicMock, Mock
+
+import pytest
 
 from app.imap_parser import (
-    decode_header_value,
-    parse_email_header,
-    parse_email_body,
     build_message_dict,
+    decode_header_value,
+    parse_email_body,
+    parse_email_header,
 )
 
 

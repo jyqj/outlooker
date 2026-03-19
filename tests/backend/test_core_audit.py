@@ -1,13 +1,14 @@
 """Tests for audit logging."""
 
+from datetime import UTC, datetime, timezone
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
-from datetime import datetime, timezone
 
 from app.core.audit import (
-    AuditLogger,
     AuditEvent,
     AuditEventType,
+    AuditLogger,
     audit_logger,
     init_audit_logger,
 )
@@ -40,7 +41,7 @@ class TestAuditEvent:
         """测试事件创建"""
         event = AuditEvent(
             event_type=AuditEventType.LOGIN_SUCCESS,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             user_id="admin",
             ip_address="192.168.1.1",
         )
@@ -53,7 +54,7 @@ class TestAuditEvent:
         """测试失败事件"""
         event = AuditEvent(
             event_type=AuditEventType.LOGIN_FAILED,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             success=False,
             error_message="密码错误",
         )
@@ -64,7 +65,7 @@ class TestAuditEvent:
         """测试事件序列化"""
         event = AuditEvent(
             event_type=AuditEventType.LOGIN_SUCCESS,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
         data = event.model_dump()
         assert "event_type" in data
@@ -105,7 +106,7 @@ class TestAuditLogger:
             ip_address="192.168.1.1",
             user_id="admin",
         )
-        
+
         # 应该调用数据库存储
         auditor_with_db._db_manager.store_audit_event.assert_called_once()
 
@@ -197,7 +198,7 @@ class TestAuditLogger:
         mock_db = MagicMock()
         mock_db.store_audit_event = AsyncMock(side_effect=Exception("DB Error"))
         auditor = AuditLogger(db_manager=mock_db)
-        
+
         # 不应该抛出异常
         await auditor.log(
             AuditEventType.LOGIN_SUCCESS,
@@ -216,14 +217,14 @@ class TestGlobalAuditLogger:
     def test_init_audit_logger(self):
         """测试初始化审计日志器"""
         mock_db = MagicMock()
-        
+
         # 保存原始值
         from app.core import audit
         original = audit.audit_logger
-        
+
         try:
             init_audit_logger(mock_db)
-            
+
             # 应该创建新的实例
             assert audit.audit_logger._db_manager == mock_db
         finally:
