@@ -141,7 +141,7 @@ class TestCacheWarmupServiceErrors:
     async def test_warmup_continues_on_individual_failure(self):
         """Test that batch warmup continues when individual account fails."""
         from app.services.cache_warmup_service import CacheWarmupService
-        
+
         service = CacheWarmupService()
         emails = ["good@example.com", "bad@example.com", "good2@example.com"]
         call_count = 0
@@ -166,7 +166,7 @@ class TestCacheWarmupServiceErrors:
     async def test_cleanup_handles_task_errors(self):
         """Test that cleanup handles task errors gracefully."""
         from app.services.cache_warmup_service import CacheWarmupService
-        
+
         service = CacheWarmupService()
 
         async def error_task():

@@ -10,10 +10,11 @@ import asyncio
 import logging
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from ..settings import get_settings
+from .email_fetch_service import email_fetch_service
 
 logger = logging.getLogger(__name__)
 _settings = get_settings()
@@ -40,7 +41,9 @@ class WarmupStats:
             "success": self.success,
             "failed": self.failed,
             "total_enqueued": self.total_enqueued,
+            "total_warmups": self.total_enqueued,
             "last_updated_at": self.last_updated_at,
+            "running_tasks": 0,
             "recent_errors": recent_errors,
         }
 
@@ -68,6 +71,9 @@ class CacheWarmupService:
     def _get_semaphore(self) -> asyncio.Semaphore:
         """获取或创建信号量（处理事件循环切换）"""
         current_loop = asyncio.get_running_loop()
+        if self._semaphore is not None and self._semaphore_loop is None:
+            self._semaphore_loop = current_loop
+            return self._semaphore
         if self._semaphore is None or self._semaphore_loop is not current_loop:
             self._semaphore = asyncio.Semaphore(self._max_concurrent)
             self._semaphore_loop = current_loop
@@ -103,8 +109,30 @@ class CacheWarmupService:
                 self._stats.errors.append({
                     "email": email,
                     "error": str(exc),
-                    "time": datetime.now(timezone.utc).isoformat(),
+                    "time": datetime.now(UTC).isoformat(),
                 })
+            return False
+
+    async def _warmup_account(self, email: str, limit: int = 5) -> bool:
+        """Backward-compatible single-account warmup entrypoint."""
+        try:
+            if hasattr(email_fetch_service, "fetch_emails"):
+                await email_fetch_service.fetch_emails(email, top=limit)
+            else:
+                from .email_service import email_manager
+
+                await email_manager.get_messages(email, top=limit, folder=None, force_refresh=False)
+            return True
+        except Exception as exc:
+            logger.warning("预热缓存失败(%s): %s", email, exc)
+            async with self._get_lock():
+                self._stats.errors.append(
+                    {
+                        "email": email,
+                        "error": str(exc),
+                        "time": datetime.now(UTC).isoformat(),
+                    }
+                )
             return False
 
     async def _process_email(self, email: str, limit: int) -> None:
@@ -112,7 +140,7 @@ class CacheWarmupService:
         async with self._get_lock():
             self._stats.pending -= 1
             self._stats.in_progress += 1
-            self._stats.last_updated_at = datetime.now(timezone.utc).isoformat()
+            self._stats.last_updated_at = datetime.now(UTC).isoformat()
 
         try:
             async with self._get_semaphore():
@@ -124,14 +152,14 @@ class CacheWarmupService:
                     self._stats.success += 1
                 else:
                     self._stats.failed += 1
-                self._stats.last_updated_at = datetime.now(timezone.utc).isoformat()
+                self._stats.last_updated_at = datetime.now(UTC).isoformat()
 
         except Exception as exc:
             logger.error("处理预热任务异常(%s): %s", email, exc)
             async with self._get_lock():
                 self._stats.in_progress -= 1
                 self._stats.failed += 1
-                self._stats.last_updated_at = datetime.now(timezone.utc).isoformat()
+                self._stats.last_updated_at = datetime.now(UTC).isoformat()
 
     async def enqueue_warmup(self, emails: list[str], limit: int = 5) -> int:
         """将邮箱列表加入预热队列
@@ -149,7 +177,7 @@ class CacheWarmupService:
         async with self._get_lock():
             self._stats.pending += len(emails)
             self._stats.total_enqueued += len(emails)
-            self._stats.last_updated_at = datetime.now(timezone.utc).isoformat()
+            self._stats.last_updated_at = datetime.now(UTC).isoformat()
 
         logger.info(
             "开始后台预热邮件缓存，共 %d 个账户，并发数: %d",
@@ -159,13 +187,36 @@ class CacheWarmupService:
 
         # 创建所有任务并发执行（信号量会自动控制并发数）
         tasks = [self._process_email(email, limit) for email in emails]
-        
+
         # 使用 gather 并发执行，但不等待完成（后台执行）
         warmup_task = asyncio.create_task(self._run_warmup_tasks(tasks))
         self._running_tasks.add(warmup_task)
         warmup_task.add_done_callback(self._running_tasks.discard)
 
         return len(emails)
+
+    async def warmup_accounts(self, emails: list[str], limit: int = 5) -> dict[str, int]:
+        """Backward-compatible batch warmup API."""
+        if not emails:
+            return {"success_count": 0, "failure_count": 0}
+
+        semaphore = self._get_semaphore()
+
+        async def _run(email: str) -> bool:
+            async with semaphore:
+                return await self._warmup_account(email, limit)
+
+        results = await asyncio.gather(*[_run(email) for email in emails], return_exceptions=True)
+        success_count = sum(1 for item in results if item is True)
+        failure_count = len(results) - success_count
+        return {"success_count": success_count, "failure_count": failure_count}
+
+    async def start_background_warmup(self, emails: list[str], limit: int = 5) -> asyncio.Task:
+        """Backward-compatible background warmup entrypoint."""
+        task = asyncio.create_task(self.warmup_accounts(emails, limit))
+        self._running_tasks.add(task)
+        task.add_done_callback(self._running_tasks.discard)
+        return task
 
     async def _run_warmup_tasks(self, tasks: list) -> None:
         """后台执行预热任务"""
@@ -186,7 +237,9 @@ class CacheWarmupService:
 
     def get_stats(self) -> dict[str, Any]:
         """获取当前预热统计信息"""
-        return self._stats.to_dict()
+        stats = self._stats.to_dict()
+        stats["running_tasks"] = len(self._running_tasks)
+        return stats
 
     def reset_stats(self) -> None:
         """重置统计信息"""
@@ -196,16 +249,16 @@ class CacheWarmupService:
         """清理资源，取消所有运行中的任务"""
         if not self._running_tasks:
             return
-        
+
         logger.info("正在清理缓存预热服务，取消 %d 个运行中的任务", len(self._running_tasks))
         for task in self._running_tasks.copy():
             if not task.done():
                 task.cancel()
-        
+
         # 等待所有任务完成或取消
         if self._running_tasks:
             await asyncio.gather(*self._running_tasks, return_exceptions=True)
-        
+
         self._running_tasks.clear()
         logger.info("缓存预热服务清理完成")
 

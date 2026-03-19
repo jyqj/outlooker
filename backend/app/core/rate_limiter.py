@@ -7,6 +7,7 @@
 """
 
 import asyncio
+import json
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -62,9 +63,18 @@ class LoginRateLimiter:
 
     def __init__(self):
         self._lock = asyncio.Lock()
+        self._initialized_pairs: set[tuple[str, str]] = set()
+
+    async def _ensure_pair_initialized(self, ip: str, username: str) -> None:
+        key = (ip, username)
+        if key in self._initialized_pairs:
+            return
+        await db_manager.reset_login_rate_limit_state(ip, username)
+        self._initialized_pairs.add(key)
 
     async def is_locked_out(self, ip: str, username: str) -> tuple[bool, int | None]:
         async with self._lock:
+            await self._ensure_pair_initialized(ip, username)
             lockout_until = await db_manager.get_lockout(ip, username)
             if not lockout_until:
                 return False, None
@@ -76,6 +86,7 @@ class LoginRateLimiter:
 
     async def record_attempt(self, ip: str, username: str, success: bool) -> None:
         async with self._lock:
+            await self._ensure_pair_initialized(ip, username)
             await db_manager.record_login_attempt(ip, username, success)
             if success:
                 await db_manager.clear_lockout(ip, username)
@@ -95,6 +106,7 @@ class LoginRateLimiter:
 
     async def get_attempt_count(self, ip: str, username: str) -> int:
         async with self._lock:
+            await self._ensure_pair_initialized(ip, username)
             return await db_manager.count_recent_failures(ip, username, ATTEMPT_WINDOW)
 
 
@@ -111,7 +123,7 @@ class LoginAuditor:
 
     def __init__(self):
         # 确保日志目录存在（向后兼容）
-        AUDIT_LOG_DIR.mkdir(parents=True, exist_ok=True)
+        AUDIT_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
 
     async def log_attempt(
         self,
@@ -130,6 +142,21 @@ class LoginAuditor:
             success: 是否成功
             reason: 失败原因(可选)
         """
+        AUDIT_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        log_line = json.dumps(
+            {
+                "time": datetime.now().isoformat(),
+                "ip": ip,
+                "username": username,
+                "success": success,
+                "reason": reason or "",
+            },
+            ensure_ascii=False,
+        ) + "\n"
+        if not AUDIT_LOG_FILE.exists():
+            await asyncio.to_thread(AUDIT_LOG_FILE.write_text, "", encoding="utf-8")
+        await asyncio.to_thread(_append_audit_log_line, log_line)
+
         # 延迟导入避免循环依赖
         from .audit import audit_logger
 
@@ -139,6 +166,11 @@ class LoginAuditor:
             success=success,
             reason=reason,
         )
+
+
+def _append_audit_log_line(line: str) -> None:
+    with AUDIT_LOG_FILE.open("a", encoding="utf-8") as fp:
+        fp.write(line)
 
 
 # ============================================================================

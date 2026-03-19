@@ -436,3 +436,25 @@ def ensure_graph_capability(email: str, capability: str = "graph") -> None:
         raise GraphAPIError(503, "Graph account management is disabled", "FEATURE_DISABLED")
     if capability != "graph":
         return
+
+
+async def ensure_graph_operation_ready(email: str) -> dict[str, Any]:
+    """Ensure a specific Outlook account is ready for Graph operations."""
+    ensure_graph_capability(email, "graph")
+
+    account = await db_manager.get_outlook_account(email)
+    if account is None:
+        raise GraphAPIError(404, f"Outlook account not found: {email}", "OUTLOOK_ACCOUNT_NOT_FOUND")
+
+    capabilities = await db_manager.get_account_capabilities(email)
+    if capabilities is None:
+        token = await db_manager.get_latest_active_oauth_token(email)
+        capabilities = await sync_account_capabilities(email, token=token)
+
+    if not capabilities.get("graph_ready"):
+        raise GraphAPIError(
+            409,
+            f"Graph capability is not ready for account: {email}",
+            "GRAPH_CAPABILITY_NOT_READY",
+        )
+    return capabilities

@@ -46,17 +46,17 @@ class AuditMixin(RunInThreadMixin):
         def _sync_store(conn: sqlite3.Connection) -> bool:
             try:
                 cursor = conn.cursor()
-                
+
                 # 处理 timestamp - 可能是 datetime 对象或字符串
                 timestamp = event.get("timestamp")
                 if isinstance(timestamp, datetime):
                     timestamp = timestamp.isoformat()
-                
+
                 # 处理 event_type - 可能是枚举或字符串
                 event_type = event.get("event_type")
                 if hasattr(event_type, "value"):
                     event_type = event_type.value
-                
+
                 cursor.execute("""
                     INSERT INTO audit_events 
                     (event_type, timestamp, user_id, ip_address, user_agent, 
@@ -110,10 +110,10 @@ class AuditMixin(RunInThreadMixin):
 
         def _sync_get(conn: sqlite3.Connection) -> list[dict]:
             cursor = conn.cursor()
-            
+
             query = "SELECT * FROM audit_events WHERE 1=1"
             params: list = []
-            
+
             if event_type:
                 query += " AND event_type = ?"
                 params.append(event_type)
@@ -129,13 +129,13 @@ class AuditMixin(RunInThreadMixin):
             if end_time:
                 query += " AND timestamp <= ?"
                 params.append(end_time.isoformat())
-            
+
             query += " ORDER BY id DESC LIMIT ? OFFSET ?"
             params.extend([limit, offset])
-            
+
             cursor.execute(query, params)
             rows = cursor.fetchall()
-            
+
             events = []
             for row in rows:
                 event = dict(row)
@@ -146,7 +146,7 @@ class AuditMixin(RunInThreadMixin):
                         logger.warning(f"解析审计事件详情 JSON 失败 (id={event.get('id', 'unknown')}): {e}")
                 event["success"] = bool(event.get("success", 1))
                 events.append(event)
-            
+
             return events
 
         return await self._run_in_thread(_sync_get)
@@ -288,6 +288,23 @@ class AuditMixin(RunInThreadMixin):
             conn.commit()
 
         await self._run_in_thread(_sync_clear)
+
+    async def reset_login_rate_limit_state(self, ip: str, username: str) -> None:
+        """Clear historical attempts and lockouts for a specific identity pair."""
+
+        def _sync_reset(conn: sqlite3.Connection) -> None:
+            cursor = conn.cursor()
+            cursor.execute(
+                "DELETE FROM admin_login_attempts WHERE ip = ? AND username = ?",
+                (ip, username),
+            )
+            cursor.execute(
+                "DELETE FROM admin_lockouts WHERE ip = ? AND username = ?",
+                (ip, username),
+            )
+            conn.commit()
+
+        await self._run_in_thread(_sync_reset)
 
     async def get_login_audit_stats(self) -> dict:
         """Get login audit statistics."""

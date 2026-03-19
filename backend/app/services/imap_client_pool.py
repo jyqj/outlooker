@@ -19,7 +19,8 @@ class IMAPClientPool:
 
     def __init__(self, max_clients: int | None = None) -> None:
         self._clients: OrderedDict[str, IMAPEmailClient] = OrderedDict()
-        self._client_tokens: dict[str, str] = {}
+        self._token_hashes: dict[str, int] = {}
+        self._client_tokens = self._token_hashes
         self._lock: asyncio.Lock | None = None
         self._lock_loop: asyncio.AbstractEventLoop | None = None
         self._max_clients_override = max_clients
@@ -38,6 +39,14 @@ class IMAPClientPool:
         from ..settings import get_settings
         return get_settings().imap_pool_max_clients
 
+    @_max_clients.setter
+    def _max_clients(self, value: int) -> None:
+        self._max_clients_override = value
+
+    @_max_clients.deleter
+    def _max_clients(self) -> None:
+        self._max_clients_override = None
+
     def _get_lock(self) -> asyncio.Lock:
         current_loop = asyncio.get_running_loop()
         if self._lock is None or self._lock_loop is not current_loop:
@@ -53,10 +62,11 @@ class IMAPClientPool:
         """获取或创建 IMAP 客户端"""
         async with self._get_lock():
             refresh_token = account_info.get("refresh_token", "")
+            refresh_token_hash = hash(refresh_token)
             client = self._clients.get(email)
 
             # 复用现有客户端（如果 token 未变化）
-            if client and self._client_tokens.get(email) == refresh_token:
+            if client and self._token_hashes.get(email) == refresh_token_hash:
                 # LRU: 移动到末尾表示最近使用
                 self._clients.move_to_end(email)
                 self._metrics["client_reuses"] += 1
@@ -65,7 +75,7 @@ class IMAPClientPool:
             # 清理旧客户端
             if client:
                 try:
-                    await client.cleanup()
+                    await self._cleanup_client(client)
                     self._metrics["client_cleanups"] += 1
                 except Exception as e:
                     logger.warning(f"释放旧 IMAP 客户端失败 ({email}): {e}")
@@ -75,12 +85,24 @@ class IMAPClientPool:
                 await self._evict_oldest()
 
             # 创建新客户端
-            new_client = IMAPEmailClient(email, account_info)
+            maybe_client = IMAPEmailClient(email, account_info)
+            if asyncio.iscoroutine(maybe_client):
+                new_client = await maybe_client
+            else:
+                new_client = maybe_client
             self._clients[email] = new_client
-            self._client_tokens[email] = refresh_token
+            self._token_hashes[email] = refresh_token_hash
             self._metrics["client_creates"] += 1
 
             return new_client
+
+    async def _cleanup_client(self, client: Any) -> None:
+        if hasattr(client, "close"):
+            result = client.close()
+        else:
+            result = client.cleanup()
+        if asyncio.iscoroutine(result):
+            await result
 
     async def _evict_oldest(self) -> None:
         """淘汰最久未使用的客户端（LRU）"""
@@ -89,10 +111,10 @@ class IMAPClientPool:
 
         # OrderedDict 的第一个元素是最久未使用的
         oldest_email, client = self._clients.popitem(last=False)
-        self._client_tokens.pop(oldest_email, None)
+        self._token_hashes.pop(oldest_email, None)
 
         try:
-            await client.cleanup()
+            await self._cleanup_client(client)
             self._metrics["client_cleanups"] += 1
         except Exception as e:
             logger.warning(f"清理淘汰客户端失败 ({oldest_email}): {e}")
@@ -101,11 +123,11 @@ class IMAPClientPool:
         """移除指定客户端"""
         async with self._get_lock():
             client = self._clients.pop(email, None)
-            self._client_tokens.pop(email, None)
+            self._token_hashes.pop(email, None)
 
             if client:
                 try:
-                    await client.cleanup()
+                    await self._cleanup_client(client)
                     self._metrics["client_cleanups"] += 1
                 except Exception as e:
                     logger.warning(f"清理客户端失败 ({email}): {e}")
@@ -115,11 +137,11 @@ class IMAPClientPool:
         async with self._get_lock():
             clients = list(self._clients.values())
             self._clients.clear()
-            self._client_tokens.clear()
+            self._token_hashes.clear()
 
         for client in clients:
             try:
-                await client.cleanup()
+                await self._cleanup_client(client)
                 self._metrics["client_cleanups"] += 1
             except Exception as e:
                 logger.warning(f"清理客户端失败: {e}")

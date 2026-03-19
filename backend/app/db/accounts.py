@@ -8,9 +8,7 @@ Handles all account-related database operations including:
 - Account usage tracking
 """
 
-import json
 import logging
-import random
 import sqlite3
 from typing import Any
 
@@ -259,11 +257,11 @@ class AccountsMixin(RunInThreadMixin):
                 cursor.execute(f"""
                     DELETE FROM account_tags WHERE email IN ({placeholders})
                 """, emails)
-                
+
                 cursor.execute(f"""
                     DELETE FROM email_cache WHERE email IN ({placeholders})
                 """, emails)
-                
+
                 cursor.execute(f"""
                     DELETE FROM email_cache_meta WHERE email IN ({placeholders})
                 """, emails)
@@ -274,7 +272,7 @@ class AccountsMixin(RunInThreadMixin):
                 """, emails)
 
                 conn.commit()
-                
+
                 failed = len(emails) - deleted
                 logger.info(f"批量删除 {deleted} 个账户，{failed} 个不存在或已删除")
                 return deleted, failed
@@ -311,7 +309,7 @@ class AccountsMixin(RunInThreadMixin):
         def _sync_check(conn: sqlite3.Connection) -> bool:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT 1 FROM accounts WHERE email = ? AND deleted_at IS NULL", 
+                "SELECT 1 FROM accounts WHERE email = ? AND deleted_at IS NULL",
                 (email,)
             )
             return cursor.fetchone() is not None
@@ -345,6 +343,69 @@ class AccountsMixin(RunInThreadMixin):
             return None
 
         return await self._run_in_thread(_sync_get)
+
+    async def get_unused_account(self) -> dict[str, Any] | None:
+        """Return the oldest-unused active account for the public pick API."""
+
+        def _sync_get(conn: sqlite3.Connection) -> dict[str, Any] | None:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT email, password, client_id, refresh_token, is_used, last_used_at
+                FROM accounts
+                WHERE deleted_at IS NULL
+                  AND COALESCE(is_used, 0) = 0
+                ORDER BY created_at ASC, email ASC
+                LIMIT 1
+                """
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            return {
+                "email": row["email"],
+                "password": decrypt_if_needed(row["password"]) if row["password"] else "",
+                "client_id": row["client_id"] or CLIENT_ID,
+                "refresh_token": (
+                    decrypt_if_needed(row["refresh_token"]) if row["refresh_token"] else ""
+                ),
+                "is_used": bool(row["is_used"]) if row["is_used"] is not None else False,
+                "last_used_at": row["last_used_at"],
+            }
+
+        return await self._run_in_thread(_sync_get)
+
+    async def mark_account_used(self, email: str) -> bool:
+        """Mark an account as used for the public pick lifecycle."""
+
+        def _sync_mark(conn: sqlite3.Connection) -> bool:
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    UPDATE accounts
+                    SET is_used = 1,
+                        last_used_at = CURRENT_TIMESTAMP,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE email = ?
+                      AND deleted_at IS NULL
+                    """,
+                    (email,),
+                )
+                conn.commit()
+                return cursor.rowcount > 0
+            except Exception as e:
+                logger.error("标记账户已使用失败: %s", e)
+                return False
+
+        return await self._run_in_thread(_sync_mark)
+
+    async def get_first_unused_account_email(self) -> str | None:
+        """Backward-compatible helper returning the first unused account email."""
+        account = await self.get_unused_account()
+        if not account:
+            return None
+        return str(account["email"])
 
     async def migrate_from_config_file(self, config_file_path: str = "config.txt") -> tuple[int, int]:
         """Migrate data from config.txt to the database."""
@@ -447,13 +508,13 @@ class AccountsMixin(RunInThreadMixin):
         all_exclude_tags = [tag]
         if exclude_tags:
             all_exclude_tags.extend(exclude_tags)
-        
+
         # 委托给 v2 方法（使用关系表）
         result = await self.get_random_account_by_tag_filter_v2(
             include_tag=None,
             exclude_tags=all_exclude_tags,
         )
-        
+
         if result:
             # v2 方法返回的敏感字段需要解密
             return {
@@ -543,8 +604,8 @@ class AccountsMixin(RunInThreadMixin):
         return await self._run_in_thread(_sync_restore)
 
     async def get_deleted_accounts(
-        self, 
-        page: int = 1, 
+        self,
+        page: int = 1,
         page_size: int = 20
     ) -> tuple[list[dict], int]:
         """获取已删除的账户列表"""

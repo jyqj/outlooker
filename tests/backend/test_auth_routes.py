@@ -8,10 +8,10 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi.testclient import TestClient
 
-from app.mail_api import app, db_manager
 from app.auth.jwt import get_password_hash
-from app.routers import public_accounts
 from app.core.rate_limiter import public_api_rate_limiter
+from app.mail_api import app, db_manager
+from app.routers import public_accounts
 from app.settings import get_settings
 
 

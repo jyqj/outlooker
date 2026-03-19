@@ -32,6 +32,7 @@ from ..services.outlook.graph import (
     delete_email_auth_method,
     delete_software_oath_method,
     dismiss_risky_user,
+    ensure_graph_operation_ready,
     ensure_graph_capability,
     get_auth_methods_bundle,
     get_mailbox_settings,
@@ -159,7 +160,7 @@ async def refresh_outlook_token(
 @router.get("/api/outlook/accounts/{email}/profile")
 @handle_exceptions("获取 Outlook 用户资料")
 async def get_outlook_profile(email: str, admin: AdminUser, refresh: bool = False) -> ApiResponse:
-    ensure_graph_capability(email, "graph")
+    await ensure_graph_operation_ready(email)
     try:
         data = await get_user_profile(email, force_refresh=refresh)
     except GraphAPIError as exc:
@@ -174,7 +175,7 @@ async def patch_outlook_profile(
     admin: AdminUser,
     request: ProfileUpdateRequest,
 ) -> ApiResponse:
-    ensure_graph_capability(email, "graph")
+    await ensure_graph_operation_ready(email)
     try:
         data = await update_user_profile(email, request.updates)
     except GraphAPIError as exc:
@@ -189,7 +190,7 @@ async def post_change_password(
     admin: AdminUser,
     request: PasswordChangeRequest,
 ) -> ApiResponse:
-    ensure_graph_capability(email, "graph")
+    await ensure_graph_operation_ready(email)
     try:
         data = await change_password(email, request.current_password, request.new_password)
     except GraphAPIError as exc:
@@ -200,7 +201,7 @@ async def post_change_password(
 @router.get("/api/outlook/accounts/{email}/auth-methods")
 @handle_exceptions("获取 Outlook 验证方式")
 async def get_outlook_auth_methods(email: str, admin: AdminUser) -> ApiResponse:
-    ensure_graph_capability(email, "graph")
+    await ensure_graph_operation_ready(email)
     try:
         data = await get_auth_methods_bundle(email)
     except GraphAPIError as exc:
@@ -211,7 +212,7 @@ async def get_outlook_auth_methods(email: str, admin: AdminUser) -> ApiResponse:
 @router.get("/api/outlook/accounts/{email}/auth-methods/email")
 @handle_exceptions("获取 Outlook 恢复邮箱")
 async def get_outlook_email_methods(email: str, admin: AdminUser) -> ApiResponse:
-    ensure_graph_capability(email, "graph")
+    await ensure_graph_operation_ready(email)
     try:
         data = await list_email_auth_methods(email)
     except GraphAPIError as exc:
@@ -226,7 +227,7 @@ async def create_outlook_email_method(
     admin: AdminUser,
     request: EmailAuthMethodCreateRequest,
 ) -> ApiResponse:
-    ensure_graph_capability(email, "graph")
+    await ensure_graph_operation_ready(email)
     try:
         data = await add_email_auth_method(email, request.recovery_email)
     except GraphAPIError as exc:
@@ -242,7 +243,7 @@ async def put_outlook_email_method(
     admin: AdminUser,
     request: EmailAuthMethodUpdateRequest,
 ) -> ApiResponse:
-    ensure_graph_capability(email, "graph")
+    await ensure_graph_operation_ready(email)
     try:
         data = await update_email_auth_method(email, method_id, request.new_email)
     except GraphAPIError as exc:
@@ -257,7 +258,7 @@ async def remove_outlook_email_method(
     method_id: str,
     admin: AdminUser,
 ) -> ApiResponse:
-    ensure_graph_capability(email, "graph")
+    await ensure_graph_operation_ready(email)
     try:
         data = await delete_email_auth_method(email, method_id)
     except GraphAPIError as exc:
@@ -268,7 +269,7 @@ async def remove_outlook_email_method(
 @router.get("/api/outlook/accounts/{email}/auth-methods/totp")
 @handle_exceptions("获取 Outlook TOTP")
 async def get_outlook_totp_methods(email: str, admin: AdminUser) -> ApiResponse:
-    ensure_graph_capability(email, "graph")
+    await ensure_graph_operation_ready(email)
     try:
         data = await list_software_oath_methods(email)
     except GraphAPIError as exc:
@@ -283,7 +284,7 @@ async def remove_outlook_totp_method(
     method_id: str,
     admin: AdminUser,
 ) -> ApiResponse:
-    ensure_graph_capability(email, "graph")
+    await ensure_graph_operation_ready(email)
     try:
         data = await delete_software_oath_method(email, method_id)
     except GraphAPIError as exc:
@@ -294,7 +295,7 @@ async def remove_outlook_totp_method(
 @router.get("/api/outlook/accounts/{email}/auth-methods/phone")
 @handle_exceptions("获取 Outlook 手机号验证方式")
 async def get_outlook_phone_methods(email: str, admin: AdminUser) -> ApiResponse:
-    ensure_graph_capability(email, "graph")
+    await ensure_graph_operation_ready(email)
     try:
         data = await list_phone_methods(email)
     except GraphAPIError as exc:
@@ -309,7 +310,7 @@ async def create_outlook_phone_method(
     admin: AdminUser,
     request: PhoneAuthMethodCreateRequest,
 ) -> ApiResponse:
-    ensure_graph_capability(email, "graph")
+    await ensure_graph_operation_ready(email)
     try:
         data = await add_phone_method(email, request.phone_number, request.phone_type)
     except GraphAPIError as exc:
@@ -320,7 +321,7 @@ async def create_outlook_phone_method(
 @router.post("/api/outlook/accounts/{email}/revoke-sessions")
 @handle_exceptions("撤销 Outlook 会话")
 async def post_revoke_sessions(email: str, admin: AdminUser) -> ApiResponse:
-    ensure_graph_capability(email, "graph")
+    await ensure_graph_operation_ready(email)
     try:
         data = await revoke_sessions(email)
     except GraphAPIError as exc:
@@ -331,7 +332,7 @@ async def post_revoke_sessions(email: str, admin: AdminUser) -> ApiResponse:
 @router.get("/api/outlook/accounts/{email}/risky-users")
 @handle_exceptions("获取 Outlook 风险用户")
 async def get_outlook_risky_users(email: str, admin: AdminUser) -> ApiResponse:
-    ensure_graph_capability(email, "graph")
+    await ensure_graph_operation_ready(email)
     try:
         data = await list_risky_users(email)
     except GraphAPIError as exc:
@@ -346,7 +347,7 @@ async def post_dismiss_risk(
     admin: AdminUser,
     request: RiskDismissRequest,
 ) -> ApiResponse:
-    ensure_graph_capability(email, "graph")
+    await ensure_graph_operation_ready(email)
     try:
         data = await dismiss_risky_user(email, request.user_id)
     except GraphAPIError as exc:
@@ -357,7 +358,7 @@ async def post_dismiss_risk(
 @router.get("/api/outlook/accounts/{email}/regional-settings")
 @handle_exceptions("获取 Outlook 区域设置")
 async def get_outlook_regional_settings(email: str, admin: AdminUser) -> ApiResponse:
-    ensure_graph_capability(email, "graph")
+    await ensure_graph_operation_ready(email)
     try:
         data = await get_regional_settings(email)
     except GraphAPIError as exc:
@@ -372,7 +373,7 @@ async def patch_outlook_regional_settings(
     admin: AdminUser,
     request: RegionalSettingsUpdateRequest,
 ) -> ApiResponse:
-    ensure_graph_capability(email, "graph")
+    await ensure_graph_operation_ready(email)
     try:
         data = await update_regional_settings(email, request.updates)
     except GraphAPIError as exc:
@@ -383,7 +384,7 @@ async def patch_outlook_regional_settings(
 @router.get("/api/outlook/accounts/{email}/mailbox-settings")
 @handle_exceptions("获取 Outlook 邮箱设置")
 async def get_outlook_mailbox_settings(email: str, admin: AdminUser) -> ApiResponse:
-    ensure_graph_capability(email, "graph")
+    await ensure_graph_operation_ready(email)
     try:
         data = await get_mailbox_settings(email)
     except GraphAPIError as exc:
@@ -398,7 +399,7 @@ async def patch_outlook_mailbox_settings(
     admin: AdminUser,
     request: MailboxSettingsUpdateRequest,
 ) -> ApiResponse:
-    ensure_graph_capability(email, "graph")
+    await ensure_graph_operation_ready(email)
     try:
         data = await update_mailbox_settings(email, request.updates)
     except GraphAPIError as exc:

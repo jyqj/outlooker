@@ -44,6 +44,44 @@ def test_protocol_rebind_secondary_preserves_needs_manual(monkeypatch):
     protocol_tasks._fail_step.assert_awaited()
 
 
+def test_protocol_bind_secondary_uses_browser_fallback(monkeypatch):
+    task = {"id": 10, "task_type": "bind", "resource_id": 11, "retry_count": 0}
+    monkeypatch.setattr(protocol_tasks.db_manager, "get_protocol_task", AsyncMock(return_value=task))
+    monkeypatch.setattr(protocol_tasks, "_run_protocol_bind", AsyncMock(side_effect=RuntimeError("captcha")))
+    monkeypatch.setattr(protocol_tasks, "_browser_fallback_enabled", lambda: True)
+    monkeypatch.setattr(
+        protocol_tasks,
+        "_run_browser_bind_fallback",
+        AsyncMock(return_value={"mode": "bind", "fallback": "browser"}),
+    )
+
+    result = protocol_tasks.protocol_bind_secondary.run(10)
+
+    assert result["fallback"] == "browser"
+    protocol_tasks._run_browser_bind_fallback.assert_awaited_once_with(10, task)
+
+
+def test_protocol_rebind_secondary_uses_browser_fallback(monkeypatch):
+    task = {"id": 11, "task_type": "rebind", "resource_id": 12, "retry_count": 0}
+    monkeypatch.setattr(
+        protocol_tasks.db_manager,
+        "get_protocol_task",
+        AsyncMock(side_effect=[task, {"status": "needs_manual"}]),
+    )
+    monkeypatch.setattr(protocol_tasks, "_run_protocol_rebind", AsyncMock(side_effect=RuntimeError("captcha")))
+    monkeypatch.setattr(protocol_tasks, "_browser_fallback_enabled", lambda: True)
+    monkeypatch.setattr(
+        protocol_tasks,
+        "_run_browser_rebind_fallback",
+        AsyncMock(return_value={"mode": "rebind", "fallback": "browser"}),
+    )
+
+    result = protocol_tasks.protocol_rebind_secondary.run(11)
+
+    assert result["fallback"] == "browser"
+    protocol_tasks._run_browser_rebind_fallback.assert_awaited_once_with(11, task)
+
+
 @pytest.mark.asyncio
 async def test_build_code_provider_enters_waiting_code(monkeypatch):
     monkeypatch.setattr(protocol_tasks, "update_task_status", AsyncMock(return_value=None))

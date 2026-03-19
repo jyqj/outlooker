@@ -190,14 +190,16 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def app_exception_handler(request: Request, exc: AppException):
     """统一处理应用自定义异常"""
     logger.warning("应用异常: %s - %s", exc.error_code, exc.message)
+    payload = ApiResponse(
+        success=False,
+        message=exc.message,
+        error_code=exc.error_code,
+        data=exc.details if exc.details else None
+    ).model_dump()
+    payload["detail"] = exc.message
     return JSONResponse(
         status_code=exc.status_code,
-        content=ApiResponse(
-            success=False,
-            message=exc.message,
-            error_code=exc.error_code,
-            data=exc.details if exc.details else None
-        ).model_dump()
+        content=payload,
     )
 
 
@@ -231,7 +233,23 @@ async def serve_spa(full_path: str):
     if index_path.exists():
         return FileResponse(index_path)
     else:
-        return PlainTextResponse("Frontend not built. Please run 'npm run build' in frontend directory.", status_code=503)
+        placeholder = """
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Outlooker</title>
+  </head>
+  <body>
+    <main>
+      <h1>Outlooker</h1>
+      <p>Frontend not built. Please run 'npm run build' in frontend directory.</p>
+    </main>
+  </body>
+</html>
+""".strip()
+        return PlainTextResponse(placeholder, media_type="text/html")
 
 # ============================================================================
 # 命令行入口

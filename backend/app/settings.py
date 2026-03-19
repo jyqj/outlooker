@@ -191,6 +191,18 @@ class AppSettings(BaseSettings):
     feature_outlook_browser_fallback_enabled: bool = Field(
         default=False, alias="FEATURE_OUTLOOK_BROWSER_FALLBACK_ENABLED"
     )
+    outlook_browser_fallback_headless: bool = Field(
+        default=True, alias="OUTLOOK_BROWSER_FALLBACK_HEADLESS"
+    )
+    outlook_browser_fallback_timeout_seconds: int = Field(
+        default=180, alias="OUTLOOK_BROWSER_FALLBACK_TIMEOUT_SECONDS"
+    )
+    outlook_browser_fallback_artifacts_dir: str = Field(
+        default="data/browser-fallback", alias="OUTLOOK_BROWSER_FALLBACK_ARTIFACTS_DIR"
+    )
+    outlook_browser_fallback_capture_oauth: bool = Field(
+        default=True, alias="OUTLOOK_BROWSER_FALLBACK_CAPTURE_OAUTH"
+    )
 
     # Rate limiting configuration
     max_login_attempts: int = Field(default=5, alias="MAX_LOGIN_ATTEMPTS")

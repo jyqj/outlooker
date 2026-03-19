@@ -4,18 +4,19 @@
 """
 
 import asyncio
-import pytest
-from pathlib import Path
 from datetime import datetime, timedelta
+from pathlib import Path
 
-from app.core.rate_limiter import (
-    LoginRateLimiter,
-    LoginAuditor,
-    MAX_LOGIN_ATTEMPTS,
-    LOCKOUT_DURATION,
-    AUDIT_LOG_FILE,
-)
+import pytest
+
 import app.core.rate_limiter as rate_limiter_module
+from app.core.rate_limiter import (
+    AUDIT_LOG_FILE,
+    LOCKOUT_DURATION,
+    MAX_LOGIN_ATTEMPTS,
+    LoginAuditor,
+    LoginRateLimiter,
+)
 from app.db import db_manager
 
 
@@ -32,11 +33,11 @@ class TestLoginRateLimiter:
         """测试记录失败尝试"""
         ip = "192.168.1.1"
         username = "admin"
-        
+
         # 记录几次失败
         await rate_limiter.record_attempt(ip, username, False)
         await rate_limiter.record_attempt(ip, username, False)
-        
+
         # 获取失败次数
         count = await rate_limiter.get_attempt_count(ip, username)
         assert count == 2
@@ -46,17 +47,17 @@ class TestLoginRateLimiter:
         """测试成功登录清空失败记录"""
         ip = "192.168.1.2"
         username = "admin"
-        
+
         # 先记录几次失败
         await rate_limiter.record_attempt(ip, username, False)
         await rate_limiter.record_attempt(ip, username, False)
-        
+
         count = await rate_limiter.get_attempt_count(ip, username)
         assert count == 2
-        
+
         # 成功登录
         await rate_limiter.record_attempt(ip, username, True)
-        
+
         # 失败记录应该被清空
         count = await rate_limiter.get_attempt_count(ip, username)
         assert count == 0
@@ -66,11 +67,11 @@ class TestLoginRateLimiter:
         """测试达到最大尝试次数后锁定"""
         ip = "192.168.1.3"
         username = "admin"
-        
+
         # 记录 MAX_LOGIN_ATTEMPTS 次失败
         for _ in range(MAX_LOGIN_ATTEMPTS):
             await rate_limiter.record_attempt(ip, username, False)
-        
+
         # 应该被锁定
         is_locked, remaining = await rate_limiter.is_locked_out(ip, username)
         assert is_locked is True
@@ -83,11 +84,11 @@ class TestLoginRateLimiter:
         """测试未达到最大次数前不会锁定"""
         ip = "192.168.1.4"
         username = "admin"
-        
+
         # 记录少于 MAX_LOGIN_ATTEMPTS 的失败
         for _ in range(MAX_LOGIN_ATTEMPTS - 1):
             await rate_limiter.record_attempt(ip, username, False)
-        
+
         # 不应该被锁定
         is_locked, remaining = await rate_limiter.is_locked_out(ip, username)
         assert is_locked is False
@@ -98,18 +99,18 @@ class TestLoginRateLimiter:
         """测试锁定过期后可以再次尝试"""
         ip = "192.168.1.5"
         username = "admin"
-        
+
         # 触发锁定
         for _ in range(MAX_LOGIN_ATTEMPTS):
             await rate_limiter.record_attempt(ip, username, False)
-        
+
         # 确认已锁定
         is_locked, _ = await rate_limiter.is_locked_out(ip, username)
         assert is_locked is True
-        
+
         # 模拟时间过期：将 lockout_until 写为过去时间
         await db_manager.set_lockout(ip, username, datetime.utcnow() - timedelta(seconds=1))
-        
+
         # 应该不再锁定
         is_locked, _ = await rate_limiter.is_locked_out(ip, username)
         assert is_locked is False
@@ -121,18 +122,18 @@ class TestLoginRateLimiter:
         ip2 = "192.168.1.7"
         user1 = "admin"
         user2 = "user"
-        
+
         # 为不同组合记录失败
         await rate_limiter.record_attempt(ip1, user1, False)
         await rate_limiter.record_attempt(ip1, user1, False)
         await rate_limiter.record_attempt(ip2, user1, False)
         await rate_limiter.record_attempt(ip1, user2, False)
-        
+
         # 验证各自的计数
         count1 = await rate_limiter.get_attempt_count(ip1, user1)
         count2 = await rate_limiter.get_attempt_count(ip2, user1)
         count3 = await rate_limiter.get_attempt_count(ip1, user2)
-        
+
         assert count1 == 2
         assert count2 == 1
         assert count3 == 1
@@ -154,19 +155,19 @@ class TestLoginAuditor:
         # 直接导入模块以确保获取正确的模块对象
         rate_limiter_module = importlib.import_module('app.core.rate_limiter')
         original_log_file = rate_limiter_module.AUDIT_LOG_FILE
-        
+
         # 修改为临时文件
         temp_log_file = tmp_path / "test_audit.log"
         rate_limiter_module.AUDIT_LOG_FILE = temp_log_file
         auditor = LoginAuditor()  # 重新创建以使用新路径
-        
+
         try:
             # 记录一次尝试
             await auditor.log_attempt("192.168.1.1", "admin", True)
-            
+
             # 验证文件存在
             assert temp_log_file.exists()
-            
+
             # 验证文件内容
             content = temp_log_file.read_text()
             assert "192.168.1.1" in content
@@ -182,15 +183,15 @@ class TestLoginAuditor:
         # 直接导入模块以确保获取正确的模块对象
         rate_limiter_module = importlib.import_module('app.core.rate_limiter')
         original_log_file = rate_limiter_module.AUDIT_LOG_FILE
-        
+
         temp_log_file = tmp_path / "test_audit_reason.log"
         rate_limiter_module.AUDIT_LOG_FILE = temp_log_file
         auditor = LoginAuditor()
-        
+
         try:
             # 记录失败尝试并附带原因
             await auditor.log_attempt("192.168.1.2", "admin", False, "密码错误")
-            
+
             content = temp_log_file.read_text()
             assert "密码错误" in content
             assert '"success": false' in content.lower()

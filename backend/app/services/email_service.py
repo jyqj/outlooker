@@ -51,6 +51,14 @@ class EmailManager:
         """清除账户缓存"""
         await self._account_cache.invalidate()
 
+    async def _get_or_create_client(
+        self,
+        email: str,
+        account_info: dict[str, str],
+    ):
+        """Backward-compatible IMAP client factory hook."""
+        return await self._imap_pool.get_or_create(email, account_info)
+
     async def get_messages(
         self,
         email: str,
@@ -69,6 +77,7 @@ class EmailManager:
         Returns:
             邮件消息列表
         """
+        self._email_fetch_service._get_or_create_client = self._get_or_create_client
         return await self._email_fetch_service.get_messages(
             email, top, folder, force_refresh
         )

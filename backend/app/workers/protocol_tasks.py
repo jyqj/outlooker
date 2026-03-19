@@ -11,10 +11,16 @@ from typing import Any
 from ..core.metrics import record_protocol_task_metrics
 from ..db import db_manager
 from ..services.channeling.resource_pool_service import rotate_aux_email_resource
+from ..services.outlook.binder import (
+    BrowserFallbackError,
+    bind_secondary_email_with_browser,
+    replace_secondary_email_with_browser,
+)
 from ..services.outlook.protocol import OutlookProtocolError, build_protocol_client_for_channel
 from ..services.outlook.protocol_code_provider import CallbackCodeProvider, CodeFetchResult
 from ..services.tasks.progress_event_service import publish_task_event
 from ..services.tasks.protocol_task_service import add_task_step, update_task_status
+from ..settings import get_settings
 from .celery_app import celery_app
 
 
@@ -101,6 +107,95 @@ async def _mark_resource_available(resource_id: int) -> None:
         status="available",
         bound_account_email="",
     )
+
+
+async def _browser_step_callback(task_id: int, step: str, detail: dict[str, Any] | None = None) -> None:
+    status = "success" if step.endswith(":success") else "running"
+    await add_task_step(
+        task_id,
+        step,
+        status=status,
+        detail=json.dumps(detail or {}, ensure_ascii=False),
+        started_at=_step_time() if status == "running" else None,
+        finished_at=_step_time() if status == "success" else None,
+    )
+    publish_task_event(task_id, step, detail or {})
+
+
+def _browser_fallback_enabled() -> bool:
+    return get_settings().outlook_features.browser_fallback_enabled
+
+
+async def _run_browser_bind_fallback(task_id: int, task: dict[str, Any]) -> dict[str, Any]:
+    resource = await db_manager.get_aux_email_resource_by_id(int(task["resource_id"]))
+    if not resource:
+        raise BrowserFallbackError("Auxiliary email resource not found for browser fallback")
+
+    login_email, password = await _resolve_login_credentials(task)
+    provider = await _build_code_provider(task_id, resource)
+
+    await update_task_status(task_id, "browser_fallback_running", error_message="")
+    await _emit_step(task_id, "browser_fallback", {"mode": "bind", "resource": resource["address"]})
+
+    result = await bind_secondary_email_with_browser(
+        login_email=login_email,
+        password=password,
+        recovery_email=str(resource["address"]),
+        code_provider=provider,
+        verification_email=task.get("verification_email") or None,
+        channel_id=task.get("channel_id"),
+        min_email_id=resource.get("last_email_id"),
+        step_callback=lambda step, detail: _browser_step_callback(task_id, step, detail),
+    )
+    await _complete_step(
+        task_id,
+        "browser_fallback",
+        {"mode": "bind", "resource": resource["address"], "oauth": bool(result.get("oauth"))},
+    )
+    await _mark_resource_bound(int(resource["id"]), task["target_email"])
+    await update_task_status(task_id, "success", error_message="")
+    publish_task_event(task_id, "success", {"resource": resource["address"], "fallback": "browser"})
+    return result
+
+
+async def _run_browser_rebind_fallback(task_id: int, task: dict[str, Any]) -> dict[str, Any]:
+    resource = await db_manager.get_aux_email_resource_by_id(int(task["resource_id"]))
+    if not resource:
+        raise BrowserFallbackError("New auxiliary email resource not found for browser fallback")
+
+    login_email, password = await _resolve_login_credentials(task)
+    provider = await _build_code_provider(task_id, resource)
+
+    await update_task_status(task_id, "browser_fallback_running", error_message="")
+    await _emit_step(
+        task_id,
+        "browser_fallback",
+        {"mode": "rebind", "old_email": task.get("old_email", ""), "resource": resource["address"]},
+    )
+
+    result = await replace_secondary_email_with_browser(
+        login_email=login_email,
+        password=password,
+        old_email=str(task.get("old_email") or ""),
+        new_email=str(resource["address"]),
+        code_provider=provider,
+        verification_email=task.get("verification_email") or task.get("old_email") or None,
+        channel_id=task.get("channel_id"),
+        min_email_id=resource.get("last_email_id"),
+        step_callback=lambda step, detail: _browser_step_callback(task_id, step, detail),
+    )
+    old_resource = await db_manager.get_aux_email_resource_by_address(task.get("old_email", ""))
+    if old_resource:
+        await _mark_resource_available(int(old_resource["id"]))
+    await _mark_resource_bound(int(resource["id"]), task["target_email"])
+    await _complete_step(
+        task_id,
+        "browser_fallback",
+        {"mode": "rebind", "resource": resource["address"], "oauth": bool(result.get("oauth"))},
+    )
+    await update_task_status(task_id, "success", error_message="")
+    publish_task_event(task_id, "success", {"resource": resource["address"], "fallback": "browser"})
+    return result
 
 
 async def _run_protocol_bind(task_id: int) -> dict[str, Any]:
@@ -235,6 +330,13 @@ def protocol_bind_secondary(task_id: int) -> dict[str, Any]:
             record_protocol_task_metrics("bind_secondary", "failed", time.time() - started_at)
             raise
         except Exception as exc:  # noqa: BLE001
+            if _browser_fallback_enabled():
+                try:
+                    result = await _run_browser_bind_fallback(task_id, task)
+                    record_protocol_task_metrics("bind_secondary", "success", time.time() - started_at)
+                    return result
+                except Exception as browser_exc:  # noqa: BLE001
+                    exc = RuntimeError(f"{exc}; browser fallback failed: {browser_exc}")
             retry_count = int(task.get("retry_count") or 0) + 1
             await update_task_status(task_id, "failed", error_message=str(exc), retry_count=retry_count)
             await _fail_step(task_id, "protocol_bind", {"error": str(exc)})
@@ -266,6 +368,14 @@ def protocol_rebind_secondary(task_id: int) -> dict[str, Any]:
             raise
         except Exception as exc:  # noqa: BLE001
             current = await db_manager.get_protocol_task(task_id)
+            if current and current.get("status") == "needs_manual" and _browser_fallback_enabled():
+                try:
+                    result = await _run_browser_rebind_fallback(task_id, task)
+                    record_protocol_task_metrics("rebind_secondary", "success", time.time() - started_at)
+                    return result
+                except Exception as browser_exc:  # noqa: BLE001
+                    exc = RuntimeError(f"{exc}; browser fallback failed: {browser_exc}")
+                    current = await db_manager.get_protocol_task(task_id)
             if current and current.get("status") == "needs_manual":
                 await _fail_step(task_id, "protocol_rebind", {"error": str(exc), "status": "needs_manual"})
                 record_protocol_task_metrics("rebind_secondary", "needs_manual", time.time() - started_at)

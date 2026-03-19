@@ -61,7 +61,7 @@ class TestEmailFetchService:
     def email_fetch_service(self, mock_account_cache, mock_imap_pool, mock_db_manager):
         """Create EmailFetchService with mocked dependencies."""
         from app.services.email_fetch_service import EmailFetchService
-        
+
         service = EmailFetchService()
         service._account_cache = mock_account_cache
         service._imap_pool = mock_imap_pool
@@ -133,7 +133,7 @@ class TestEmailFetchService:
     async def test_concurrent_fetch_uses_lock(self, email_fetch_service):
         """Test that concurrent fetches for same email use locking."""
         fetch_count = 0
-        
+
         async def mock_fetch(*args, **kwargs):
             nonlocal fetch_count
             fetch_count += 1
@@ -159,7 +159,7 @@ class TestEmailFetchServiceIntegration:
     async def test_service_initialization(self):
         """Test service can be initialized."""
         from app.services.email_fetch_service import EmailFetchService
-        
+
         service = EmailFetchService()
         assert service is not None
 
@@ -167,7 +167,7 @@ class TestEmailFetchServiceIntegration:
     async def test_get_metrics(self):
         """Test metrics retrieval."""
         from app.services.email_fetch_service import EmailFetchService
-        
+
         service = EmailFetchService()
         # Metrics should be available even without any fetches
         # (This depends on the actual implementation)

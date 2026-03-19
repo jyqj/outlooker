@@ -9,21 +9,21 @@ from contextlib import closing
 import pytest
 import pytest_asyncio
 
+from app.db import db_manager
+from app.models import ImportAccountData
 from app.services import (
-    email_manager,
-    load_accounts_config,
-    load_system_config,
-    merge_accounts_data_to_db,
-    set_system_config_value,
     SYSTEM_CONFIG_DEFAULTS,
     _normalize_email,
     _parse_account_line,
     _validate_account_info,
-    extract_verification_code,
+    email_manager,
     extract_code_from_message,
+    extract_verification_code,
+    load_accounts_config,
+    load_system_config,
+    merge_accounts_data_to_db,
+    set_system_config_value,
 )
-from app.db import db_manager
-from app.models import ImportAccountData
 
 
 @pytest_asyncio.fixture(autouse=True)

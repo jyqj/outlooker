@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """JWT认证模块测试"""
 
-import pytest
 from datetime import datetime, timedelta
-from jose import jwt, JWTError
+
+import pytest
+from jose import JWTError, jwt
 
 from app.auth.jwt import (
+    authenticate_admin,
     create_access_token,
     decode_access_token,
-    authenticate_admin,
     get_current_admin,
     get_password_hash,
     verify_password,
@@ -63,10 +64,10 @@ class TestJWTTokens:
         """测试创建token(默认过期时间)"""
         data = {"sub": "test_user"}
         token = create_access_token(data)
-        
+
         assert token is not None
         assert isinstance(token, str)
-        
+
         # 验证token内容
         payload = decode_access_token(token)
         assert payload is not None
@@ -157,23 +158,23 @@ class TestAdminAuthentication:
     def test_get_current_admin_invalid_token(self):
         """测试无效token"""
         from fastapi import HTTPException
-        
+
         auth_header = "Bearer invalid_token"
-        
+
         with pytest.raises(HTTPException) as exc_info:
             get_current_admin(auth_header)
-        
+
         assert exc_info.value.status_code == 401
 
     def test_get_current_admin_missing_bearer(self):
         """测试缺少Bearer前缀"""
         from fastapi import HTTPException
-        
+
         token = create_access_token({"sub": settings.admin_username})
         auth_header = token  # 没有Bearer前缀
-        
+
         with pytest.raises(HTTPException) as exc_info:
             get_current_admin(auth_header)
-        
+
         assert exc_info.value.status_code == 401
 

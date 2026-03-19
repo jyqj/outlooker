@@ -5,6 +5,7 @@ from contextlib import closing
 
 import pytest
 import pytest_asyncio
+
 from app.db import db_manager
 from app.db.manager import looks_like_guid
 
@@ -81,7 +82,7 @@ class TestAccountOperations:
     async def test_add_duplicate_account(self):
         """测试添加重复账户"""
         email = "test@example.com"
-        
+
         # 第一次添加
         success1 = await db_manager.add_account(email, refresh_token="token1")
         assert success1 is True
@@ -94,10 +95,10 @@ class TestAccountOperations:
     async def test_update_account(self):
         """测试更新账户"""
         email = "test@example.com"
-        
+
         # 添加账户
         await db_manager.add_account(email, password="old_pass", refresh_token="old_token")
-        
+
         # 更新账户
         success = await db_manager.update_account(
             email,
@@ -115,10 +116,10 @@ class TestAccountOperations:
     async def test_delete_account(self):
         """测试删除账户"""
         email = "test@example.com"
-        
+
         # 添加账户
         await db_manager.add_account(email, refresh_token="token")
-        
+
         # 删除账户
         success = await db_manager.delete_account(email)
         assert success is True
@@ -131,14 +132,14 @@ class TestAccountOperations:
     async def test_account_exists(self):
         """测试检查账户是否存在"""
         email = "test@example.com"
-        
+
         # 账户不存在
         exists = await db_manager.account_exists(email)
         assert exists is False
 
         # 添加账户
         await db_manager.add_account(email, refresh_token="token")
-        
+
         # 账户存在
         exists = await db_manager.account_exists(email)
         assert exists is True

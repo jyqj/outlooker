@@ -9,16 +9,17 @@ Tests cover:
 - Error handling
 """
 
-import pytest
+import asyncio
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
-import asyncio
+
+import pytest
 
 from app.imap_client import (
+    IMAPAuthenticationError,
+    IMAPConnectionError,
     IMAPEmailClient,
     IMAPError,
-    IMAPConnectionError,
-    IMAPAuthenticationError,
     decode_header_value,
 )
 
@@ -90,7 +91,7 @@ class TestIMAPEmailClient:
         """Test ensure_token_valid with valid token."""
         imap_client.access_token = "valid_token"
         imap_client.expires_at = datetime.now().timestamp() + 3600
-        
+
         # Should not raise and not call refresh
         with patch.object(imap_client, 'refresh_access_token') as mock_refresh:
             await imap_client.ensure_token_valid()
@@ -101,7 +102,7 @@ class TestIMAPEmailClient:
         """Test ensure_token_valid with expired token."""
         imap_client.access_token = ""
         imap_client.expires_at = 0
-        
+
         with patch.object(imap_client, 'refresh_access_token', new_callable=AsyncMock) as mock_refresh:
             await imap_client.ensure_token_valid()
             mock_refresh.assert_called_once()
@@ -110,10 +111,10 @@ class TestIMAPEmailClient:
     async def test_refresh_access_token_success(self, imap_client):
         """Test successful token refresh."""
         mock_get_access_token = AsyncMock(return_value=("new_access_token", "new_refresh_token"))
-        
+
         with patch('app.imap_client.get_access_token', mock_get_access_token):
             await imap_client.refresh_access_token()
-            
+
             assert imap_client.access_token == "new_access_token"
             assert imap_client.refresh_token == "new_refresh_token"
             assert imap_client.expires_at > datetime.now().timestamp()
@@ -122,13 +123,13 @@ class TestIMAPEmailClient:
     async def test_refresh_access_token_failure(self, imap_client):
         """Test token refresh failure."""
         from fastapi import HTTPException
-        
+
         mock_get_access_token = AsyncMock(return_value=(None, None))
-        
+
         with patch('app.imap_client.get_access_token', mock_get_access_token):
             with pytest.raises(HTTPException) as exc_info:
                 await imap_client.refresh_access_token()
-            
+
             assert exc_info.value.status_code == 401
 
     def test_close_imap_connection_none(self, imap_client):
@@ -140,9 +141,9 @@ class TestIMAPEmailClient:
         """Test closing connection with state."""
         mock_conn = MagicMock()
         mock_conn.state = 'SELECTED'
-        
+
         imap_client.close_imap_connection(mock_conn)
-        
+
         mock_conn.close.assert_called_once()
         mock_conn.logout.assert_called_once()
 
@@ -170,9 +171,9 @@ class TestEmailParsing:
             'To': 'recipient@example.com',
             'Date': 'Mon, 01 Jan 2024 12:00:00 +0000',
         }.get(x))
-        
+
         result = IMAPEmailClient._parse_email_header(mock_message)
-        
+
         assert result['subject'] == 'Test Subject'
         assert result['from_name'] == 'Sender Name'
         assert result['from_email'] == 'sender@example.com'
@@ -186,9 +187,9 @@ class TestEmailParsing:
             'To': None,
             'Date': None,
         }.get(x))
-        
+
         result = IMAPEmailClient._parse_email_header(mock_message)
-        
+
         assert result['subject'] == '(No Subject)'
         assert result['from_email'] == 'sender@example.com'
 
@@ -207,9 +208,9 @@ class TestEmailParsing:
             'body_type': 'text',
             'body_preview': 'Hello...',
         }
-        
+
         result = IMAPEmailClient._build_message_dict(uid_bytes, header_info, body_info)
-        
+
         assert result['id'] == '12345'
         assert result['subject'] == 'Test'
         assert result['body']['content'] == 'Hello World'
@@ -245,14 +246,14 @@ class TestConcurrency:
         """Test that concurrent token refreshes are serialized."""
         client = IMAPEmailClient("test@outlook.com", {"refresh_token": "test"})
         refresh_count = 0
-        
+
         async def mock_refresh():
             nonlocal refresh_count
             refresh_count += 1
             await asyncio.sleep(0.1)
             client.access_token = "new_token"
             client.expires_at = datetime.now().timestamp() + 3600
-        
+
         with patch.object(client, 'refresh_access_token', side_effect=mock_refresh):
             # Trigger multiple concurrent ensure_token_valid calls
             await asyncio.gather(
@@ -260,7 +261,7 @@ class TestConcurrency:
                 client.ensure_token_valid(),
                 client.ensure_token_valid(),
             )
-        
+
         # Due to the lock, only one refresh should happen
         # (others should see the token is now valid after acquiring lock)
         assert refresh_count >= 1

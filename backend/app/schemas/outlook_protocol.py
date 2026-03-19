@@ -19,6 +19,7 @@ class ProtocolBindRequest(ProtocolLoginRequest):
     recovery_email: str
     verification_email: str | None = None
     static_code: str
+    queue: bool = False
 
 
 class ProtocolReplaceRequest(ProtocolLoginRequest):
@@ -26,3 +27,4 @@ class ProtocolReplaceRequest(ProtocolLoginRequest):
     new_email: str
     verification_email: str | None = None
     static_code: str
+    queue: bool = False

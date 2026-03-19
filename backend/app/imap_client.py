@@ -10,6 +10,7 @@ import logging
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime
+from fastapi import HTTPException
 
 from . import imap_parser as _imap_parser
 from .auth.oauth import _get_proxy_url, get_access_token
@@ -92,9 +93,9 @@ class IMAPEmailClient:
                     except Exception as exc:
                         logger.warning("刷新令牌回写失败(%s): %s", self.email, exc)
             else:
-                raise _exceptions.TokenRefreshError(f"刷新访问令牌失败: {self.email}")
+                raise HTTPException(status_code=401, detail=f"刷新访问令牌失败: {self.email}")
 
-        except (_exceptions.TokenRefreshError, _exceptions.IMAPError):
+        except (HTTPException, _exceptions.TokenRefreshError, _exceptions.IMAPError):
             raise
         except asyncio.CancelledError:
             raise

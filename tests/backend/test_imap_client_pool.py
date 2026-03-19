@@ -144,13 +144,13 @@ class TestIMAPClientPool:
                     "client_id": "client-id",
                     "refresh_token": f"token-{i}",
                 }
-                
+
                 with patch('app.services.imap_client_pool.IMAPEmailClient') as MockClient:
                     mock_instance = MagicMock()
                     mock_instance.refresh_token = f"token-{i}"
                     mock_instance.close = AsyncMock()
                     MockClient.return_value = mock_instance
-                    
+
                     await imap_pool.get_or_create(email, account_info)
 
             # Pool should have at most 2 clients due to eviction
@@ -173,7 +173,7 @@ class TestIMAPClientPoolConcurrency:
     async def test_concurrent_get_or_create_same_email(self):
         """Test concurrent get_or_create for same email."""
         from app.services.imap_client_pool import IMAPClientPool
-        
+
         pool = IMAPClientPool()
         creation_count = 0
 

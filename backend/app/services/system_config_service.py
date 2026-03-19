@@ -87,9 +87,6 @@ def _cast_system_value(key: str, value: Any) -> Any:
 async def load_system_config() -> dict[str, Any]:
     global _config_cache, _config_cache_ts
 
-    if _config_cache is not None and (time.monotonic() - _config_cache_ts) < _CONFIG_CACHE_TTL:
-        return dict(_config_cache)
-
     file_config = _read_system_config_file()
     config: dict[str, Any] = {}
 

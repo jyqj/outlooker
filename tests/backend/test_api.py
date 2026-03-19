@@ -5,12 +5,13 @@ API测试用例
 """
 
 from contextlib import closing
+from unittest.mock import AsyncMock, patch
 
 import pytest
-from unittest.mock import patch, AsyncMock
 from fastapi.testclient import TestClient
-from app.mail_api import app, db_manager
+
 from app.auth.jwt import create_access_token
+from app.mail_api import app, db_manager
 from app.services import email_manager
 from app.settings import get_settings
 
@@ -35,19 +36,19 @@ def setup_and_teardown():
 
 class TestPublicEndpoints:
     """测试公开端点"""
-    
+
     def test_root_endpoint(self):
         """测试根路径返回HTML页面"""
         response = client.get("/")
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
-    
+
     def test_admin_page(self):
         """测试管理页面可访问"""
         response = client.get("/admin")
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
-    
+
     def test_messages_without_email(self):
         """测试未提供邮箱时的错误处理"""
         response = client.get(
@@ -58,12 +59,12 @@ class TestPublicEndpoints:
 
 class TestAdminEndpoints:
     """测试需要管理员权限的端点"""
-    
+
     def test_get_accounts_without_auth(self):
         """测试未认证访问账户列表"""
         response = client.get("/api/accounts")
         assert response.status_code == 401
-    
+
     def test_get_accounts_with_auth(self, admin_headers):
         """测试已认证访问账户列表"""
         response = client.get("/api/accounts", headers=admin_headers)
@@ -71,12 +72,12 @@ class TestAdminEndpoints:
         data = response.json()
         assert data["success"] is True
         assert "data" in data
-    
+
     def test_get_system_config_without_auth(self):
         """测试未认证访问系统配置"""
         response = client.get("/api/system/config")
         assert response.status_code == 401
-    
+
     def test_get_system_config_with_auth(self, admin_headers):
         """测试已认证访问系统配置"""
         response = client.get("/api/system/config", headers=admin_headers)
@@ -98,7 +99,7 @@ class TestAdminEndpoints:
         data = response.json()
         assert data["success"] is True
         assert "email_manager" in data["data"]
-    
+
     def test_refresh_cache_with_auth(self, admin_headers):
         """测试刷新缓存接口"""
         response = client.post("/api/system/cache/refresh", headers=admin_headers)
@@ -116,12 +117,12 @@ class TestAdminEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
-    
+
     def test_export_without_auth(self):
         """测试未认证导出账户"""
         response = client.get("/api/export")
         assert response.status_code == 401
-    
+
     def test_import_without_auth(self):
         """测试未认证导入账户"""
         response = client.post("/api/import", json={"accounts": [], "merge_mode": "update"})
@@ -129,7 +130,7 @@ class TestAdminEndpoints:
 
 class TestAccountImport:
     """测试账户导入功能"""
-    
+
     def test_parse_import_text_standard_format(self, admin_headers):
         """测试解析标准格式的导入文本"""
         import_text = "test@example.com----password----refresh_token_abc----client_id_123"
@@ -147,7 +148,7 @@ class TestAccountImport:
         assert account["password"] == "password"
         assert account["refresh_token"] == "refresh_token_abc"
         assert account["client_id"] == "client_id_123"
-    
+
     def test_parse_import_text_simple_format(self, admin_headers):
         """测试解析简化格式的导入文本"""
         import_text = "test@example.com----refresh_token_abc"
@@ -163,7 +164,7 @@ class TestAccountImport:
         account = data["data"]["accounts"][0]
         assert account["email"] == "test@example.com"
         assert account["refresh_token"] == "refresh_token_abc"
-    
+
     def test_parse_import_text_ignore_comments(self, admin_headers):
         """测试忽略注释行"""
         import_text = """# This is a comment
@@ -292,64 +293,64 @@ class TestPublicAccountEndpoints:
 
 class TestDatabase:
     """测试数据库操作"""
-    
+
     @pytest.mark.asyncio
     async def test_add_and_get_account(self):
         """测试添加和获取账户"""
         email = "test_db@example.com"
         password = "test_password"
         refresh_token = "test_refresh_token"
-        
+
         # 添加账户（会自动加密）
         success = await db_manager.add_account(email, password=password, refresh_token=refresh_token)
         assert success is True
-        
+
         # 获取账户（会自动解密）
         account = await db_manager.get_account(email)
         assert account is not None
         # get_account 返回的是解密后的值
         assert account["password"] == password
         assert account["refresh_token"] == refresh_token
-        
+
         # 清理
         await db_manager.delete_account(email)
-    
+
     @pytest.mark.asyncio
     async def test_account_exists(self):
         """测试检查账户是否存在"""
         email = "test_exists@example.com"
-        
+
         # 账户不存在
         exists = await db_manager.account_exists(email)
         assert exists is False
-        
+
         # 添加账户
         await db_manager.add_account(email, refresh_token="test_token")
-        
+
         # 账户存在
         exists = await db_manager.account_exists(email)
         assert exists is True
-        
+
         # 清理
         await db_manager.delete_account(email)
-    
+
     @pytest.mark.asyncio
     async def test_update_account(self):
         """测试更新账户"""
         email = "test_update@example.com"
-        
+
         # 添加账户（会自动加密）
         await db_manager.add_account(email, password="old_password", refresh_token="old_token")
-        
+
         # 更新账户（会自动加密）
         success = await db_manager.update_account(email, password="new_password", refresh_token="new_token")
         assert success is True
-        
+
         # 验证更新（get_account 会自动解密）
         account = await db_manager.get_account(email)
         assert account["password"] == "new_password"
         assert account["refresh_token"] == "new_token"
-        
+
         # 清理
         await db_manager.delete_account(email)
 
@@ -477,7 +478,7 @@ class TestEmailEndpoints:
         # 准备测试数据：添加一个账户
         test_email = "test@example.com"
         await db_manager.add_account(test_email, refresh_token="test_token")
-        
+
         # Mock EmailManager 返回
         mock_messages = [
             {
@@ -490,13 +491,13 @@ class TestEmailEndpoints:
             }
         ]
         mock_get_messages.return_value = mock_messages
-        
+
         # 发起请求
         response = client.get(
             f"/api/messages?email={test_email}&page=1&page_size=5",
             headers={"X-Public-Token": get_settings().public_api_token},
         )
-        
+
         # 验证响应
         assert response.status_code == 200
         data = response.json()
@@ -505,7 +506,7 @@ class TestEmailEndpoints:
         assert len(data["data"]["items"]) == 1
         assert data["data"]["page"] == 1
         assert data["data"]["page_size"] == 5
-        
+
         # 清理
         await db_manager.delete_account(test_email)
 
@@ -537,7 +538,7 @@ class TestEmailEndpoints:
         ])
         mock_instance.cleanup = AsyncMock()
         mock_imap_client.return_value = mock_instance
-        
+
         # 发起请求
         response = client.post(
             "/api/temp-messages",
@@ -549,7 +550,7 @@ class TestEmailEndpoints:
             },
             headers={"X-Public-Token": get_settings().public_api_token},
         )
-        
+
         # 验证响应
         assert response.status_code == 200
         data = response.json()
@@ -563,7 +564,7 @@ class TestEmailEndpoints:
         # 准备测试数据
         test_email = "test@example.com"
         await db_manager.add_account(test_email, refresh_token="test_token")
-        
+
         # Mock 返回
         mock_get_messages.return_value = [
             {
@@ -575,20 +576,20 @@ class TestEmailEndpoints:
                 "body": {"content": "Content", "contentType": "text"}
             }
         ]
-        
+
         # 发起请求
         response = client.post(
             "/api/test-email",
             json={"email": test_email},
             headers={"X-Public-Token": get_settings().public_api_token},
         )
-        
+
         # 验证响应
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
         assert data["data"] is not None
-        
+
         # 清理
         await db_manager.delete_account(test_email)
 
@@ -608,7 +609,7 @@ class TestEmailEndpoints:
             },
             headers={"X-Public-Token": get_settings().public_api_token},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True

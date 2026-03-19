@@ -128,7 +128,7 @@ class AccountNotFoundError(ResourceNotFoundError):
 
     def __init__(self, email: str):
         super().__init__(
-            message=f"账户未找到: {email}",
+            message=f"邮箱未在配置中找到: {email}",
             resource_type="account",
             resource_id=email,
         )

@@ -22,6 +22,19 @@ DEFAULT_PUBLIC_SCOPES = (
 _settings = get_settings()
 
 
+async def _sync_refresh_token_to_legacy_account(email: str, refresh_token: str) -> None:
+    if not refresh_token:
+        return
+
+    source_email = email
+    outlook_account = await db_manager.get_outlook_account(email)
+    if outlook_account and outlook_account.get("source_account_email"):
+        source_email = str(outlook_account["source_account_email"])
+
+    if await db_manager.get_account(source_email):
+        await db_manager.update_account(source_email, refresh_token=refresh_token)
+
+
 async def get_oauth_config_by_id(config_id: int) -> dict[str, Any] | None:
     """Load an OAuth config by primary key."""
     return await db_manager.get_oauth_config_by_id(config_id)
@@ -165,6 +178,10 @@ async def _refresh_token_record(token: dict[str, Any], *, proxy_url: str | None 
     refreshed = await db_manager.get_oauth_token_by_id(int(token["id"]))
     if not refreshed or not refreshed.get("access_token"):
         raise GraphAPIError(500, "刷新后未能读取新的 access token", "TOKEN_READBACK_FAILED")
+    await _sync_refresh_token_to_legacy_account(
+        str(refreshed["email"]),
+        str(refreshed.get("refresh_token") or refresh_token),
+    )
     return refreshed
 
 

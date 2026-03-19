@@ -168,8 +168,7 @@ def decrypt_if_needed(value: str, raise_on_error: bool = False) -> str:
         )
         if raise_on_error:
             raise DecryptionError("解密失败，密钥可能已更改或数据已损坏")
-        # 返回空字符串而非原加密值，防止敏感数据泄露
-        return ""
+        return value
 
 
 # ============================================================================
@@ -202,13 +201,13 @@ def mask_secret(value: str | None, visible_chars: int = 2, mask_char: str = "*")
     """
     if not value:
         return mask_char * 3
-        
+
     length = len(value)
     min_length = visible_chars * 2 + 1
-    
+
     if length <= min_length:
         return mask_char * 3
-        
+
     masked_length = length - visible_chars * 2
     return f"{value[:visible_chars]}{mask_char * masked_length}{value[-visible_chars:]}"
 
@@ -223,7 +222,7 @@ def mask_email(email: str | None) -> str:
     """
     if not email or "@" not in email:
         return "***@***"
-        
+
     local, domain = email.rsplit("@", 1)
     masked_local = mask_secret(local, visible_chars=2)
     return f"{masked_local}@{domain}"

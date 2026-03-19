@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from ..auth.oauth import get_access_token
@@ -18,6 +18,31 @@ from .webhook_service import dispatch_event
 logger = logging.getLogger(__name__)
 
 _task: asyncio.Task[None] | None = None
+
+
+async def _sync_refresh_token_to_oauth(email: str, refresh_token: str) -> None:
+    if not refresh_token:
+        return
+
+    token = await db_manager.get_latest_active_oauth_token(email)
+    if token:
+        await db_manager.update_oauth_token(
+            int(token["id"]),
+            refresh_token=refresh_token,
+            status="active",
+            last_error="",
+        )
+
+    outlook_account = await db_manager.get_outlook_account_by_source_email(email)
+    if outlook_account:
+        linked_token = await db_manager.get_latest_active_oauth_token(str(outlook_account["email"]))
+        if linked_token:
+            await db_manager.update_oauth_token(
+                int(linked_token["id"]),
+                refresh_token=refresh_token,
+                status="active",
+                last_error="",
+            )
 
 
 async def _refresh_cycle() -> dict[str, Any]:
@@ -47,6 +72,8 @@ async def _refresh_cycle() -> dict[str, Any]:
                         email, "healthy",
                         refresh_token=new_rt if new_rt and new_rt != rt else None,
                     )
+                    if new_rt and new_rt != rt:
+                        await _sync_refresh_token_to_oauth(email, new_rt)
                     refreshed += 1
                 else:
                     await db_manager.update_account_health(email, "token_expired")
@@ -63,7 +90,7 @@ async def _refresh_cycle() -> dict[str, Any]:
     summary = {"total": len(accounts), "refreshed": refreshed, "failed": failed}
     await db_manager.upsert_system_metric("token_refresh", {
         **summary,
-        "last_run_at": datetime.now(timezone.utc).isoformat() + "Z",
+        "last_run_at": datetime.now(UTC).isoformat() + "Z",
     })
     logger.info("Token refresh cycle: %s", summary)
     return summary

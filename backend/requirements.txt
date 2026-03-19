@@ -24,6 +24,7 @@ prometheus-client>=0.17.0
 # Workers / Realtime
 celery[redis]>=5.4.0
 redis>=5.2.0
+playwright>=1.52.0
 
 # IMAP proxy support (SOCKS5/SOCKS4/HTTP)
 pysocks>=1.7.1

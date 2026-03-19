@@ -11,6 +11,55 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/public", tags=["公共邮箱接口"])
 
 
+@router.get("/account-unused", dependencies=[Depends(verify_public_token)])
+async def get_unused_account_public(
+    db: DbManager,
+    _: None = Depends(enforce_public_rate_limit),
+) -> ApiResponse:
+    """获取一个未使用的账户。"""
+    account = await db.get_unused_account()
+    if not account:
+        return ApiResponse(success=False, message="暂无未使用的邮箱", data=None)
+
+    return ApiResponse(
+        success=True,
+        message="获取未使用邮箱成功",
+        data={
+            "email": account["email"],
+            "password": account.get("password", ""),
+            "client_id": account.get("client_id", ""),
+            "refresh_token": account.get("refresh_token", ""),
+        },
+    )
+
+
+@router.post("/account/{email}/used", dependencies=[Depends(verify_public_token)])
+async def mark_account_used_public(
+    email: str,
+    db: DbManager,
+    _: None = Depends(enforce_public_rate_limit),
+) -> ApiResponse:
+    """标记指定邮箱已被消耗。"""
+    email = (email or "").strip()
+    if not email:
+        raise ValidationError(message="邮箱地址不能为空", field="email")
+
+    marked = await db.mark_account_used(email)
+    if not marked:
+        raise ResourceNotFoundError(
+            message="账户不存在或标记失败",
+            resource_type="account",
+            resource_id=email,
+        )
+
+    logger.info("通过公共接口标记账户已使用: %s", email)
+    return ApiResponse(
+        success=True,
+        message="账户已标记为已使用",
+        data={"email": email},
+    )
+
+
 @router.delete("/account/{email}", dependencies=[Depends(verify_public_token)])
 async def delete_account_public(
     email: str,

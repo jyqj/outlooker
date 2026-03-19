@@ -36,6 +36,7 @@ export function ProtocolBindWizard() {
           recovery_email: recoveryEmail,
           verification_email: verificationEmail || undefined,
           static_code: staticCode,
+          queue: true,
         });
         setResult(JSON.stringify(res.data, null, 2));
       } else {
@@ -46,6 +47,7 @@ export function ProtocolBindWizard() {
           new_email: newEmail,
           verification_email: verificationEmail || undefined,
           static_code: staticCode,
+          queue: true,
         });
         setResult(JSON.stringify(res.data, null, 2));
       }
@@ -95,7 +97,7 @@ export function ProtocolBindWizard() {
         </div>
 
         <Button onClick={runAction} disabled={loading}>
-          {loading ? '执行中...' : '执行协议操作'}
+          {loading ? '执行中...' : mode === 'bind' || mode === 'replace' ? '创建任务' : '执行协议操作'}
         </Button>
 
         <Textarea rows={14} value={result} onChange={(e) => setResult(e.target.value)} />
