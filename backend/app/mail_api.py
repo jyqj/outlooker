@@ -27,7 +27,7 @@ from .core.startup import log_startup_info, validate_environment
 # 导入自定义模块
 from .db import db_manager
 from .models import ApiResponse
-from .routers import accounts, auth, batch, dashboard, emails, public_accounts, system, tags
+from .routers import accounts, auth, batch, dashboard, emails, outlook_accounts, outlook_channels, outlook_protocol, outlook_resources, outlook_tasks, public_accounts, system, tags
 from .services import admin_auth_service, email_manager, load_accounts_config
 from .services.token_refresh_service import start_background_refresh, stop_background_refresh
 from .settings import get_settings
@@ -157,13 +157,18 @@ app.add_middleware(MetricsMiddleware)
 
 # 挂载API路由
 app.include_router(auth.router)
-app.include_router(accounts.router)
 app.include_router(tags.router)
+app.include_router(accounts.router)
 app.include_router(batch.router)
 app.include_router(dashboard.router)
 app.include_router(emails.router)
 app.include_router(system.router)
 app.include_router(public_accounts.router)
+app.include_router(outlook_accounts.router)
+app.include_router(outlook_channels.router)
+app.include_router(outlook_protocol.router)
+app.include_router(outlook_resources.router)
+app.include_router(outlook_tasks.router)
 
 # 添加验证错误处理器
 @app.exception_handler(RequestValidationError)

@@ -1,4 +1,18 @@
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: outlooker-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - ../data/redis:/data
+    environment:
+      - TZ=Asia/Shanghai
+    restart: unless-stopped
+    networks:
+      - outlook-mail-network
+
   outlook-mail-system:
     build:
       context: ..
@@ -13,6 +27,11 @@ services:
       - ../backend/configs:/app/backend/configs
     environment:
       - TZ=Asia/Shanghai
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/1}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/2}
+    depends_on:
+      - redis
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5001/api/health/live"]
@@ -20,6 +39,31 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    networks:
+      - outlook-mail-network
+
+  outlook-mail-worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: outlooker-worker
+    env_file:
+      - ../.env
+    volumes:
+      - ../data:/app/data
+      - ../backend/configs:/app/backend/configs
+    environment:
+      - TZ=Asia/Shanghai
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/1}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/2}
+    depends_on:
+      - redis
+    restart: unless-stopped
+    entrypoint:
+      - /bin/sh
+      - -lc
+      - cd /app/backend && exec celery -A app.workers.celery_app.celery_app worker --loglevel=INFO
     networks:
       - outlook-mail-network
 

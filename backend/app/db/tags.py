@@ -18,7 +18,7 @@ class TagsMixin(RunInThreadMixin):
 
     async def get_account_tags_v2(self, email: str) -> list[str]:
         """获取账户的标签列表（使用关系表）"""
-        
+
         def _sync_get(conn: sqlite3.Connection) -> list[str]:
             cursor = conn.cursor()
             cursor.execute("""
@@ -29,21 +29,21 @@ class TagsMixin(RunInThreadMixin):
                 ORDER BY t.name
             """, (email,))
             return [row[0] for row in cursor.fetchall()]
-        
+
         return await self._run_in_thread(_sync_get)
 
     async def set_account_tags_v2(self, email: str, tags: list[str]) -> bool:
         """设置账户标签（完全替换）"""
-        
+
         def _sync_set(conn: sqlite3.Connection) -> bool:
             try:
                 cursor = conn.cursor()
-                
+
                 cursor.execute(
                     "DELETE FROM account_tag_relations WHERE account_email = ?",
                     (email,),
                 )
-                
+
                 cleaned = [t.strip() for t in tags if t and t.strip()]
                 if cleaned:
                     cursor.executemany(
@@ -56,32 +56,32 @@ class TagsMixin(RunInThreadMixin):
                         cleaned,
                     )
                     tag_ids = {row[1]: row[0] for row in cursor.fetchall()}
-                    
+
                     cursor.executemany(
                         "INSERT OR IGNORE INTO account_tag_relations (account_email, tag_id) VALUES (?, ?)",
                         [(email, tag_ids[t]) for t in cleaned if t in tag_ids],
                     )
-                
+
                 conn.commit()
                 return True
             except Exception as e:
                 logger.error("设置账户标签失败: %s", e)
                 conn.rollback()
                 return False
-        
+
         return await self._run_in_thread(_sync_set)
 
     async def add_tags_to_account(self, email: str, tags: list[str]) -> bool:
         """为账户添加标签（不影响现有标签）"""
-        
+
         def _sync_add(conn: sqlite3.Connection) -> bool:
             try:
                 cursor = conn.cursor()
-                
+
                 cleaned = [t.strip() for t in tags if t and t.strip()]
                 if not cleaned:
                     return True
-                
+
                 cursor.executemany(
                     "INSERT OR IGNORE INTO tags (name) VALUES (?)",
                     [(t,) for t in cleaned],
@@ -92,92 +92,102 @@ class TagsMixin(RunInThreadMixin):
                     cleaned,
                 )
                 tag_ids = {row[1]: row[0] for row in cursor.fetchall()}
-                
+
                 cursor.executemany(
                     "INSERT OR IGNORE INTO account_tag_relations (account_email, tag_id) VALUES (?, ?)",
                     [(email, tag_ids[t]) for t in cleaned if t in tag_ids],
                 )
-                
+
                 conn.commit()
                 return True
             except Exception as e:
                 logger.error("添加标签失败: %s", e)
                 conn.rollback()
                 return False
-        
+
         return await self._run_in_thread(_sync_add)
 
     async def remove_tags_from_account(self, email: str, tags: list[str]) -> bool:
         """从账户移除指定标签"""
-        
+
         def _sync_remove(conn: sqlite3.Connection) -> bool:
             try:
                 cursor = conn.cursor()
-                
+
                 cleaned = [t.strip() for t in tags if t and t.strip()]
                 if not cleaned:
                     return True
-                
+
                 placeholders = ",".join(["?"] * len(cleaned))
                 cursor.execute(
                     f"SELECT id FROM tags WHERE name IN ({placeholders})",
                     cleaned,
                 )
                 tag_ids = [row[0] for row in cursor.fetchall()]
-                
+
                 if not tag_ids:
                     return True
-                
+
                 id_placeholders = ",".join(["?"] * len(tag_ids))
                 cursor.execute(
                     f"DELETE FROM account_tag_relations WHERE account_email = ? AND tag_id IN ({id_placeholders})",
                     [email] + tag_ids,
                 )
-                
+
                 conn.commit()
                 return True
             except Exception as e:
                 logger.error("移除标签失败: %s", e)
                 conn.rollback()
                 return False
-        
+
         return await self._run_in_thread(_sync_remove)
 
     async def get_all_tags_v2(self) -> list[str]:
         """获取所有唯一标签"""
-        
+
         def _sync_get(conn: sqlite3.Connection) -> list[str]:
             cursor = conn.cursor()
-            cursor.execute("SELECT name FROM tags ORDER BY name")
+            cursor.execute("""
+                SELECT DISTINCT t.name
+                FROM tags t
+                JOIN account_tag_relations atr ON t.id = atr.tag_id
+                JOIN accounts a ON a.email = atr.account_email
+                WHERE a.deleted_at IS NULL
+                ORDER BY t.name
+            """)
             return [row[0] for row in cursor.fetchall()]
-        
+
         return await self._run_in_thread(_sync_get)
 
     async def get_tag_statistics_v2(self) -> dict[str, Any]:
         """获取标签统计（使用 SQL 聚合）"""
-        
+
         def _sync_get(conn: sqlite3.Connection) -> dict[str, Any]:
             cursor = conn.cursor()
-            
+
             # 总账户数
             cursor.execute("SELECT COUNT(*) FROM accounts")
             total_accounts = cursor.fetchone()[0]
-            
+
             # 有标签的账户数
             cursor.execute("""
                 SELECT COUNT(DISTINCT account_email) FROM account_tag_relations
             """)
             tagged_accounts = cursor.fetchone()[0]
-            
+
             # 各标签统计
             cursor.execute("""
                 SELECT t.name, COUNT(atr.account_email) as count
                 FROM tags t
                 LEFT JOIN account_tag_relations atr ON t.id = atr.tag_id
+                LEFT JOIN accounts a ON a.email = atr.account_email
+                WHERE a.deleted_at IS NULL OR a.email IS NULL
                 GROUP BY t.id, t.name
+                HAVING COUNT(atr.account_email) > 0
                 ORDER BY count DESC, t.name
             """)
-            
+
             tags_list = []
             for row in cursor.fetchall():
                 percentage = round(row[1] / total_accounts * 100, 1) if total_accounts > 0 else 0
@@ -186,14 +196,14 @@ class TagsMixin(RunInThreadMixin):
                     "count": row[1],
                     "percentage": percentage,
                 })
-            
+
             return {
                 "total_accounts": total_accounts,
                 "tagged_accounts": tagged_accounts,
                 "untagged_accounts": total_accounts - tagged_accounts,
                 "tags": tags_list,
             }
-        
+
         return await self._run_in_thread(_sync_get)
 
     async def get_random_account_by_tag_filter_v2(
@@ -204,17 +214,17 @@ class TagsMixin(RunInThreadMixin):
         """
         使用 SQL 级过滤随机获取账户（高性能版本）
         """
-        
+
         def _sync_get(conn: sqlite3.Connection) -> dict[str, Any] | None:
             cursor = conn.cursor()
-            
+
             # 构建查询
             query = """
                 SELECT a.email, a.password, a.client_id, a.refresh_token
                 FROM accounts a
             """
             params: list[Any] = []
-            
+
             # 必须有某个标签
             if include_tag:
                 query += """
@@ -222,7 +232,7 @@ class TagsMixin(RunInThreadMixin):
                     JOIN tags t ON atr.tag_id = t.id AND t.name = ?
                 """
                 params.append(include_tag)
-            
+
             # 排除标签
             if exclude_tags:
                 placeholders = ",".join(["?" for _ in exclude_tags])
@@ -245,26 +255,26 @@ class TagsMixin(RunInThreadMixin):
                         )
                     """
                 params.extend(exclude_tags)
-            
+
             # 使用 COUNT + OFFSET 随机选择
             count_query = f"SELECT COUNT(*) FROM ({query}) sub"
             cursor.execute(count_query, params)
             total = cursor.fetchone()[0]
-            
+
             if total == 0:
                 return None
-            
+
             offset = random.randint(0, total - 1)
-            
+
             query += " LIMIT 1 OFFSET ?"
             params.append(offset)
-            
+
             cursor.execute(query, params)
             row = cursor.fetchone()
-            
+
             if not row:
                 return None
-            
+
             # 获取该账户的所有标签
             cursor.execute("""
                 SELECT t.name FROM tags t
@@ -272,7 +282,7 @@ class TagsMixin(RunInThreadMixin):
                 WHERE atr.account_email = ?
             """, (row[0],))
             tags = [r[0] for r in cursor.fetchall()]
-            
+
             return {
                 "email": row[0],
                 "password": row[1] or "",
@@ -280,53 +290,53 @@ class TagsMixin(RunInThreadMixin):
                 "refresh_token": row[3] or "",
                 "tags": tags,
             }
-        
+
         return await self._run_in_thread(_sync_get)
 
     async def delete_tag_globally_v2(self, tag_name: str) -> int:
         """全局删除标签"""
-        
+
         def _sync_delete(conn: sqlite3.Connection) -> int:
             try:
                 cursor = conn.cursor()
-                
+
                 # 获取受影响的账户数
                 cursor.execute("""
                     SELECT COUNT(*) FROM account_tag_relations
                     WHERE tag_id = (SELECT id FROM tags WHERE name = ?)
                 """, (tag_name,))
                 affected = cursor.fetchone()[0]
-                
+
                 # 删除标签（级联删除关联）
                 cursor.execute("DELETE FROM tags WHERE name = ?", (tag_name,))
-                
+
                 conn.commit()
                 return affected
             except Exception as e:
                 logger.error(f"全局删除标签失败: {e}")
                 conn.rollback()
                 return 0
-        
+
         return await self._run_in_thread(_sync_delete)
 
     async def rename_tag_globally_v2(self, old_name: str, new_name: str) -> int:
         """全局重命名标签"""
-        
+
         def _sync_rename(conn: sqlite3.Connection) -> int:
             try:
                 cursor = conn.cursor()
-                
+
                 # 获取受影响的账户数
                 cursor.execute("""
                     SELECT COUNT(*) FROM account_tag_relations
                     WHERE tag_id = (SELECT id FROM tags WHERE name = ?)
                 """, (old_name,))
                 affected = cursor.fetchone()[0]
-                
+
                 # 检查新名称是否已存在
                 cursor.execute("SELECT id FROM tags WHERE name = ?", (new_name,))
                 existing = cursor.fetchone()
-                
+
                 if existing:
                     # 合并到已存在的标签
                     cursor.execute("SELECT id FROM tags WHERE name = ?", (old_name,))
@@ -345,14 +355,14 @@ class TagsMixin(RunInThreadMixin):
                     cursor.execute("""
                         UPDATE tags SET name = ? WHERE name = ?
                     """, (new_name, old_name))
-                
+
                 conn.commit()
                 return affected
             except Exception as e:
                 logger.error(f"重命名标签失败: {e}")
                 conn.rollback()
                 return 0
-        
+
         return await self._run_in_thread(_sync_rename)
 
     async def batch_update_tags_v2(
@@ -556,7 +566,7 @@ class TagsMixin(RunInThreadMixin):
 
     async def cleanup_orphan_tags(self) -> int:
         """清理没有关联任何账户的孤立标签"""
-        
+
         def _sync_cleanup(conn: sqlite3.Connection) -> int:
             try:
                 cursor = conn.cursor()

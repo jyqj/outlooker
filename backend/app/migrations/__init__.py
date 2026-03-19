@@ -455,7 +455,7 @@ def _upgrade_email_cache_folder(conn: sqlite3.Connection) -> None:
 def _create_audit_events_table(conn: sqlite3.Connection) -> None:
     """创建 audit_events 表用于记录安全相关事件"""
     cursor = conn.cursor()
-    
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS audit_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -472,7 +472,7 @@ def _create_audit_events_table(conn: sqlite3.Connection) -> None:
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    
+
     # 创建索引优化查询
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_audit_events_type ON audit_events(event_type)"
@@ -489,7 +489,7 @@ def _create_audit_events_table(conn: sqlite3.Connection) -> None:
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_audit_events_type_timestamp ON audit_events(event_type, timestamp)"
     )
-    
+
     logger.info("审计事件表创建完成")
 
 
@@ -497,9 +497,9 @@ def _create_audit_events_table(conn: sqlite3.Connection) -> None:
 def _migrate_tag_relations(conn: sqlite3.Connection) -> None:
     """将 JSON 格式的 account_tags 表转换为关系型 tags + account_tag_relations 表"""
     import json
-    
+
     cursor = conn.cursor()
-    
+
     # 检查 account_tags 表是否存在
     cursor.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='account_tags'"
@@ -527,14 +527,14 @@ def _migrate_tag_relations(conn: sqlite3.Connection) -> None:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_atr_email ON account_tag_relations(account_email)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_tags_name ON tags(name)")
         return
-    
+
     # 检查 account_tags_backup_json 是否已存在（说明迁移已执行过）
     cursor.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='account_tags_backup_json'"
     )
     if cursor.fetchone():
         return
-    
+
     # 创建新表
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS tags (
@@ -556,35 +556,35 @@ def _migrate_tag_relations(conn: sqlite3.Connection) -> None:
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_atr_tag_id ON account_tag_relations(tag_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_atr_email ON account_tag_relations(account_email)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_tags_name ON tags(name)")
-    
+
     # 迁移数据
     cursor.execute("SELECT email, tags FROM account_tags")
     rows = cursor.fetchall()
-    
+
     tag_cache: dict[str, int] = {}
-    
+
     for row in rows:
         email = row[0] if not isinstance(row, sqlite3.Row) else row["email"]
         tags_json = row[1] if not isinstance(row, sqlite3.Row) else row["tags"]
-        
+
         if not tags_json:
             continue
-        
+
         try:
             tags = json.loads(tags_json)
         except json.JSONDecodeError:
             logger.warning(f"账户 {email} 的标签 JSON 解析失败，跳过")
             continue
-        
+
         if not tags:
             continue
-        
+
         for tag_name in tags:
             if not tag_name or not str(tag_name).strip():
                 continue
-            
+
             tag_name = str(tag_name).strip()
-            
+
             if tag_name not in tag_cache:
                 cursor.execute("INSERT OR IGNORE INTO tags (name) VALUES (?)", (tag_name,))
                 cursor.execute("SELECT id FROM tags WHERE name = ?", (tag_name,))
@@ -594,12 +594,12 @@ def _migrate_tag_relations(conn: sqlite3.Connection) -> None:
                     tag_cache[tag_name] = tag_id
                 else:
                     continue
-            
+
             cursor.execute("""
                 INSERT OR IGNORE INTO account_tag_relations (account_email, tag_id)
                 VALUES (?, ?)
             """, (email, tag_cache[tag_name]))
-    
+
     # 重命名原表为备份
     cursor.execute("ALTER TABLE account_tags RENAME TO account_tags_backup_json")
     logger.info("标签数据已从 JSON 格式迁移到关系表")
@@ -647,4 +647,430 @@ def _create_extraction_rules_table(conn: sqlite3.Connection) -> None:
     """)
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_extraction_rules_active ON extraction_rules(is_active, priority DESC)"
+    )
+
+
+@register_migration("2026031901", "创建 Outlook 账户资产表")
+def _create_outlook_accounts_table(conn: sqlite3.Connection) -> None:
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS outlook_accounts (
+            email TEXT PRIMARY KEY,
+            status TEXT NOT NULL DEFAULT 'active',
+            account_type TEXT NOT NULL DEFAULT 'consumer',
+            source_account_email TEXT,
+            default_channel_id INTEGER,
+            notes TEXT DEFAULT '',
+            last_synced_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (source_account_email) REFERENCES accounts(email) ON DELETE SET NULL
+        )
+        """
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_outlook_accounts_status ON outlook_accounts(status)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_outlook_accounts_source_email ON outlook_accounts(source_account_email)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_outlook_accounts_default_channel_id ON outlook_accounts(default_channel_id)"
+    )
+
+
+@register_migration("2026031902", "创建 OAuth 配置表")
+def _create_oauth_configs_table(conn: sqlite3.Connection) -> None:
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS oauth_configs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            provider TEXT NOT NULL,
+            name TEXT NOT NULL,
+            client_id TEXT NOT NULL UNIQUE,
+            client_secret TEXT DEFAULT '',
+            tenant_id TEXT DEFAULT '',
+            redirect_uri TEXT DEFAULT '',
+            scopes TEXT DEFAULT '',
+            authorization_url TEXT DEFAULT '',
+            token_url TEXT DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'active',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_oauth_configs_provider_status ON oauth_configs(provider, status)"
+    )
+
+
+@register_migration("2026031903", "创建 OAuth Token 资产表")
+def _create_oauth_tokens_table(conn: sqlite3.Connection) -> None:
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS oauth_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            oauth_config_id INTEGER NOT NULL,
+            email TEXT NOT NULL,
+            access_token TEXT DEFAULT '',
+            refresh_token TEXT DEFAULT '',
+            expires_at TIMESTAMP,
+            scopes_granted TEXT DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'active',
+            last_error TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (oauth_config_id) REFERENCES oauth_configs(id) ON DELETE CASCADE
+        )
+        """
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_oauth_tokens_email_status ON oauth_tokens(email, status)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_oauth_tokens_config_id ON oauth_tokens(oauth_config_id)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_oauth_tokens_expires_at ON oauth_tokens(expires_at)"
+    )
+
+
+@register_migration("2026031904", "创建账户能力表")
+def _create_account_capabilities_table(conn: sqlite3.Connection) -> None:
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS account_capabilities (
+            email TEXT PRIMARY KEY,
+            imap_ready INTEGER NOT NULL DEFAULT 0,
+            graph_ready INTEGER NOT NULL DEFAULT 0,
+            protocol_ready INTEGER NOT NULL DEFAULT 0,
+            browser_fallback_ready INTEGER NOT NULL DEFAULT 0,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (email) REFERENCES outlook_accounts(email) ON DELETE CASCADE
+        )
+        """
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_account_capabilities_graph_ready ON account_capabilities(graph_ready)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_account_capabilities_protocol_ready ON account_capabilities(protocol_ready)"
+    )
+
+
+@register_migration("2026031905", "创建账户资料缓存表")
+def _create_account_profiles_cache_table(conn: sqlite3.Connection) -> None:
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS account_profiles_cache (
+            email TEXT PRIMARY KEY,
+            profile_json TEXT NOT NULL DEFAULT '{}',
+            synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (email) REFERENCES outlook_accounts(email) ON DELETE CASCADE
+        )
+        """
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_account_profiles_cache_synced_at ON account_profiles_cache(synced_at)"
+    )
+
+
+@register_migration("2026031906", "创建账户安全方式快照表")
+def _create_account_security_methods_snapshot_table(conn: sqlite3.Connection) -> None:
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS account_security_methods_snapshot (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT NOT NULL,
+            method_type TEXT NOT NULL,
+            method_id TEXT NOT NULL,
+            display_value TEXT DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'active',
+            raw_json TEXT DEFAULT '{}',
+            synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(email, method_type, method_id),
+            FOREIGN KEY (email) REFERENCES outlook_accounts(email) ON DELETE CASCADE
+        )
+        """
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_account_security_methods_email_type ON account_security_methods_snapshot(email, method_type)"
+    )
+
+
+@register_migration("2026031907", "创建辅助邮箱资源池表")
+def _create_aux_email_resources_table(conn: sqlite3.Connection) -> None:
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS aux_email_resources (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            address TEXT NOT NULL UNIQUE,
+            provider TEXT NOT NULL DEFAULT 'custom',
+            source_type TEXT NOT NULL DEFAULT 'manual',
+            status TEXT NOT NULL DEFAULT 'available',
+            channel_id INTEGER,
+            fail_count INTEGER NOT NULL DEFAULT 0,
+            last_email_id INTEGER,
+            bound_account_email TEXT,
+            notes TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (bound_account_email) REFERENCES outlook_accounts(email) ON DELETE SET NULL
+        )
+        """
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_aux_email_resources_status ON aux_email_resources(status)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_aux_email_resources_channel_id ON aux_email_resources(channel_id)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_aux_email_resources_bound_account_email ON aux_email_resources(bound_account_email)"
+    )
+
+
+@register_migration("2026031908", "创建渠道主表")
+def _create_channels_table(conn: sqlite3.Connection) -> None:
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS channels (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT NOT NULL UNIQUE,
+            name TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'active',
+            priority INTEGER NOT NULL DEFAULT 0,
+            pick_strategy TEXT NOT NULL DEFAULT 'round_robin',
+            cooldown_seconds INTEGER NOT NULL DEFAULT 0,
+            notes TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_channels_status_priority ON channels(status, priority DESC)"
+    )
+
+
+@register_migration("2026031909", "创建渠道与账户关系表")
+def _create_channel_account_relations_table(conn: sqlite3.Connection) -> None:
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS channel_account_relations (
+            channel_id INTEGER NOT NULL,
+            account_email TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'active',
+            weight INTEGER NOT NULL DEFAULT 100,
+            last_assigned_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (channel_id, account_email),
+            FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE,
+            FOREIGN KEY (account_email) REFERENCES outlook_accounts(email) ON DELETE CASCADE
+        )
+        """
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_channel_account_relations_email ON channel_account_relations(account_email)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_channel_account_relations_status ON channel_account_relations(status)"
+    )
+
+
+@register_migration("2026031910", "创建渠道与资源关系表")
+def _create_channel_resource_relations_table(conn: sqlite3.Connection) -> None:
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS channel_resource_relations (
+            channel_id INTEGER NOT NULL,
+            resource_id INTEGER NOT NULL,
+            status TEXT NOT NULL DEFAULT 'active',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (channel_id, resource_id),
+            FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE,
+            FOREIGN KEY (resource_id) REFERENCES aux_email_resources(id) ON DELETE CASCADE
+        )
+        """
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_channel_resource_relations_status ON channel_resource_relations(status)"
+    )
+
+
+@register_migration("2026031911", "创建取号租约表")
+def _create_allocation_leases_table(conn: sqlite3.Connection) -> None:
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS allocation_leases (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            channel_id INTEGER NOT NULL,
+            account_email TEXT NOT NULL,
+            leased_to TEXT DEFAULT '',
+            leased_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP NOT NULL,
+            status TEXT NOT NULL DEFAULT 'active',
+            released_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE,
+            FOREIGN KEY (account_email) REFERENCES outlook_accounts(email) ON DELETE CASCADE
+        )
+        """
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_allocation_leases_channel_status ON allocation_leases(channel_id, status)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_allocation_leases_expires_at ON allocation_leases(expires_at)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_allocation_leases_account_email ON allocation_leases(account_email)"
+    )
+
+
+@register_migration("2026031912", "创建协议任务主表")
+def _create_protocol_tasks_table(conn: sqlite3.Connection) -> None:
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS protocol_tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_type TEXT NOT NULL,
+            target_email TEXT NOT NULL,
+            old_email TEXT DEFAULT '',
+            new_email TEXT DEFAULT '',
+            verification_email TEXT DEFAULT '',
+            channel_id INTEGER,
+            resource_id INTEGER,
+            status TEXT NOT NULL DEFAULT 'pending',
+            retry_count INTEGER NOT NULL DEFAULT 0,
+            error_message TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_protocol_tasks_status ON protocol_tasks(status)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_protocol_tasks_type ON protocol_tasks(task_type)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_protocol_tasks_target_email ON protocol_tasks(target_email)"
+    )
+
+
+@register_migration("2026031913", "创建协议任务步骤表")
+def _create_protocol_task_steps_table(conn: sqlite3.Connection) -> None:
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS protocol_task_steps (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id INTEGER NOT NULL,
+            step TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            detail TEXT DEFAULT '',
+            started_at TIMESTAMP,
+            finished_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (task_id) REFERENCES protocol_tasks(id) ON DELETE CASCADE
+        )
+        """
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_protocol_task_steps_task_id ON protocol_task_steps(task_id)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_protocol_task_steps_status ON protocol_task_steps(status)"
+    )
+
+
+@register_migration("2026031914", "创建账户操作审计表")
+def _create_account_operation_audit_table(conn: sqlite3.Connection) -> None:
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS account_operation_audit (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT NOT NULL,
+            operation TEXT NOT NULL,
+            operator TEXT DEFAULT '',
+            result TEXT NOT NULL DEFAULT 'success',
+            details TEXT DEFAULT '',
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (email) REFERENCES outlook_accounts(email) ON DELETE CASCADE
+        )
+        """
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_account_operation_audit_email ON account_operation_audit(email)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_account_operation_audit_operation ON account_operation_audit(operation)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_account_operation_audit_timestamp ON account_operation_audit(timestamp)"
+    )
+
+
+@register_migration("2026031915", "补充 Outlook 重构高频索引")
+def _add_outlook_refactor_indexes(conn: sqlite3.Connection) -> None:
+    cursor = conn.cursor()
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_aux_email_resources_channel_status ON aux_email_resources(channel_id, status)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_channel_account_relations_channel_status ON channel_account_relations(channel_id, status)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_account_security_methods_email_status ON account_security_methods_snapshot(email, status)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_protocol_tasks_channel_status ON protocol_tasks(channel_id, status)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_protocol_tasks_status_updated_at ON protocol_tasks(status, updated_at)"
+    )
+
+
+@register_migration("2026031916", "为渠道表增加代理配置字段")
+def _add_channel_proxy_columns(conn: sqlite3.Connection) -> None:
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='channels'"
+    )
+    if not cursor.fetchone():
+        return
+
+    cursor.execute("PRAGMA table_info(channels)")
+    columns = {col[1] for col in cursor.fetchall()}
+
+    if "proxy_url" not in columns:
+        cursor.execute("ALTER TABLE channels ADD COLUMN proxy_url TEXT DEFAULT ''")
+    if "proxy_group" not in columns:
+        cursor.execute("ALTER TABLE channels ADD COLUMN proxy_group TEXT DEFAULT ''")
+
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_channels_proxy_group ON channels(proxy_group)"
     )

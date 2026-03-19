@@ -25,6 +25,8 @@ class ImportAccountData(BaseModel):
     password: str = ""
     client_id: str = ""
     refresh_token: str
+    recovery_email: str = ""
+    recovery_password: str = ""
 
 class ImportRequest(BaseModel):
     """批量导入请求模型"""

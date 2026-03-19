@@ -5,9 +5,10 @@ OAuth2 认证模块单元测试
 测试 auth 模块中的令牌获取和刷新功能
 """
 
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import httpx
+import pytest
 from fastapi import HTTPException
 
 from app.auth import get_access_token
@@ -83,7 +84,7 @@ class TestGetAccessToken:
             mock_client.return_value = mock_instance
 
             access_token, refresh_token = await get_access_token(
-                "invalid_refresh_token", 
+                "invalid_refresh_token",
                 check_only=True
             )
 

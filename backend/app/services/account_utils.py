@@ -52,15 +52,19 @@ def parse_account_line(line: str) -> tuple[str, dict[str, str]] | None:
 
     if num_parts >= 6:
         # 6字段格式: 邮箱----密码----client_id----refresh_token----恢复邮箱----恢复密码
-        email, password, client_id, refresh_token = parts[0], parts[1], parts[2], parts[3]
+        email, password, client_id, refresh_token, recovery_email, recovery_password = parts[:6]
     elif num_parts >= 4:
         # 4字段格式: 邮箱----密码----refresh_token----client_id
         email, password, refresh_token, client_id = parts[:4]
+        recovery_email = ""
+        recovery_password = ""
     elif num_parts == 2:
         # 2字段格式: 邮箱----refresh_token
         email, refresh_token = parts
         password = ""
         client_id = CLIENT_ID
+        recovery_email = ""
+        recovery_password = ""
     else:
         raise ValueError("格式需要2、4或6个字段")
 
@@ -68,6 +72,8 @@ def parse_account_line(line: str) -> tuple[str, dict[str, str]] | None:
     refresh_token = refresh_token.strip()
     password = password.strip()
     client_id = client_id.strip() or CLIENT_ID
+    recovery_email = recovery_email.strip()
+    recovery_password = recovery_password.strip()
 
     if not email:
         raise ValueError("邮箱不能为空")
@@ -78,6 +84,8 @@ def parse_account_line(line: str) -> tuple[str, dict[str, str]] | None:
         "password": password,
         "client_id": client_id,
         "refresh_token": refresh_token,
+        "recovery_email": recovery_email,
+        "recovery_password": recovery_password,
     }
 
 

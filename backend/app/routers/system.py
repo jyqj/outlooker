@@ -1,6 +1,6 @@
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from ..core.decorators import handle_exceptions
 from ..core.exceptions import DatabaseError
 from ..core.metrics import api_metrics, get_metrics, get_metrics_content_type
+from ..db import db_manager
 from ..dependencies import (
     AdminUser,
     DbManager,
@@ -16,6 +17,7 @@ from ..dependencies import (
     get_email_manager,
 )
 from ..models import ApiResponse, SystemConfigBatchUpdate, SystemConfigRequest
+from ..services.channeling.channel_stats_service import get_channel_stats
 from ..services import (
     load_system_config,
     set_system_config_value,
@@ -28,7 +30,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["系统配置"])
 settings = get_settings()
 
-_startup_time = datetime.now(timezone.utc)
+_startup_time = datetime.now(UTC)
 
 METRICS_ALLOWED_IPS = {"127.0.0.1", "::1", "localhost"}
 
@@ -41,7 +43,18 @@ METRICS_ALLOWED_IPS = {"127.0.0.1", "::1", "localhost"}
 @router.get("/api/health")
 async def basic_health_check() -> dict:
     """基础健康检查（用于负载均衡器）"""
-    return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat() + "Z"}
+    try:
+        db_ok = await db_manager.check_database_connection()
+    except Exception:
+        db_ok = False
+    return {
+        "status": "healthy" if db_ok else "degraded",
+        "version": APP_VERSION,
+        "timestamp": datetime.now(UTC).isoformat() + "Z",
+        "components": {
+            "database": "healthy" if db_ok else "unhealthy",
+        },
+    }
 
 
 @router.get("/api/health/detailed")
@@ -88,13 +101,13 @@ async def detailed_health_check(
         logger.error("Email cache health check failed: %s", e)
         checks["email_cache"] = {"status": "unhealthy", "error": "Internal error"}
 
-    uptime_seconds = (datetime.now(timezone.utc) - _startup_time).total_seconds()
+    uptime_seconds = (datetime.now(UTC) - _startup_time).total_seconds()
 
     return {
         "status": "healthy" if overall_healthy else "degraded",
         "version": APP_VERSION,
         "environment": settings.app_env,
-        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+        "timestamp": datetime.now(UTC).isoformat() + "Z",
         "uptime_seconds": round(uptime_seconds, 2),
         "checks": checks,
     }
@@ -113,12 +126,13 @@ async def readiness_check(
         email_ok = email_mgr.is_ready() if hasattr(email_mgr, "is_ready") else True
 
         if db_ok and email_ok:
-            return {"status": "ready", "timestamp": datetime.now(timezone.utc).isoformat() + "Z"}
+            return {"status": "ready", "timestamp": datetime.now(UTC).isoformat() + "Z"}
         else:
             response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
             return {
                 "status": "not_ready",
-                "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+                "message": "service not ready",
+                "timestamp": datetime.now(UTC).isoformat() + "Z",
                 "database": "ok" if db_ok else "failed",
                 "email_service": "ok" if email_ok else "failed",
             }
@@ -127,7 +141,7 @@ async def readiness_check(
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return {
             "status": "not_ready",
-            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+            "timestamp": datetime.now(UTC).isoformat() + "Z",
             "error": "Internal error",
         }
 
@@ -135,13 +149,13 @@ async def readiness_check(
 @router.get("/api/health/live")
 async def liveness_check() -> dict:
     """存活检查（用于 Kubernetes livenessProbe）。仅检查应用进程是否响应。"""
-    return {"status": "alive", "timestamp": datetime.now(timezone.utc).isoformat() + "Z"}
+    return {"status": "alive", "timestamp": datetime.now(UTC).isoformat() + "Z"}
 
 
 async def _check_database_health(db) -> dict[str, Any]:
     start = time.time()
     try:
-        result = await db.execute_health_check()
+        result = await db.check_database_connection()
         latency_ms = (time.time() - start) * 1000
         return {"connected": result, "latency_ms": round(latency_ms, 2)}
     except Exception as e:
@@ -230,7 +244,7 @@ async def refresh_cache(
     await db.reset_email_cache()
     await db.upsert_system_metric(
         "cache_reset_at",
-        {"timestamp": datetime.now(timezone.utc).isoformat() + "Z"},
+        {"timestamp": datetime.now(UTC).isoformat() + "Z"},
     )
     return ApiResponse(success=True, message="缓存已刷新")
 
@@ -248,6 +262,7 @@ async def get_system_metrics_main(
     """获取系统运行指标（需要管理员认证）"""
     metrics = await email_mgr.get_metrics()
     db_metrics = await db.get_all_system_metrics()
+    channeling_metrics = await get_channel_stats(None)
 
     warning = None
     if metrics.get("accounts_source") == "file":
@@ -255,7 +270,12 @@ async def get_system_metrics_main(
 
     return ApiResponse(
         success=True,
-        data={"email_manager": metrics, "database": db_metrics, "warning": warning},
+        data={
+            "email_manager": metrics,
+            "database": db_metrics,
+            "outlook_channeling": channeling_metrics,
+            "warning": warning,
+        },
     )
 
 

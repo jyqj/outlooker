@@ -11,7 +11,6 @@ from fastapi.testclient import TestClient
 
 from app.mail_api import app, db_manager
 
-
 client = TestClient(app)
 
 
@@ -118,7 +117,7 @@ class TestAccountTags:
     def test_set_and_get_account_tags(self, admin_headers):
         """测试设置和获取账户标签"""
         email = "tagged@example.com"
-        
+
         # 创建账户
         client.post(
             "/api/accounts",
@@ -165,7 +164,7 @@ class TestAccountTags:
             headers=admin_headers,
         )
         client.post(
-            f"/api/accounts/tag1@example.com/tags",
+            "/api/accounts/tag1@example.com/tags",
             json={"email": "tag1@example.com", "tags": ["alpha", "beta"]},
             headers=admin_headers,
         )

@@ -7,13 +7,13 @@ Also includes the original APIMetrics class for internal stats collection.
 
 import time
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from functools import wraps
 from threading import Lock
-from typing import Callable
 
 try:
-    from prometheus_client import Counter, Gauge, Histogram, Info, generate_latest, CONTENT_TYPE_LATEST
+    from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, Info, generate_latest
     PROMETHEUS_AVAILABLE = True
 except ImportError:
     PROMETHEUS_AVAILABLE = False
@@ -22,23 +22,23 @@ except ImportError:
         def __init__(self, *args, **kwargs): pass
         def labels(self, *args, **kwargs): return self
         def inc(self, *args): pass
-    
+
     class Gauge:
         def __init__(self, *args, **kwargs): pass
         def labels(self, *args, **kwargs): return self
         def set(self, *args): pass
         def inc(self, *args): pass
         def dec(self, *args): pass
-    
+
     class Histogram:
         def __init__(self, *args, **kwargs): pass
         def labels(self, *args, **kwargs): return self
         def observe(self, *args): pass
-    
+
     class Info:
         def __init__(self, *args, **kwargs): pass
         def info(self, *args): pass
-    
+
     def generate_latest(*args): return b""
     CONTENT_TYPE_LATEST = "text/plain"
 
@@ -145,6 +145,39 @@ rate_limit_hits_total = Counter(
     ["limiter"]  # login, public_api
 )
 
+# ==================== Outlook / Channeling 指标 ====================
+
+outlook_protocol_tasks_total = Counter(
+    "outlooker_outlook_protocol_tasks_total",
+    "Total protocol task executions",
+    ["task_type", "status"]
+)
+
+outlook_protocol_task_duration_seconds = Histogram(
+    "outlooker_outlook_protocol_task_duration_seconds",
+    "Protocol task execution duration in seconds",
+    ["task_type"],
+    buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0]
+)
+
+outlook_channel_quarantined_accounts = Gauge(
+    "outlooker_outlook_channel_quarantined_accounts",
+    "Number of quarantined accounts by channel",
+    ["channel"]
+)
+
+outlook_channel_active_leases = Gauge(
+    "outlooker_outlook_channel_active_leases",
+    "Number of active leases by channel",
+    ["channel"]
+)
+
+outlook_aux_resource_rotations_total = Counter(
+    "outlooker_outlook_aux_resource_rotations_total",
+    "Total auxiliary resource rotations",
+    ["channel"]
+)
+
 # ==================== 辅助函数 ====================
 
 def track_request_duration(endpoint: str):
@@ -154,14 +187,14 @@ def track_request_duration(endpoint: str):
         async def wrapper(*args, **kwargs):
             method = "UNKNOWN"
             start_time = time.time()
-            
+
             http_requests_in_progress.labels(method=method, endpoint=endpoint).inc()
-            
+
             try:
                 result = await func(*args, **kwargs)
                 status = "200"
                 return result
-            except Exception as e:
+            except Exception:
                 status = "500"
                 raise
             finally:
@@ -169,7 +202,7 @@ def track_request_duration(endpoint: str):
                 http_requests_in_progress.labels(method=method, endpoint=endpoint).dec()
                 http_request_duration_seconds.labels(method=method, endpoint=endpoint).observe(duration)
                 http_requests_total.labels(method=method, endpoint=endpoint, status_code=status).inc()
-        
+
         return wrapper
     return decorator
 
@@ -184,7 +217,7 @@ def update_email_metrics(
     total = cache_hits + cache_misses
     if total > 0:
         email_cache_hit_rate.set(cache_hits / total)
-    
+
     imap_connections_active.set(active_connections)
     email_cache_size.set(cached_emails)
 
@@ -198,6 +231,29 @@ def update_account_metrics(
     accounts_total.labels(status="active").set(active)
     accounts_total.labels(status="deleted").set(deleted)
     accounts_total.labels(status="used").set(used)
+
+
+def update_channeling_metrics(
+    channel: str,
+    *,
+    quarantined_accounts: int,
+    active_leases: int,
+) -> None:
+    """更新渠道和租约指标"""
+    outlook_channel_quarantined_accounts.labels(channel=channel).set(quarantined_accounts)
+    outlook_channel_active_leases.labels(channel=channel).set(active_leases)
+
+
+def record_protocol_task_metrics(task_type: str, status: str, duration_seconds: float | None = None) -> None:
+    """记录协议任务指标"""
+    outlook_protocol_tasks_total.labels(task_type=task_type, status=status).inc()
+    if duration_seconds is not None:
+        outlook_protocol_task_duration_seconds.labels(task_type=task_type).observe(duration_seconds)
+
+
+def record_aux_resource_rotation(channel: str) -> None:
+    """记录辅助邮箱资源轮转次数"""
+    outlook_aux_resource_rotations_total.labels(channel=channel).inc()
 
 
 def get_metrics() -> bytes:

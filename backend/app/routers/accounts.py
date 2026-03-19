@@ -21,6 +21,7 @@ from ..models import (
     create_paginated_response,
 )
 from ..services import load_accounts_config, merge_accounts_data_to_db, parse_account_line
+from ..services.channeling.allocation_service import allocate_account_for_channel
 from ..settings import get_settings
 from ..utils.pagination import paginate_items
 from ..utils.validation import validate_tags
@@ -123,7 +124,36 @@ async def pick_random_account(
 
     return_credentials = request.return_credentials
 
-    account = await db.get_random_account_without_tag(tag, exclude_tags)
+    account = None
+    if settings.outlook_features.channels_enabled and not exclude_tags:
+        channel = await db.get_channel_by_code_or_name(tag)
+        if channel and channel.get("status") == "active":
+            try:
+                allocation = await allocate_account_for_channel(
+                    int(channel["id"]),
+                    leased_to=f"legacy-pick:{admin}",
+                )
+                account_email = allocation["account_email"]
+                outlook_account = await db.get_outlook_account(account_email)
+                source_email = (
+                    outlook_account.get("source_account_email")
+                    if outlook_account and outlook_account.get("source_account_email")
+                    else account_email
+                )
+                source_info = await db.get_account(source_email)
+                if source_info:
+                    account = {
+                        "email": source_email,
+                        "password": source_info.get("password", ""),
+                        "client_id": source_info.get("client_id", ""),
+                        "refresh_token": source_info.get("refresh_token", ""),
+                        "tags": await db.get_account_tags(source_email),
+                    }
+            except Exception:
+                account = None
+
+    if account is None:
+        account = await db.get_random_account_without_tag(tag, exclude_tags)
 
     if not account:
         raise ResourceNotFoundError(
@@ -218,6 +248,8 @@ async def parse_import_text(
                     "password": info["password"],
                     "client_id": info["client_id"],
                     "refresh_token": info["refresh_token"],
+                    "recovery_email": info.get("recovery_email", ""),
+                    "recovery_password": info.get("recovery_password", ""),
                 }
             )
         except ValueError:

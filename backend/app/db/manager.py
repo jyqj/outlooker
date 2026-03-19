@@ -12,11 +12,16 @@ from pathlib import Path
 
 from ..migrations import apply_migrations
 from ..settings import get_settings
+from .account_operations import AccountOperationsMixin
 from .accounts import AccountsMixin
 from .admin import AdminMixin
 from .audit import AuditMixin
+from .channeling import ChannelingMixin
 from .connection import ConnectionMixin
 from .email_cache import EmailCacheMixin
+from .oauth_tokens import OAuthTokensMixin
+from .outlook_accounts import OutlookAccountsMixin
+from .protocol_tasks import ProtocolTasksMixin
 from .system_config import SystemConfigMixin
 from .tags import TagsMixin
 
@@ -38,6 +43,11 @@ def looks_like_guid(value: str) -> bool:
 class DatabaseManager(
     ConnectionMixin,
     AccountsMixin,
+    OutlookAccountsMixin,
+    OAuthTokensMixin,
+    ChannelingMixin,
+    ProtocolTasksMixin,
+    AccountOperationsMixin,
     EmailCacheMixin,
     AdminMixin,
     SystemConfigMixin,

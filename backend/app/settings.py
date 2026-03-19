@@ -85,6 +85,26 @@ class StorageConfig(BaseModel):
     static_dir: str = "data/static"
 
 
+class WorkerConfig(BaseModel):
+    """Redis / Celery worker 配置"""
+
+    redis_url: str = "redis://localhost:6379/0"
+    redis_pubsub_channel: str = "bind_task_updates"
+    celery_broker_url: str = "redis://localhost:6379/1"
+    celery_result_backend: str = "redis://localhost:6379/2"
+
+
+class OutlookFeatureConfig(BaseModel):
+    """Outlook 增强能力开关配置"""
+
+    graph_enabled: bool = False
+    protocol_enabled: bool = False
+    worker_enabled: bool = False
+    channels_enabled: bool = False
+    resources_enabled: bool = False
+    browser_fallback_enabled: bool = False
+
+
 # ============================================================================
 # 主配置类
 # ============================================================================
@@ -152,6 +172,26 @@ class AppSettings(BaseSettings):
     logs_dir: str = Field(default="data/logs", alias="LOGS_DIR")
     static_dir: str = Field(default="data/static", alias="STATIC_DIR")
 
+    # Outlook feature flags
+    feature_outlook_graph_enabled: bool = Field(
+        default=False, alias="FEATURE_OUTLOOK_GRAPH_ENABLED"
+    )
+    feature_outlook_protocol_enabled: bool = Field(
+        default=False, alias="FEATURE_OUTLOOK_PROTOCOL_ENABLED"
+    )
+    feature_outlook_worker_enabled: bool = Field(
+        default=False, alias="FEATURE_OUTLOOK_WORKER_ENABLED"
+    )
+    feature_outlook_channels_enabled: bool = Field(
+        default=False, alias="FEATURE_OUTLOOK_CHANNELS_ENABLED"
+    )
+    feature_outlook_resources_enabled: bool = Field(
+        default=False, alias="FEATURE_OUTLOOK_RESOURCES_ENABLED"
+    )
+    feature_outlook_browser_fallback_enabled: bool = Field(
+        default=False, alias="FEATURE_OUTLOOK_BROWSER_FALLBACK_ENABLED"
+    )
+
     # Rate limiting configuration
     max_login_attempts: int = Field(default=5, alias="MAX_LOGIN_ATTEMPTS")
     lockout_duration_seconds: int = Field(default=900, alias="LOCKOUT_DURATION_SECONDS")
@@ -185,6 +225,12 @@ class AppSettings(BaseSettings):
     admin_refresh_cookie_secure: bool = Field(default=False, alias="ADMIN_REFRESH_COOKIE_SECURE")
     admin_refresh_cookie_path: str = Field(default="/", alias="ADMIN_REFRESH_COOKIE_PATH")
     public_api_token: str | None = Field(default=None, alias="PUBLIC_API_TOKEN")
+
+    # Worker / Redis
+    redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
+    redis_pubsub_channel: str = Field(default="bind_task_updates", alias="REDIS_PUBSUB_CHANNEL")
+    celery_broker_url: str = Field(default="redis://localhost:6379/1", alias="CELERY_BROKER_URL")
+    celery_result_backend: str = Field(default="redis://localhost:6379/2", alias="CELERY_RESULT_BACKEND")
 
     # ========================================================================
     # 嵌套配置模型访问器（分组访问）
@@ -258,6 +304,28 @@ class AppSettings(BaseSettings):
             static_dir=self.static_dir,
         )
 
+    @cached_property
+    def outlook_features(self) -> OutlookFeatureConfig:
+        """Outlook 增强能力开关分组"""
+        return OutlookFeatureConfig(
+            graph_enabled=self.feature_outlook_graph_enabled,
+            protocol_enabled=self.feature_outlook_protocol_enabled,
+            worker_enabled=self.feature_outlook_worker_enabled,
+            channels_enabled=self.feature_outlook_channels_enabled,
+            resources_enabled=self.feature_outlook_resources_enabled,
+            browser_fallback_enabled=self.feature_outlook_browser_fallback_enabled,
+        )
+
+    @cached_property
+    def worker(self) -> WorkerConfig:
+        """Redis / Celery worker 配置分组"""
+        return WorkerConfig(
+            redis_url=self.redis_url,
+            redis_pubsub_channel=self.redis_pubsub_channel,
+            celery_broker_url=self.celery_broker_url,
+            celery_result_backend=self.celery_result_backend,
+        )
+
     @staticmethod
     def _env(info) -> str:
         return (info.data.get("app_env") or "development").lower()
@@ -307,12 +375,12 @@ class AppSettings(BaseSettings):
         """密钥强度检查"""
         if not value:
             raise ValueError(f"{info.field_name} 不能为空")
-        
+
         # 最小长度要求
         min_length = 32 if cls._env(info) == "production" else 16
         if len(value) < min_length:
             raise ValueError(f"{info.field_name} 长度必须至少 {min_length} 字符")
-        
+
         # 生产环境要求包含多种字符类型
         if cls._env(info) == "production":
             has_upper = any(c.isupper() for c in value)
@@ -320,7 +388,7 @@ class AppSettings(BaseSettings):
             has_digit = any(c.isdigit() for c in value)
             if not (has_upper and has_lower and has_digit):
                 logger.warning(f"{info.field_name} 建议包含大小写字母和数字以提高安全性")
-        
+
         return value
 
     @field_validator("public_api_token", mode="after")

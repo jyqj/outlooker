@@ -72,11 +72,51 @@ def check_system_metrics(token: str) -> None:
     response.raise_for_status()
 
 
+def check_outlook_accounts(token: str) -> None:
+    response = requests.get(
+        f"{BASE_URL}/api/outlook/accounts",
+        headers=authorized_headers(token),
+        timeout=10,
+    )
+    if response.status_code == 503:
+        print("[SMOKE] ℹ️ /api/outlook/accounts 未启用，跳过")
+        return
+    response.raise_for_status()
+
+
+def check_outlook_batch_refresh(token: str) -> None:
+    response = requests.post(
+        f"{BASE_URL}/api/outlook/accounts/batch-refresh",
+        headers=authorized_headers(token),
+        json={"emails": [], "limit": 1, "offset": 0, "concurrency": 1},
+        timeout=10,
+    )
+    if response.status_code == 503:
+        print("[SMOKE] ℹ️ /api/outlook/accounts/batch-refresh 未启用，跳过")
+        return
+    response.raise_for_status()
+
+
+def check_outlook_tasks(token: str) -> None:
+    response = requests.get(
+        f"{BASE_URL}/api/outlook/tasks",
+        headers=authorized_headers(token),
+        timeout=10,
+    )
+    if response.status_code == 503:
+        print("[SMOKE] ℹ️ /api/outlook/tasks 未启用，跳过")
+        return
+    response.raise_for_status()
+
+
 def main() -> int:
     try:
         token = acquire_token()
         check_accounts(token)
         check_system_metrics(token)
+        check_outlook_accounts(token)
+        check_outlook_batch_refresh(token)
+        check_outlook_tasks(token)
     except Exception as exc:  # noqa: BLE001 - 脚本需要捕获所有异常
         print(f"[SMOKE] ❌ 测试失败: {exc}", file=sys.stderr)
         return 1
@@ -87,4 +127,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

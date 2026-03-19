@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass, field
 
@@ -79,6 +80,8 @@ def _prepare_and_validate_accounts(
 
         entry_email = original_email or normalized_email
         password_plain = (account.password or "").strip()
+        recovery_email_plain = (account.recovery_email or "").strip()
+        recovery_password_plain = (account.recovery_password or "").strip()
         candidate_client_id = (account.client_id or "").strip()
         if candidate_client_id and not looks_like_guid(candidate_client_id):
             candidate_client_id = ""
@@ -87,6 +90,10 @@ def _prepare_and_validate_accounts(
             "password": encrypt_if_needed(password_plain) if password_plain else "",
             "client_id": (candidate_client_id or CLIENT_ID).strip() or CLIENT_ID,
             "refresh_token": encrypt_if_needed(refresh_token),
+            "recovery_email": recovery_email_plain,
+            "recovery_password": encrypt_if_needed(recovery_password_plain)
+            if recovery_password_plain
+            else "",
         }
 
         validation_errors = _validate_account_info(entry_email, prepared[normalized_email])
@@ -103,6 +110,45 @@ def _prepare_and_validate_accounts(
             continue
 
     return prepared, error_details, error_count
+
+
+async def _persist_recovery_resource(account_email: str, info: dict[str, str]) -> None:
+    recovery_email = (info.get("recovery_email") or "").strip().lower()
+    if not recovery_email:
+        return
+
+    notes_payload = json.dumps(
+        {
+            "source": "legacy_import",
+            "recovery_password": info.get("recovery_password", ""),
+        },
+        ensure_ascii=False,
+    )
+
+    def _sync_upsert(conn) -> None:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO aux_email_resources (
+                address,
+                provider,
+                source_type,
+                status,
+                bound_account_email,
+                notes
+            ) VALUES (?, 'legacy_import', 'legacy_import', 'imported', ?, ?)
+            ON CONFLICT(address) DO UPDATE SET
+                provider = excluded.provider,
+                source_type = excluded.source_type,
+                bound_account_email = excluded.bound_account_email,
+                notes = excluded.notes,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (recovery_email, account_email, notes_payload),
+        )
+        conn.commit()
+
+    await db_manager._run_in_thread(_sync_upsert)
 
 
 async def _handle_replace_mode(
@@ -140,6 +186,8 @@ async def _handle_replace_mode(
 
     replaced = await db_manager.replace_all_accounts(valid_accounts)
     if replaced:
+        for email, info in prepared.items():
+            await _persist_recovery_resource(info["email"] or email, info)
         added_count = len(valid_accounts)
         await email_manager.invalidate_accounts_cache()
         message = f"替换完成：共导入 {added_count} 条账户"
@@ -197,6 +245,7 @@ async def _process_single_account_update_mode(
             refresh_token=payload["refresh_token"],
         )
         if updated:
+            await _persist_recovery_resource(lookup_existing[normalized_email], info)
             return "updated", {
                 "action": "updated",
                 "email": lookup_existing[normalized_email],
@@ -215,6 +264,7 @@ async def _process_single_account_update_mode(
         refresh_token=payload["refresh_token"],
     )
     if added:
+        await _persist_recovery_resource(email_to_use, info)
         return "added", {
             "action": "added",
             "email": email_to_use,

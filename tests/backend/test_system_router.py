@@ -12,7 +12,6 @@ from fastapi.testclient import TestClient
 
 from app.mail_api import app, db_manager
 
-
 client = TestClient(app)
 
 

@@ -132,7 +132,7 @@ class LoginAuditor:
         """
         # 延迟导入避免循环依赖
         from .audit import audit_logger
-        
+
         await audit_logger.log_login(
             ip_address=ip,
             username=username,

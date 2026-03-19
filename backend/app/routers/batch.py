@@ -27,7 +27,16 @@ async def batch_delete_accounts(
     """批量删除账户"""
     emails = [e.strip() for e in request.emails if e.strip()]
     if not emails:
-        raise ValidationError(message="请提供要删除的账户列表", field="emails")
+        return ApiResponse(
+            success=False,
+            message="请提供要删除的账户列表",
+            data={
+                "deleted_count": 0,
+                "failed_count": 0,
+                "requested_count": 0,
+                "soft_delete": request.soft,
+            },
+        )
 
     if len(emails) > MAX_BATCH_SIZE:
         raise ValidationError(
