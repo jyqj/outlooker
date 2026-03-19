@@ -358,17 +358,28 @@ describe('AdminDashboardPage', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/admin/login');
   });
 
-  it('renders system metrics correctly', async () => {
+  it('renders overview summary correctly', async () => {
     apiMock.get.mockImplementation((url: string) => {
-      if (url.includes('/api/system/metrics')) {
+      if (url.includes('/api/dashboard/summary')) {
         return Promise.resolve({
           data: {
             success: true,
             data: {
-              email_manager: {
-                accounts_count: 42,
-                email_cache: { total_messages: 8 },
+              health: {
+                total: 42,
+                healthy: 40,
+                token_expired: 1,
+                token_invalid: 1,
+                error: 0,
+                unknown: 0,
               },
+              tags: {
+                tagged_accounts: 30,
+                untagged_accounts: 12,
+                tags: [{ name: 'alpha', count: 30, percentage: 71.4 }],
+              },
+              alerts: [],
+              recent_events: [],
             },
           },
         });
@@ -388,9 +399,9 @@ describe('AdminDashboardPage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('账户总数')).toBeInTheDocument();
-      expect(screen.getByText('缓存邮件')).toBeInTheDocument();
+      expect(screen.getByText('标签分布')).toBeInTheDocument();
       expect(screen.getByText('42')).toBeInTheDocument();
-      expect(screen.getByText('8')).toBeInTheDocument();
+      expect(screen.getByText(/已标记: 30/)).toBeInTheDocument();
     });
   });
 

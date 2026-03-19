@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import type { ApiResponse, DashboardSummary } from '@/types';
 
+type HealthSummary = NonNullable<DashboardSummary['health']>;
+
 function useDashboardSummary() {
   return useQuery({
     queryKey: queryKeys.dashboardSummary(),
@@ -25,7 +27,7 @@ export function SystemOverview() {
   const { data } = useDashboardSummary();
   const summary = data?.data;
 
-  const health = summary?.health || {};
+  const health: HealthSummary = summary?.health ?? { total: 0 };
   const total = health.total || 0;
   const healthy = health.healthy || 0;
   const unhealthy = (health.token_expired || 0) + (health.token_invalid || 0) + (health.error || 0);

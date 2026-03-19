@@ -1,6 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Inbox, LogOut, Tags, Settings2, LayoutDashboard, FileText } from 'lucide-react';
+import { Inbox, LogOut, Tags, Settings2, LayoutDashboard, FileText, Shield, TimerReset, MailPlus, SplitSquareVertical } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
@@ -16,6 +16,10 @@ export function DashboardHeader({ onLogout }: DashboardHeaderProps) {
 
   const navItems = [
     { path: '/admin', icon: LayoutDashboard, label: t('nav.admin') },
+    { path: '/admin/outlook/accounts', icon: Shield, label: t('nav.outlookAccounts') },
+    { path: '/admin/outlook/tasks', icon: TimerReset, label: t('nav.outlookTasks') },
+    { path: '/admin/outlook/resources', icon: MailPlus, label: t('nav.outlookResources') },
+    { path: '/admin/outlook/channels', icon: SplitSquareVertical, label: t('nav.outlookChannels') },
     { path: '/admin/tags', icon: Tags, label: t('nav.tagsManage') },
     { path: '/admin/audit', icon: FileText, label: t('nav.audit') },
     { path: '/admin/settings', icon: Settings2, label: t('nav.settings') },

@@ -33,6 +33,34 @@ export {
   runHealthCheck,
 } from './dashboard-api';
 
+export {
+  listOutlookAccounts,
+  getOutlookAccountDetail,
+  refreshOutlookToken,
+  batchRefreshOutlookTokens,
+  getOutlookProfile,
+  updateOutlookProfile,
+  getOutlookAuthMethods,
+  changeOutlookPassword,
+  revokeOutlookSessions,
+  getOutlookRiskyUsers,
+  dismissOutlookRisk,
+  getOutlookMailboxSettings,
+  updateOutlookMailboxSettings,
+  getOutlookRegionalSettings,
+  updateOutlookRegionalSettings,
+} from './outlook-accounts-api';
+
+export type {
+  OutlookAccountCapabilities,
+  OutlookTokenRecord,
+  OutlookAccountView,
+  OutlookAccountDetail,
+  OutlookAccountsListData,
+  BatchRefreshSummary,
+  OutlookAccountsParams,
+} from './outlook-accounts-api';
+
 // Backward-compatible type re-exports (consumers may import these from @/lib/api)
 export type {
   TagStatItem,

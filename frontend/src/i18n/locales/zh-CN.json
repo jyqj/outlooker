@@ -7,10 +7,20 @@
     "nav": {
         "home": "首页",
         "admin": "概览",
+        "outlookAccounts": "Outlook",
+        "outlookTasks": "任务",
+        "outlookResources": "资源池",
+        "outlookChannels": "渠道",
         "logout": "退出",
         "tagsManage": "标签",
         "settings": "设置",
         "audit": "日志"
+    },
+    "outlook": {
+        "accounts": "Outlook 账户",
+        "tasks": "Outlook 任务中心",
+        "resources": "辅助邮箱资源池",
+        "channels": "渠道控制台"
     },
     "verification": {
         "title": "获取邮箱验证码",

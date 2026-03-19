@@ -30,7 +30,7 @@ export function DashboardCharts() {
 
   const healthData = Object.entries(health)
     .filter(([k]) => k !== 'total')
-    .map(([name, value]) => ({ name, value }))
+    .map(([name, value]) => ({ name, value: Number(value ?? 0) }))
     .filter((d) => d.value > 0);
 
   const tagData = tagsList.slice(0, 10).map((t) => ({ name: t.name, count: t.count }));
@@ -55,7 +55,7 @@ export function DashboardCharts() {
                     <Cell key={entry.name} fill={HEALTH_COLORS[entry.name] || '#94a3b8'} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value, name) => [String(value), t(`dashboard.charts.${name}`, String(name))]} />
+                <Tooltip formatter={(value, name) => [String(value), t(`dashboard.charts.${String(name)}`, String(name))]} />
               </PieChart>
             </ResponsiveContainer>
             <div className="flex flex-wrap gap-3 justify-center mt-2">

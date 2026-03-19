@@ -34,7 +34,9 @@ export function useVerification() {
     if (forceRefresh) params.refresh = true;
 
     const response = await api.get<ApiResponse<Email[] | { items: Email[] }>>('/api/messages', { params });
-    if (!response.data.success) return null;
+    if (!response.data.success) {
+      throw new Error(response.data.message || '获取邮件失败');
+    }
 
     const payload = response.data.data;
     const messages = Array.isArray(payload) ? payload : payload?.items;

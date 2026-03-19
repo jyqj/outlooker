@@ -1,132 +1,88 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { SystemOverview } from '@/pages/dashboard/components/SystemOverview';
-import api from '@/lib/api';
+import { MemoryRouter } from 'react-router-dom';
+import type { ReactElement } from 'react';
 
 vi.mock('@/lib/api', () => ({
   default: {
     get: vi.fn(),
-    post: vi.fn(),
   },
 }));
 
-vi.mock('@/lib/toast', () => ({
-  showSuccess: vi.fn(),
-  showError: vi.fn(),
-}));
+const mockNavigate = vi.fn();
 
-const createTestQueryClient = () =>
-  new QueryClient({
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  };
+});
+
+import api from '@/lib/api';
+import { SystemOverview } from '@/pages/dashboard/components/SystemOverview';
+
+function renderWithProviders(ui: ReactElement) {
+  const queryClient = new QueryClient({
     defaultOptions: {
-      queries: {
-        retry: false,
-      },
+      queries: { retry: false },
     },
   });
-
-const renderWithQueryClient = (ui: React.ReactElement) => {
-  const queryClient = createTestQueryClient();
   return render(
-    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>{ui}</MemoryRouter>
+    </QueryClientProvider>
   );
-};
+}
 
 describe('SystemOverview', () => {
   const apiGet = api.get as unknown as ReturnType<typeof vi.fn>;
-  const apiPost = api.post as unknown as ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-
-    apiGet.mockImplementation((url: string) => {
-      if (url === '/api/system/config') {
-        return Promise.resolve({
-          data: { success: true, data: { email_limit: 5 } },
-        });
-      }
-      if (url === '/api/system/metrics') {
-        return Promise.resolve({
-          data: {
-            success: true,
-            data: {
-              email_manager: {
-                accounts_count: 2,
-                email_cache: { total_messages: 10 },
-              },
-            },
+    apiGet.mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          health: {
+            total: 10,
+            healthy: 7,
+            token_expired: 1,
+            token_invalid: 1,
+            error: 0,
+            unknown: 1,
           },
-        });
-      }
-      return Promise.resolve({ data: { success: true, data: {} } });
+          tags: {
+            tagged_accounts: 6,
+            untagged_accounts: 4,
+            tags: [{ name: 'alpha', count: 6, percentage: 60 }],
+          },
+          alerts: [{ level: 'warning', message: 'token expired', count: 1 }],
+          recent_events: [{ event_type: 'health_check', timestamp: '2026-01-01T00:00:00Z' }],
+        },
+      },
     });
-
-    apiPost.mockResolvedValue({ data: { success: true } });
   });
 
-  it('renders overview cards', () => {
-    renderWithQueryClient(<SystemOverview />);
-    expect(screen.getByText('账户总数')).toBeInTheDocument();
-    expect(screen.getByText('缓存邮件')).toBeInTheDocument();
-    expect(screen.getByText('邮件获取限制')).toBeInTheDocument();
+  it('renders overview cards from dashboard summary', async () => {
+    renderWithProviders(<SystemOverview />);
+    expect(await screen.findByText('账户总数')).toBeInTheDocument();
+    expect(screen.getByText('标签分布')).toBeInTheDocument();
+    expect(screen.getByText('系统状态')).toBeInTheDocument();
   });
 
-  it('renders metrics values from API', async () => {
-    renderWithQueryClient(<SystemOverview />);
-    expect(await screen.findByText('2')).toBeInTheDocument();
+  it('renders health and tag metrics', async () => {
+    renderWithProviders(<SystemOverview />);
     expect(await screen.findByText('10')).toBeInTheDocument();
+    expect(screen.getByText(/已标记: 6/)).toBeInTheDocument();
+    expect(screen.getByText(/未标记: 4/)).toBeInTheDocument();
   });
 
-  it('calls API when save button is clicked', async () => {
-    renderWithQueryClient(<SystemOverview />);
-
-    const input = screen.getByRole('spinbutton');
-    fireEvent.change(input, { target: { value: '15' } });
-
-    fireEvent.click(screen.getByRole('button', { name: '保存' }));
-
-    await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith('/api/system/config', { email_limit: 15 });
-    });
-  });
-
-  it('shows saving state while saving', () => {
-    apiPost.mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve({ data: { success: true } }), 100))
-    );
-
-    renderWithQueryClient(<SystemOverview />);
-    fireEvent.click(screen.getByRole('button', { name: '保存' }));
-
-    // 当前实现使用省略号表示保存中状态
-    expect(screen.getByRole('button', { name: '...' })).toBeInTheDocument();
-  });
-
-  it('calls API when cache clear button is clicked', async () => {
-    renderWithQueryClient(<SystemOverview />);
-
-    fireEvent.click(screen.getByRole('button', { name: '清理' }));
-
-    await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith('/api/system/cache/refresh');
-    });
-  });
-
-  it('shows refreshing state while clearing cache', () => {
-    apiPost.mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve({ data: { success: true } }), 100))
-    );
-
-    renderWithQueryClient(<SystemOverview />);
-    fireEvent.click(screen.getByRole('button', { name: '清理' }));
-
-    expect(screen.getByText('清理中')).toBeInTheDocument();
-  });
-
-  it('renders with three-column grid layout on desktop', () => {
-    const { container } = renderWithQueryClient(<SystemOverview />);
-    const grid = container.querySelector('.grid');
-    expect(grid).toHaveClass('grid-cols-1');
-    expect(grid).toHaveClass('md:grid-cols-3');
+  it('renders alerts and recent activity blocks when provided', async () => {
+    renderWithProviders(<SystemOverview />);
+    expect(await screen.findByText('系统告警')).toBeInTheDocument();
+    expect(screen.getByText('token expired')).toBeInTheDocument();
+    expect(screen.getByText('最近活动')).toBeInTheDocument();
   });
 });

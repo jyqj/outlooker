@@ -1,6 +1,16 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import api, { getAccountsPaged, getDashboardSummary } from '@/lib/api';
+import {
+  getOutlookAccountDetail,
+  getOutlookAuthMethods,
+  getOutlookMailboxSettings,
+  getOutlookProfile,
+  getOutlookRegionalSettings,
+  listOutlookAccounts,
+  type OutlookAccountDetail,
+  type OutlookAccountsListData,
+} from '@/lib/api/outlook-accounts-api';
 import { CONFIG } from './constants';
 import { showError, showSuccess } from './toast';
 import { logError } from './utils';
@@ -199,6 +209,85 @@ export function useEmailMessagesQuery(
       });
       return res.data;
     },
+    enabled: enabled && !!email,
+  });
+}
+
+export interface OutlookAccountsQueryParams {
+  status?: string;
+  accountType?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export function useOutlookAccountsQuery(
+  params: OutlookAccountsQueryParams = {}
+): UseQueryResult<ApiResponse<OutlookAccountsListData>> {
+  const { status, accountType, limit = 100, offset = 0 } = params;
+  return useQuery({
+    queryKey: queryKeys.outlookAccounts(status, accountType, limit, offset),
+    queryFn: () =>
+      listOutlookAccounts({
+        status,
+        account_type: accountType,
+        limit,
+        offset,
+      }),
+  });
+}
+
+export function useOutlookAccountDetailQuery(
+  email: string,
+  enabled = true
+): UseQueryResult<ApiResponse<OutlookAccountDetail>> {
+  return useQuery({
+    queryKey: queryKeys.outlookAccountDetail(email),
+    queryFn: () => getOutlookAccountDetail(email),
+    enabled: enabled && !!email,
+  });
+}
+
+export function useOutlookProfileQuery(
+  email: string,
+  refresh = false,
+  enabled = true
+): UseQueryResult<ApiResponse<Record<string, unknown>>> {
+  return useQuery({
+    queryKey: queryKeys.outlookProfile(email, refresh),
+    queryFn: () => getOutlookProfile(email, refresh),
+    enabled: enabled && !!email,
+  });
+}
+
+export function useOutlookAuthMethodsQuery(
+  email: string,
+  enabled = true
+): UseQueryResult<ApiResponse<Record<string, unknown>>> {
+  return useQuery({
+    queryKey: queryKeys.outlookAuthMethods(email),
+    queryFn: () => getOutlookAuthMethods(email),
+    enabled: enabled && !!email,
+  });
+}
+
+export function useOutlookMailboxSettingsQuery(
+  email: string,
+  enabled = true
+): UseQueryResult<ApiResponse<Record<string, unknown>>> {
+  return useQuery({
+    queryKey: queryKeys.outlookMailboxSettings(email),
+    queryFn: () => getOutlookMailboxSettings(email),
+    enabled: enabled && !!email,
+  });
+}
+
+export function useOutlookRegionalSettingsQuery(
+  email: string,
+  enabled = true
+): UseQueryResult<ApiResponse<Record<string, unknown>>> {
+  return useQuery({
+    queryKey: queryKeys.outlookRegionalSettings(email),
+    queryFn: () => getOutlookRegionalSettings(email),
     enabled: enabled && !!email,
   });
 }

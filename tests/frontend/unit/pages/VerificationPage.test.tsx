@@ -70,24 +70,25 @@ describe('VerificationPage', () => {
     expect(screen.getByText(/请检查邮箱地址是否正确/)).toBeInTheDocument();
   });
 
-  it('shows error when auto OTP has no available account', async () => {
-    apiGet.mockImplementation((url: string) => {
-      if (url.includes('/api/public/account-unused')) {
-        return Promise.resolve({
-          data: { success: false, message: '暂无可用邮箱' },
-        });
-      }
-      return Promise.resolve({ data: { success: true, data: {} } });
+  it('shows waiting state when wait button is clicked', async () => {
+    apiGet.mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          items: [],
+        },
+      },
     });
 
     const user = userEvent.setup();
     render(<VerificationPage />);
 
-    const autoBtn = screen.getByRole('button', { name: /自动分配邮箱并接码/ });
-    await user.click(autoBtn);
+    await user.type(screen.getByLabelText(/邮箱地址/), 'user@example.com');
+    const waitButton = await screen.findByRole('button', { name: /等待验证码/ });
+    await user.click(waitButton);
 
     await waitFor(() => {
-      expect(screen.getByText(/暂无可用邮箱/)).toBeInTheDocument();
+      expect(screen.getByText(/正在等待新验证码到达/)).toBeInTheDocument();
     });
   });
 });

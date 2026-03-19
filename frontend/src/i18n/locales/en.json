@@ -7,10 +7,20 @@
     "nav": {
         "home": "Home",
         "admin": "Overview",
+        "outlookAccounts": "Outlook",
+        "outlookTasks": "Tasks",
+        "outlookResources": "Resources",
+        "outlookChannels": "Channels",
         "logout": "Logout",
         "tagsManage": "Tags",
         "settings": "Settings",
         "audit": "Logs"
+    },
+    "outlook": {
+        "accounts": "Outlook Accounts",
+        "tasks": "Outlook Task Center",
+        "resources": "Aux Resource Pool",
+        "channels": "Channel Console"
     },
     "verification": {
         "title": "Get Verification Code",

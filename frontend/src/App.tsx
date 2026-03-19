@@ -13,6 +13,11 @@ import { LoadingSpinner } from './components/ui';
 const TagsPage = React.lazy(() => import('./pages/tags/TagsPage'));
 const SettingsPage = React.lazy(() => import('./pages/settings/SettingsPage'));
 const AuditPage = React.lazy(() => import('./pages/audit/AuditPage'));
+const OutlookAccountsPage = React.lazy(() => import('./pages/outlook/OutlookAccountsPage'));
+const OutlookAccountDetailPage = React.lazy(() => import('./pages/outlook/OutlookAccountDetailPage'));
+const OutlookTasksPage = React.lazy(() => import('./pages/outlook/OutlookTasksPage'));
+const AuxEmailPoolPage = React.lazy(() => import('./pages/outlook/AuxEmailPoolPage'));
+const ChannelConsolePage = React.lazy(() => import('./pages/outlook/ChannelConsolePage'));
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -82,6 +87,66 @@ function App() {
               <RouteErrorBoundary>
                 <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><LoadingSpinner size="lg" text={t('common.loading')} /></div>}>
                   <SettingsPage />
+                </Suspense>
+              </RouteErrorBoundary>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/outlook/accounts"
+          element={
+            <ProtectedRoute>
+              <RouteErrorBoundary>
+                <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><LoadingSpinner size="lg" text={t('common.loading')} /></div>}>
+                  <OutlookAccountsPage />
+                </Suspense>
+              </RouteErrorBoundary>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/outlook/accounts/:email"
+          element={
+            <ProtectedRoute>
+              <RouteErrorBoundary>
+                <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><LoadingSpinner size="lg" text={t('common.loading')} /></div>}>
+                  <OutlookAccountDetailPage />
+                </Suspense>
+              </RouteErrorBoundary>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/outlook/tasks"
+          element={
+            <ProtectedRoute>
+              <RouteErrorBoundary>
+                <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><LoadingSpinner size="lg" text={t('common.loading')} /></div>}>
+                  <OutlookTasksPage />
+                </Suspense>
+              </RouteErrorBoundary>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/outlook/resources"
+          element={
+            <ProtectedRoute>
+              <RouteErrorBoundary>
+                <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><LoadingSpinner size="lg" text={t('common.loading')} /></div>}>
+                  <AuxEmailPoolPage />
+                </Suspense>
+              </RouteErrorBoundary>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/outlook/channels"
+          element={
+            <ProtectedRoute>
+              <RouteErrorBoundary>
+                <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><LoadingSpinner size="lg" text={t('common.loading')} /></div>}>
+                  <ChannelConsolePage />
                 </Suspense>
               </RouteErrorBoundary>
             </ProtectedRoute>

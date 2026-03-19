@@ -107,7 +107,7 @@ describe('VerificationCodeCard', () => {
     const codeElement = screen.getByText('999888');
     expect(codeElement).toHaveClass('text-5xl');
     expect(codeElement).toHaveClass('font-mono');
-    expect(codeElement).toHaveClass('font-bold');
+    expect(codeElement).toHaveClass('font-black');
   });
 
   it('shows copy icon before copying', () => {
