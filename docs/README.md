@@ -1,34 +1,33 @@
 # Outlooker 文档目录
 
-欢迎来到 Outlooker 项目文档中心。本文档提供了完整的项目文档索引，帮助您快速找到所需信息。
+本文档目录以当前仓库的真实实现为准。
 
-## 快速开始
+## 入门
 
-- [快速开始指南](./getting-started.md) - 开发环境配置和常见任务
-- [配置说明](./configuration.md) - 环境变量配置示例
+- [快速开始](./getting-started.md)
+- [配置说明](./configuration.md)
+- [架构说明](./architecture.md)
 
-## 架构与 API
+## API 与运行
 
-- [后端架构](./architecture.md) - 后端系统架构详解
-- [API 参考](./api-reference.md) - 完整的 REST API 文档
-- [API 操作指南](./api-operations.md) - API 使用和运维指南
+- [API 参考](./api-reference.md)
+- [API 操作指南](./api-operations.md)
+- [旧接口兼容清单](./legacy-api-compatibility-inventory.md)
 
-## 开发指南
+## 开发与测试
 
-- [前端开发指南](./frontend-guide.md) - React 前端开发说明
-- [测试指南](./testing.md) - 测试命令和最佳实践
-- [依赖维护](./maintenance.md) - 依赖更新和安全审计
+- [前端开发指南](./frontend-guide.md)
+- [测试指南](./testing.md)
+- [协议 Fixture 测试策略](./outlook-fixture-testing-strategy.md)
+- [性能：缓存](./performance-cache.md)
+- [性能：IMAP](./performance-imap.md)
 
-## 安全
+## 安全与运维
 
-- [安全机制](./security.md) - 登录安全和防护机制
-- [安全测试指南](./security-testing.md) - 安全改进验证步骤
+- [安全机制](./security.md)
+- [安全测试指南](./security-testing.md)
+- [敏感日志脱敏规范](./sensitive-logging-policy.md)
+- [依赖维护与日常运维](./maintenance.md)
+- [灰度上线清单](./outlook-rollout-checklist.md)
+- [交接说明](./outlook-refactor-handoff.md)
 
-## 性能
-
-- [缓存性能](./performance-cache.md) - 邮件缓存性能基准
-- [IMAP 性能](./performance-imap.md) - IMAP 连接池化调研
-
----
-
-**提示**: 所有文档都包含返回目录的导航链接，方便您快速浏览。

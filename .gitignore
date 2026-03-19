@@ -28,6 +28,7 @@ wheels/
 venv/
 ENV/
 env/
+backend/.venv/
 
 # Testing & Coverage
 .pytest_cache/
@@ -54,8 +55,12 @@ frontend/dist/
 .npm
 .yarn
 *.tsbuildinfo
+frontend/node_modules/.vite/
+frontend/.vite/
 
 # Playwright
+test-results/
+playwright-report/
 frontend/test-results/
 frontend/playwright-report/
 frontend/playwright/.cache/
@@ -113,3 +118,5 @@ Thumbs.db
 *.temp
 .cache/
 .codexgit/
+backend/uv.lock
+*.orig
