@@ -78,7 +78,7 @@ async def test_cache_email_keeps_the_single_message_contract(database):
     result = await database.cache_email(
         "single@example.com",
         "7",
-        _message("ignored", subject="Single"),
+        _message("7", subject="Single"),
     )
 
     assert result is True
