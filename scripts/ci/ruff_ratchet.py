@@ -55,14 +55,14 @@ def _diagnostic_key(diagnostic: dict[str, Any], root: Path) -> DiagnosticKey:
 
 
 def _collect_diagnostics(root: Path) -> Counter[DiagnosticKey]:
-    config = root / "backend" / "pyproject.toml"
+    # Deliberately rely on Ruff's native per-path configuration discovery. The
+    # backend and tests currently inherit slightly different configuration
+    # contexts; forcing one config onto both trees creates false regressions.
     result = _run(
         [
             "ruff",
             "check",
             "--no-fix",
-            "--config",
-            str(config),
             "--output-format=json",
             "backend/app",
             "tests/backend",
