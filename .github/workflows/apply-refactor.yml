@@ -1,0 +1,152 @@
+name: Apply validated asset performance refactor
+
+on:
+  push:
+    branches:
+      - refactor/asset-performance-foundation
+    paths:
+      - '.github/refactor/apply_refactor.py'
+      - '.github/workflows/apply-refactor.yml'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refactor-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out refactor branch
+        uses: actions/checkout@v4
+        with:
+          ref: refactor/asset-performance-foundation
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Apply refactor
+        run: python .github/refactor/apply_refactor.py
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install ruff mypy pytest pytest-asyncio pytest-cov httpx
+
+      - name: Format and lint backend changes
+        run: |
+          ruff check --fix backend/app tests/backend scripts/benchmarks/benchmark_email_cache_batch.py --config backend/pyproject.toml
+          ruff format backend/app tests/backend scripts/benchmarks/benchmark_email_cache_batch.py --config backend/pyproject.toml
+          ruff check backend/app tests/backend scripts/benchmarks/benchmark_email_cache_batch.py --config backend/pyproject.toml
+
+      - name: Type-check backend
+        run: mypy --config-file mypy.ini backend/app/services backend/app/db backend/app/routers
+
+      - name: Run focused backend regression tests
+        env:
+          PYTHONPATH: backend
+        run: |
+          pytest \
+            tests/backend/test_email_cache_batch.py \
+            tests/backend/test_lifecycle.py \
+            tests/backend/test_static_assets.py \
+            -q
+
+      - name: Run cache benchmark smoke test
+        env:
+          PYTHONPATH: backend
+        run: python scripts/benchmarks/benchmark_email_cache_batch.py --count 100 --rounds 3
+
+      - name: Install frontend dependencies
+        run: npm --prefix frontend ci
+
+      - name: Type-check frontend
+        run: npm --prefix frontend run typecheck
+
+      - name: Lint frontend
+        run: npm --prefix frontend run lint
+
+      - name: Test frontend
+        run: npm --prefix frontend run test
+
+      - name: Build production assets
+        run: npm --prefix frontend run build
+
+      - name: Report production assets
+        run: npm --prefix frontend run analyze:assets
+
+      - name: Commit validated refactor
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git diff --cached --quiet && { echo 'No refactor changes were generated'; exit 1; }
+          git commit -m 'refactor: optimize asset delivery and cache performance'
+          git push origin HEAD:refactor/asset-performance-foundation
+
+      - name: Create pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr_url=$(gh pr view refactor/asset-performance-foundation --json url --jq .url 2>/dev/null || true)
+          if [ -z "$pr_url" ]; then
+            pr_url=$(gh pr create \
+              --base main \
+              --head refactor/asset-performance-foundation \
+              --title 'refactor: optimize asset delivery, cache writes, and resource lifecycle' \
+              --body-file - <<'EOF'
+          ## 背景
+
+          本次重构针对仓库中已确认的资产与性能债务：
+
+          - 生产 HTML 指向不存在的 `main.jsx`，而实际入口为 `main.tsx`
+          - 公开验证码页面无条件加载管理后台页面和 Sentry Replay
+          - IMAP 抓取的一页邮件逐封创建 SQLite 连接、提交事务并执行容量淘汰
+          - 每个 SQLite 连接重复设置持久化 WAL 模式，线程池在未使用时也提前创建
+          - 哈希静态资源、HTML 与根目录公共文件没有区分缓存策略
+          - 一个关闭步骤失败会跳过后续资源释放
+          - IMAP 服务层依赖 FastAPI 异常，并可能遗留认证失败的半连接
+
+          ## 主要改动
+
+          - 修复生产入口；按路由拆分全部管理端页面；Sentry 改为配置后异步加载
+          - 增加生产资产清单命令，并在 CI 中执行真实 Vite 构建
+          - 为哈希资产、HTML 与公共文件配置不同缓存头，并启用 GZip
+          - 新增页级 `cache_emails`：单连接、单事务、单次容量淘汰与 UPSERT
+          - 增加缓存保留索引，清理与主键/唯一约束重复的索引
+          - SQLite 执行器延迟初始化，WAL 仅在数据库初始化时设置
+          - 隔离后台刷新、邮箱客户端、数据库执行器的关闭失败
+          - 释放 IMAP 认证/选目录失败时已创建的连接，移除服务层 HTTP 耦合
+          - 增加静态资源、批量缓存和生命周期回归测试及缓存基准脚本
+
+          ## 自动验证
+
+          创建此 PR 前已在干净的 GitHub Actions runner 上通过：
+
+          - Ruff 检查与格式化
+          - 后端 Mypy
+          - 新增后端聚焦回归测试
+          - 邮件缓存基准烟雾测试
+          - 前端 TypeScript 类型检查、ESLint、Vitest
+          - Vite 生产构建与资产体积报告
+
+          完整仓库 CI 将由本 PR 再次触发。
+          EOF
+            )
+          fi
+          echo "Pull request: $pr_url" | tee -a "$GITHUB_STEP_SUMMARY"
