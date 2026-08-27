@@ -53,7 +53,7 @@ class IMAPEmailClient:
         self.email = email
         self.refresh_token = account_info["refresh_token"]
         self.access_token = ""
-        self.expires_at = 0
+        self.expires_at: float = 0.0
 
         # Token管理锁
         self._token_lock = asyncio.Lock()
