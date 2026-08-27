@@ -14,20 +14,20 @@ from ...utils.redaction import redact_log_data
 from ..channeling.allocation_service import resolve_channel_proxy
 from .errors import OutlookProtocolError
 from .fingerprint import build_headers, generate_fingerprint
+from .protocol_code_provider import ProtocolCodeProvider
 from .protocol_parsers import (
-    _extract_continue_form,
-    _extract_flow_token,
-    _extract_arr_user_proofs,
     _extract_api_canary,
+    _extract_arr_user_proofs,
     _extract_canary,
+    _extract_continue_form,
     _extract_email_proofs,
+    _extract_flow_token,
     _extract_hpgid,
     _extract_ppft,
     _extract_url_post,
     _extract_verify_proof_action,
     _is_continue_page,
 )
-from .protocol_code_provider import ProtocolCodeProvider
 
 LOGIN_ENTRY_URL = "https://login.live.com/"
 ACCOUNT_HOME_URL = "https://account.live.com/"
@@ -57,7 +57,7 @@ class OutlookProtocolClient:
         self.logged_in_email: str | None = None
         self._last_login_password: str | None = None
 
-    async def __aenter__(self) -> "OutlookProtocolClient":
+    async def __aenter__(self) -> OutlookProtocolClient:
         await self._ensure_client()
         return self
 

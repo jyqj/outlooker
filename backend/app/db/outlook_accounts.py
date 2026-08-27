@@ -10,8 +10,8 @@ Outlook account asset database operations.
 
 from __future__ import annotations
 
-import sqlite3
 import json
+import sqlite3
 from typing import Any
 
 from .base import RunInThreadMixin

@@ -3,7 +3,6 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from app.imap_client import IMAPEmailClient
 
 

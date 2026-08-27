@@ -8,12 +8,10 @@ from contextlib import closing
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from fastapi.testclient import TestClient
-
-from app.auth.jwt import create_access_token
 from app.mail_api import app, db_manager
 from app.services import email_manager
 from app.settings import get_settings
+from fastapi.testclient import TestClient
 
 # 创建测试客户端
 client = TestClient(app)
@@ -32,7 +30,6 @@ def setup_and_teardown():
         conn.commit()
     yield
     # 测试后：可以在这里清理测试数据（如果需要）
-    pass
 
 class TestPublicEndpoints:
     """测试公开端点"""

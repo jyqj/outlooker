@@ -5,7 +5,6 @@ from contextlib import closing
 
 import pytest
 import pytest_asyncio
-
 from app.db import db_manager
 from app.db.manager import looks_like_guid
 

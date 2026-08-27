@@ -3,15 +3,10 @@
 登录频率限制器单元测试
 """
 
-import asyncio
 from datetime import datetime, timedelta
-from pathlib import Path
 
 import pytest
-
-import app.core.rate_limiter as rate_limiter_module
 from app.core.rate_limiter import (
-    AUDIT_LOG_FILE,
     LOCKOUT_DURATION,
     MAX_LOGIN_ATTEMPTS,
     LoginAuditor,

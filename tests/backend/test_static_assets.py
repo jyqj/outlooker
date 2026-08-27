@@ -1,7 +1,6 @@
 """Tests for static asset resolution and cache policy."""
 
 import pytest
-
 from app.core.static_assets import (
     HTML_CACHE_CONTROL,
     IMMUTABLE_ASSET_CACHE_CONTROL,

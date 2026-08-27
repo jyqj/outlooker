@@ -6,8 +6,13 @@ import tempfile
 from pathlib import Path
 
 import pytest
-
-from app.migrations import _REGISTRY, Migration, _normalize_registry, apply_migrations, register_migration
+from app.migrations import (
+    _REGISTRY,
+    Migration,
+    _normalize_registry,
+    apply_migrations,
+    register_migration,
+)
 
 
 @pytest.fixture

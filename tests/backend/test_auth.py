@@ -9,9 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-from fastapi import HTTPException
-
 from app.auth import get_access_token
+from fastapi import HTTPException
 
 
 class TestGetAccessToken:

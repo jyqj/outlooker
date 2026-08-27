@@ -1,10 +1,9 @@
 """Tests for audit logging."""
 
-from datetime import UTC, datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from app.core.audit import (
     AuditEvent,
     AuditEventType,

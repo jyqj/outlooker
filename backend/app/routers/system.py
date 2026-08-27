@@ -17,11 +17,11 @@ from ..dependencies import (
     get_email_manager,
 )
 from ..models import ApiResponse, SystemConfigBatchUpdate, SystemConfigRequest
-from ..services.channeling.channel_stats_service import get_channel_stats
 from ..services import (
     load_system_config,
     set_system_config_value,
 )
+from ..services.channeling.channel_stats_service import get_channel_stats
 from ..settings import get_settings
 from ..version import __version__ as APP_VERSION
 

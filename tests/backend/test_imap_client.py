@@ -14,7 +14,6 @@ from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from app.imap_client import (
     IMAPAuthenticationError,
     IMAPConnectionError,

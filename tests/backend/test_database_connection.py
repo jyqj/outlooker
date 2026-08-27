@@ -4,8 +4,7 @@ import asyncio
 from pathlib import Path
 
 import pytest
-
-from app.db.connection import ConnectionMixin, DEFAULT_SQLITE_BUSY_TIMEOUT_MS
+from app.db.connection import DEFAULT_SQLITE_BUSY_TIMEOUT_MS, ConnectionMixin
 from app.db.manager import DatabaseManager
 
 

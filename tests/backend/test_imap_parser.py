@@ -7,9 +7,6 @@ IMAP 解析器单元测试
 
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from unittest.mock import MagicMock, Mock
-
-import pytest
 
 from app.imap_parser import (
     build_message_dict,

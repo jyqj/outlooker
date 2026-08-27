@@ -3,7 +3,6 @@
 import asyncio
 
 import pytest
-
 from app.services import token_refresh_service
 
 

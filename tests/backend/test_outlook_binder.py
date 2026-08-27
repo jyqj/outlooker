@@ -3,7 +3,6 @@ from __future__ import annotations
 from unittest.mock import AsyncMock
 
 import pytest
-
 from app.services.outlook import binder
 
 

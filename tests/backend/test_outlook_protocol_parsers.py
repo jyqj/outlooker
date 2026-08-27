@@ -14,7 +14,6 @@ from app.services.outlook.protocol_parsers import (
     _extract_verify_proof_action,
 )
 
-
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "outlook_protocol"
 
 

@@ -4,7 +4,6 @@ import asyncio
 
 import pytest
 import pytest_asyncio
-
 from app.db.manager import DatabaseManager
 
 
