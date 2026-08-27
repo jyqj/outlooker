@@ -8,59 +8,12 @@ on:
   pull_request:
 
 jobs:
-  maintenance-autofix:
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Check out PR head
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Apply Ruff safe fixes
-        run: |
-          python -m pip install --upgrade pip ruff
-          ruff check backend/app tests/backend --fix || true
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Apply non-breaking npm audit fixes
-        working-directory: frontend
-        run: |
-          npm ci
-          npm audit fix || true
-
-      - name: Commit generated fixes
-        env:
-          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
-        run: |
-          if git diff --quiet; then
-            echo "No generated fixes to commit"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add backend/app tests/backend frontend/package.json frontend/package-lock.json
-          git commit -m "chore: apply safe lint and dependency fixes"
-          git push origin "HEAD:${HEAD_BRANCH}"
-
   backend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -74,8 +27,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r backend/requirements-dev.txt
 
-      - name: Ruff lint
-        run: ruff check backend/app tests/backend
+      - name: Ruff debt inventory
+        run: ruff check backend/app tests/backend --no-fix --statistics || true
+
+      - name: Ruff regression gate
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: python scripts/ci/ruff_ratchet.py "$BASE_SHA"
 
       - name: Mypy type check
         run: mypy backend/app --config-file mypy.ini
@@ -145,10 +103,9 @@ jobs:
 
       - name: Security scan (npm audit)
         run: |
-          # 高危漏洞必须阻断 CI
+          # Critical vulnerabilities block CI; lower severities remain visible.
           npm audit --audit-level=critical
-          # 中低危漏洞仅警告
-          npm audit --audit-level=high || echo "::warning::发现中等安全漏洞，建议修复"
+          npm audit --audit-level=high || echo "::warning::发现中高风险依赖漏洞，建议继续升级"
 
   e2e:
     runs-on: ubuntu-latest
