@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """JWT认证模块测试"""
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import pytest
-from jose import JWTError, jwt
-
 from app.auth.jwt import (
     authenticate_admin,
     create_access_token,

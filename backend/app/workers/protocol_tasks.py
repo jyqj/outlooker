@@ -16,7 +16,7 @@ from ..services.outlook.binder import (
     bind_secondary_email_with_browser,
     replace_secondary_email_with_browser,
 )
-from ..services.outlook.protocol import OutlookProtocolError, build_protocol_client_for_channel
+from ..services.outlook.protocol import build_protocol_client_for_channel
 from ..services.outlook.protocol_code_provider import CallbackCodeProvider, CodeFetchResult
 from ..services.tasks.progress_event_service import publish_task_event
 from ..services.tasks.protocol_task_service import add_task_step, update_task_status

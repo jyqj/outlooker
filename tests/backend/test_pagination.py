@@ -6,7 +6,6 @@
 """
 
 import pytest
-
 from app.utils.pagination import (
     filter_messages_by_search,
     normalize_email,

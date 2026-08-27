@@ -1,18 +1,15 @@
 #!/usr/bin/env python3
 """后端认证与公共接口补充测试"""
 
-import asyncio
 from contextlib import closing
 from unittest.mock import AsyncMock
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app.auth.jwt import get_password_hash
 from app.core.rate_limiter import public_api_rate_limiter
 from app.mail_api import app, db_manager
-from app.routers import public_accounts
 from app.settings import get_settings
+from fastapi.testclient import TestClient
 
 
 async def reset_admin_state() -> None:

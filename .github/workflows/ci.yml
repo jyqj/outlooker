@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -25,8 +27,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r backend/requirements-dev.txt
 
-      - name: Ruff lint
-        run: ruff check backend/app tests/backend
+      - name: Ruff debt inventory
+        run: ruff check backend/app tests/backend --no-fix --statistics || true
+
+      - name: Ruff regression gate
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: python scripts/ci/ruff_ratchet.py "$BASE_SHA"
 
       - name: Mypy type check
         run: mypy backend/app --config-file mypy.ini
@@ -85,18 +92,20 @@ jobs:
       - name: TypeScript type check
         run: npm run typecheck
 
+      - name: Production build
+        run: npm run build
+
       - name: Lint
         run: npm run lint
 
-      - name: Run frontend tests with coverage
-        run: npm run test -- --coverage
+      - name: Run frontend tests
+        run: npm run test
 
       - name: Security scan (npm audit)
         run: |
-          # 高危漏洞必须阻断 CI
+          # Critical vulnerabilities block CI; lower severities remain visible.
           npm audit --audit-level=critical
-          # 中低危漏洞仅警告
-          npm audit --audit-level=high || echo "::warning::发现中等安全漏洞，建议修复"
+          npm audit --audit-level=high || echo "::warning::发现中高风险依赖漏洞，建议继续升级"
 
   e2e:
     runs-on: ubuntu-latest

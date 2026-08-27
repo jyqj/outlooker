@@ -67,8 +67,9 @@ class DatabaseManager(
         self.init_database()
 
     def init_database(self) -> None:
-        """Initialize database tables and run migrations."""
+        """Initialize database tables, migrations, and workload-oriented indexes."""
         with closing(self._create_connection()) as conn:
+            self._initialize_database_pragmas(conn)
             cursor = conn.cursor()
 
             # Create accounts table
@@ -148,12 +149,13 @@ class DatabaseManager(
             # Run migrations (may update schema)
             apply_migrations(conn)
 
-            # Create indexes (after migrations to avoid conflicts)
-            cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_accounts_email ON accounts(email)"
-            )
-            # Note: account_tags index is only created if the table still exists
-            # (before v2 migration converts it to relational tables)
+            # Remove explicit indexes already covered by PRIMARY KEY / UNIQUE indexes.
+            # Keeping duplicates increases every write and the on-disk database size.
+            cursor.execute("DROP INDEX IF EXISTS idx_accounts_email")
+            cursor.execute("DROP INDEX IF EXISTS idx_email_cache_email_folder_message_id")
+
+            # Create indexes after migrations so they always target the final schema.
+            # account_tags only exists before the relational tags migration.
             cursor.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name='account_tags'"
             )
@@ -161,6 +163,7 @@ class DatabaseManager(
                 cursor.execute(
                     "CREATE INDEX IF NOT EXISTS idx_account_tags_email ON account_tags(email)"
                 )
+
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_email_cache_email_folder ON email_cache(email, folder)"
             )
@@ -168,7 +171,25 @@ class DatabaseManager(
                 "CREATE INDEX IF NOT EXISTS idx_email_cache_message_id ON email_cache(message_id)"
             )
             cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_email_cache_email_folder_message_id ON email_cache(email, folder, message_id)"
+                """
+                CREATE INDEX IF NOT EXISTS idx_email_cache_feed
+                ON email_cache(
+                    email,
+                    folder,
+                    CASE
+                        WHEN message_id GLOB '[0-9]*' THEN CAST(message_id AS INTEGER)
+                        ELSE 0
+                    END DESC,
+                    received_date DESC,
+                    id DESC
+                )
+                """
+            )
+            cursor.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_email_cache_retention
+                ON email_cache(email, folder, created_at DESC, id DESC)
+                """
             )
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_email_cache_meta_checked_at ON email_cache_meta(last_checked_at)"

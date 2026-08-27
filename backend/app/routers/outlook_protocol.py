@@ -13,13 +13,13 @@ from ..schemas.outlook_protocol import (
     ProtocolLoginRequest,
     ProtocolReplaceRequest,
 )
-from ..services.outlook.protocol import OutlookProtocolError, OutlookProtocolClient, build_protocol_client_for_channel
-from ..services.outlook.protocol_code_provider import StaticCodeProvider
 from ..services.channeling.resource_pool_service import create_aux_email_resource, get_allocatable_resource_for_channel
+from ..services.outlook.protocol import build_protocol_client_for_channel
+from ..services.outlook.protocol_code_provider import StaticCodeProvider
 from ..services.tasks.progress_event_service import publish_task_event
 from ..services.tasks.protocol_task_service import add_task_step
-from ..workers.protocol_tasks import protocol_bind_secondary, protocol_rebind_secondary
 from ..settings import get_settings
+from ..workers.protocol_tasks import protocol_bind_secondary, protocol_rebind_secondary
 
 logger = logging.getLogger(__name__)
 settings = get_settings()

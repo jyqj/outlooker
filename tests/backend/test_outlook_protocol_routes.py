@@ -4,11 +4,9 @@ import asyncio
 from contextlib import closing
 from unittest.mock import MagicMock
 
-from fastapi.testclient import TestClient
-
 from app.mail_api import app, db_manager
 from app.routers import outlook_protocol
-
+from fastapi.testclient import TestClient
 
 client = TestClient(app)
 

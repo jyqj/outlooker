@@ -6,7 +6,6 @@ import json
 import re
 from typing import Any
 
-
 SERVER_DATA_RE = re.compile(r"var\s+ServerData\s*=\s*(\{.*?\})\s*;", re.DOTALL)
 URL_POST_RE = re.compile(r'"urlPost"\s*:\s*"([^"]+)"')
 PPFT_INPUT_RE = re.compile(r'name=["\']PPFT["\']\s+value=["\']([^"\']+)["\']', re.IGNORECASE)

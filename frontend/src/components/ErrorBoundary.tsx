@@ -1,5 +1,6 @@
-import { Component, type ReactNode, type ErrorInfo } from 'react';
+import { Component, type ErrorInfo, type ReactNode } from 'react';
 import i18n from '@/i18n';
+import { captureException } from '@/lib/telemetry';
 import { logError } from '@/lib/utils';
 
 interface ErrorBoundaryProps {
@@ -23,7 +24,9 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    logError('捕获到未处理的前端异常', { error, componentStack: info.componentStack });
+    const componentStack = info.componentStack ?? undefined;
+    logError('捕获到未处理的前端异常', { error, componentStack });
+    captureException(error, { componentStack });
   }
 
   handleRetry = (): void => {

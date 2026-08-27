@@ -4,13 +4,11 @@
 测试健康检查、系统配置和指标端点
 """
 
-from contextlib import closing
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app.mail_api import app, db_manager
+from fastapi.testclient import TestClient
 
 client = TestClient(app)
 

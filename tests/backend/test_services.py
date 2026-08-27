@@ -2,13 +2,11 @@
 """services 模块的核心单元测试"""
 
 import asyncio
-import json
 import sqlite3
 from contextlib import closing
 
 import pytest
 import pytest_asyncio
-
 from app.db import db_manager
 from app.models import ImportAccountData
 from app.services import (

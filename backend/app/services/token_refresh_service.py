@@ -69,7 +69,8 @@ async def _refresh_cycle() -> dict[str, Any]:
                 access, new_rt = await get_access_token(rt, check_only=True)
                 if access:
                     await db_manager.update_account_health(
-                        email, "healthy",
+                        email,
+                        "healthy",
                         refresh_token=new_rt if new_rt and new_rt != rt else None,
                     )
                     if new_rt and new_rt != rt:
@@ -84,14 +85,17 @@ async def _refresh_cycle() -> dict[str, Any]:
                 await dispatch_event("token_refresh_failed", {"email": email, "error": str(exc)})
                 failed += 1
 
-    tasks = [refresh_one(e, info) for e, info in accounts.items()]
+    tasks = [refresh_one(email, info) for email, info in accounts.items()]
     await asyncio.gather(*tasks, return_exceptions=True)
 
     summary = {"total": len(accounts), "refreshed": refreshed, "failed": failed}
-    await db_manager.upsert_system_metric("token_refresh", {
-        **summary,
-        "last_run_at": datetime.now(UTC).isoformat() + "Z",
-    })
+    await db_manager.upsert_system_metric(
+        "token_refresh",
+        {
+            **summary,
+            "last_run_at": datetime.now(UTC).isoformat() + "Z",
+        },
+    )
     logger.info("Token refresh cycle: %s", summary)
     return summary
 
@@ -121,14 +125,25 @@ def start_background_refresh() -> None:
     """Start the background token refresh task (call from lifespan)."""
     global _task
     if _task is None or _task.done():
-        _task = asyncio.create_task(_loop())
+        _task = asyncio.create_task(_loop(), name="outlooker-token-refresh")
         logger.info("Token auto-refresh background task started")
 
 
-def stop_background_refresh() -> None:
-    """Cancel the background task (call on shutdown)."""
+async def stop_background_refresh() -> None:
+    """Cancel and await the background task so shutdown leaves no pending work."""
     global _task
-    if _task and not _task.done():
-        _task.cancel()
-        _task = None
-        logger.info("Token auto-refresh background task stopped")
+    task, _task = _task, None
+    if task is None:
+        return
+
+    if not task.done():
+        task.cancel()
+
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+    except Exception:
+        logger.exception("Token auto-refresh task failed during shutdown")
+
+    logger.info("Token auto-refresh background task stopped")

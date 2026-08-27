@@ -14,8 +14,14 @@ from ..schemas.channels import (
 )
 from ..services.channeling.allocation_service import (
     bind_accounts_to_channel,
+)
+from ..services.channeling.allocation_service import (
     create_channel as create_channel_service,
+)
+from ..services.channeling.allocation_service import (
     list_channels as list_channels_service,
+)
+from ..services.channeling.allocation_service import (
     update_channel as update_channel_service,
 )
 from ..services.channeling.channel_stats_service import get_channel_stats

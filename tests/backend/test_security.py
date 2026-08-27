@@ -5,8 +5,6 @@
 """
 
 import pytest
-from cryptography.fernet import InvalidToken
-
 from app.auth.security import (
     decrypt_if_needed,
     decrypt_value,
@@ -14,6 +12,7 @@ from app.auth.security import (
     encrypt_value,
     is_encrypted,
 )
+from cryptography.fernet import InvalidToken
 
 
 class TestEncryption:
