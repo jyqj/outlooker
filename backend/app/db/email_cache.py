@@ -3,7 +3,7 @@
 Email cache operations module.
 
 Handles all email caching related database operations including:
-- Caching email messages
+- Batched email upserts with one transaction and one retention pass
 - Retrieving cached emails
 - Cache statistics and cleanup
 """
@@ -19,9 +19,27 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 INBOX_FOLDER_NAME = settings.inbox_folder_name
 
+_EMAIL_UPSERT_SQL = """
+    INSERT INTO email_cache
+    (email, folder, message_id, subject, sender, received_date, body_preview, body_content, body_type)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(email, folder, message_id)
+    DO UPDATE SET
+        subject = excluded.subject,
+        sender = excluded.sender,
+        received_date = excluded.received_date,
+        body_preview = excluded.body_preview,
+        body_content = excluded.body_content,
+        body_type = excluded.body_type
+"""
+
 
 class EmailCacheMixin(RunInThreadMixin):
     """Mixin providing email cache database operations."""
+
+    @staticmethod
+    def _normalize_folder(folder: str | None) -> str:
+        return (folder or INBOX_FOLDER_NAME or "INBOX").strip() or "INBOX"
 
     @staticmethod
     def _parse_cached_sender(sender: str) -> dict[str, dict[str, dict[str, str]]]:
@@ -40,94 +58,117 @@ class EmailCacheMixin(RunInThreadMixin):
         payload = {"emailAddress": {"name": name, "address": address}}
         return {"sender": payload, "from": payload}
 
-    async def cache_email(
+    @staticmethod
+    def _serialize_message(
+        email: str,
+        folder_id: str,
+        email_data: dict[str, Any],
+    ) -> tuple[str, str, str, str, str, str, str, str, str] | None:
+        """Convert an API/IMAP message into a database row."""
+        message_id = str(email_data.get("id") or email_data.get("message_id") or "").strip()
+        if not message_id:
+            return None
+
+        sender_container = email_data.get("sender") or email_data.get("from") or {}
+        sender_info = (
+            sender_container.get("emailAddress", {})
+            if isinstance(sender_container, dict)
+            else {}
+        )
+        if not isinstance(sender_info, dict):
+            sender_info = {}
+        sender = f"{sender_info.get('name', '')} <{sender_info.get('address', '')}>"
+
+        body_info = email_data.get("body") or {}
+        if not isinstance(body_info, dict):
+            body_info = {}
+
+        return (
+            email,
+            folder_id,
+            message_id,
+            str(email_data.get("subject") or ""),
+            sender,
+            str(email_data.get("receivedDateTime") or ""),
+            str(email_data.get("bodyPreview") or ""),
+            str(body_info.get("content") or ""),
+            str(body_info.get("contentType") or "text"),
+        )
+
+    async def cache_emails(
         self,
         email: str,
-        message_id: str,
-        email_data: dict,
+        messages: list[dict[str, Any]],
         folder: str | None = None,
-    ) -> bool:
-        """
-        Cache email data with capacity control.
+    ) -> int:
+        """Upsert a message batch in one transaction and enforce capacity once."""
+        folder_id = self._normalize_folder(folder)
+        rows = [
+            row
+            for message in messages
+            if (row := self._serialize_message(email, folder_id, message)) is not None
+        ]
+        if not rows:
+            return 0
 
-        Each account retains at most 100 cached emails.
-        Older emails are evicted by creation time.
-        """
-        folder_id = (folder or INBOX_FOLDER_NAME or "INBOX").strip() or "INBOX"
+        cache_limit = max(0, int(settings.email_cache_limit_per_account))
 
-        def _sync_cache(conn: sqlite3.Connection) -> bool:
+        def _sync_cache_batch(conn: sqlite3.Connection) -> int:
             try:
                 cursor = conn.cursor()
+                cursor.executemany(_EMAIL_UPSERT_SQL, rows)
 
-                subject = email_data.get("subject", "")
-                sender_info = email_data.get("sender", {}).get("emailAddress", {})
-                sender = f"{sender_info.get('name', '')} <{sender_info.get('address', '')}>"
-                received_date = email_data.get("receivedDateTime", "")
-                body_preview = email_data.get("bodyPreview", "")
-                body_info = email_data.get("body", {})
-                body_content = body_info.get("content", "")
-                body_type = body_info.get("contentType", "text")
-
-                cursor.execute(
-                    """
-                    INSERT OR REPLACE INTO email_cache
-                    (email, folder, message_id, subject, sender, received_date, body_preview, body_content, body_type)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        email,
-                        folder_id,
-                        message_id,
-                        subject,
-                        sender,
-                        received_date,
-                        body_preview,
-                        body_content,
-                        body_type,
-                    ),
-                )
-
-                # Capacity control: keep at most N cached emails per account
-                cache_limit = settings.email_cache_limit_per_account
-                # Use parameterized query to avoid SQL injection
-                # SQLite requires a subquery wrapper for LIMIT with parameter in NOT IN
+                # Run retention once per batch rather than once per message. The
+                # deterministic id tie-breaker matters when a batch shares the same
+                # CURRENT_TIMESTAMP value.
                 cursor.execute(
                     """
                     DELETE FROM email_cache
                     WHERE email = ?
                       AND folder = ?
                       AND id NOT IN (
-                          SELECT id FROM (
-                              SELECT id FROM email_cache
-                              WHERE email = ?
-                                AND folder = ?
-                              ORDER BY created_at DESC
-                              LIMIT ?
-                          )
+                          SELECT id FROM email_cache
+                          WHERE email = ?
+                            AND folder = ?
+                          ORDER BY created_at DESC, id DESC
+                          LIMIT ?
                       )
                     """,
                     (email, folder_id, email, folder_id, cache_limit),
                 )
 
                 conn.commit()
-                return True
-            except Exception as e:
-                logger.error(f"缓存邮件失败: {e}")
-                return False
+                return len(rows)
+            except Exception as exc:
+                conn.rollback()
+                logger.error("批量缓存邮件失败: %s", exc, exc_info=True)
+                return 0
 
-        return await self._run_in_thread(_sync_cache)
+        return await self._run_in_thread(_sync_cache_batch)
+
+    async def cache_email(
+        self,
+        email: str,
+        message_id: str,
+        email_data: dict[str, Any],
+        folder: str | None = None,
+    ) -> bool:
+        """Backward-compatible single-message facade over the batch writer."""
+        payload = dict(email_data)
+        payload["id"] = message_id
+        return await self.cache_emails(email, [payload], folder=folder) == 1
 
     async def get_cached_email(
         self, email: str, message_id: str, folder: str | None = None
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Get a cached email by message ID."""
-        folder_id = (folder or INBOX_FOLDER_NAME or "INBOX").strip() or "INBOX"
+        folder_id = self._normalize_folder(folder)
 
-        def _sync_get(conn: sqlite3.Connection) -> dict | None:
+        def _sync_get(conn: sqlite3.Connection) -> dict[str, Any] | None:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT * FROM email_cache 
+                SELECT * FROM email_cache
                 WHERE email = ? AND folder = ? AND message_id = ?
                 """,
                 (email, folder_id, message_id),
@@ -142,7 +183,10 @@ class EmailCacheMixin(RunInThreadMixin):
                     "receivedDateTime": row["received_date"],
                     **sender_payload,
                     "bodyPreview": row["body_preview"],
-                    "body": {"content": row["body_content"], "contentType": row["body_type"]},
+                    "body": {
+                        "content": row["body_content"],
+                        "contentType": row["body_type"],
+                    },
                 }
             return None
 
@@ -153,12 +197,12 @@ class EmailCacheMixin(RunInThreadMixin):
         email: str,
         folder: str | None = None,
         limit: int = 50,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Get cached messages for an email account in a folder (newest first)."""
-        folder_id = (folder or INBOX_FOLDER_NAME or "INBOX").strip() or "INBOX"
+        folder_id = self._normalize_folder(folder)
         limit = max(0, int(limit or 0))
 
-        def _sync_get(conn: sqlite3.Connection) -> list[dict]:
+        def _sync_get(conn: sqlite3.Connection) -> list[dict[str, Any]]:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -174,7 +218,7 @@ class EmailCacheMixin(RunInThreadMixin):
                 (email, folder_id, limit),
             )
             rows = cursor.fetchall()
-            messages: list[dict] = []
+            messages: list[dict[str, Any]] = []
             for row in rows:
                 sender_payload = self._parse_cached_sender(row["sender"])
                 messages.append(
@@ -199,7 +243,7 @@ class EmailCacheMixin(RunInThreadMixin):
         self, email: str, folder: str | None = None
     ) -> dict[str, Any]:
         """Get cache summary info for an email account's folder."""
-        folder_id = (folder or INBOX_FOLDER_NAME or "INBOX").strip() or "INBOX"
+        folder_id = self._normalize_folder(folder)
 
         def _sync_state(conn: sqlite3.Connection) -> dict[str, Any]:
             cursor = conn.cursor()
@@ -240,7 +284,7 @@ class EmailCacheMixin(RunInThreadMixin):
         self, email: str, folder: str | None = None
     ) -> None:
         """Record a cache check timestamp (even if no new emails)."""
-        folder_id = (folder or INBOX_FOLDER_NAME or "INBOX").strip() or "INBOX"
+        folder_id = self._normalize_folder(folder)
 
         def _sync_mark(conn: sqlite3.Connection) -> None:
             cursor = conn.cursor()
@@ -293,12 +337,10 @@ class EmailCacheMixin(RunInThreadMixin):
         def _sync_cleanup(conn: sqlite3.Connection) -> int:
             try:
                 cursor = conn.cursor()
-                # Use parameterized query - SQLite datetime modifier string is built safely
-                # since days is validated as int and used in a string modifier
                 days_modifier = f"-{int(days)} days"
                 cursor.execute(
                     """
-                    DELETE FROM email_cache 
+                    DELETE FROM email_cache
                     WHERE created_at < datetime('now', ?)
                     """,
                     (days_modifier,),
@@ -306,8 +348,8 @@ class EmailCacheMixin(RunInThreadMixin):
                 deleted_count = cursor.rowcount
                 conn.commit()
                 return deleted_count
-            except sqlite3.Error as e:
-                logger.error(f"清理旧邮件失败: {e}", exc_info=True)
+            except sqlite3.Error as exc:
+                logger.error("清理旧邮件失败: %s", exc, exc_info=True)
                 return 0
 
         return await self._run_in_thread(_sync_cleanup)
@@ -316,22 +358,22 @@ class EmailCacheMixin(RunInThreadMixin):
         self, email: str, message_id: str, folder: str | None = None
     ) -> bool:
         """Delete a specific cached email."""
-        folder_id = (folder or INBOX_FOLDER_NAME or "INBOX").strip() or "INBOX"
+        folder_id = self._normalize_folder(folder)
 
         def _sync_delete(conn: sqlite3.Connection) -> bool:
             try:
                 cursor = conn.cursor()
                 cursor.execute(
                     """
-                    DELETE FROM email_cache 
+                    DELETE FROM email_cache
                     WHERE email = ? AND folder = ? AND message_id = ?
                     """,
                     (email, folder_id, message_id),
                 )
                 conn.commit()
                 return cursor.rowcount > 0
-            except Exception as e:
-                logger.error(f"删除缓存邮件失败: {e}")
+            except Exception as exc:
+                logger.error("删除缓存邮件失败: %s", exc, exc_info=True)
                 return False
 
         return await self._run_in_thread(_sync_delete)
@@ -341,9 +383,8 @@ class EmailCacheMixin(RunInThreadMixin):
     ) -> bool:
         """
         Mark a cached email as read.
-        
+
         Note: This only updates the cache. Actual IMAP marking should be done separately.
         """
-        # For now, we don't track read status in cache
-        # This is a placeholder for future implementation
+        # Read status is not stored in the current cache schema.
         return True
