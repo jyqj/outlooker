@@ -21,6 +21,7 @@
 - [协议 Fixture 测试策略](./outlook-fixture-testing-strategy.md)
 - [性能：缓存](./performance-cache.md)
 - [性能：IMAP](./performance-imap.md)
+- [性能：Outlook 资产读模型](./performance-outlook-assets.md)
 
 ## 安全与运维
 
@@ -30,4 +31,3 @@
 - [依赖维护与日常运维](./maintenance.md)
 - [灰度上线清单](./outlook-rollout-checklist.md)
 - [交接说明](./outlook-refactor-handoff.md)
-

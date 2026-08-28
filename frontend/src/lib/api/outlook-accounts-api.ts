@@ -10,18 +10,19 @@ export interface OutlookAccountCapabilities {
   updated_at?: string;
 }
 
+/** Secret-free token metadata returned by account management endpoints. */
 export interface OutlookTokenRecord {
   id: number;
   oauth_config_id: number;
   email: string;
-  access_token?: string;
-  refresh_token?: string;
   expires_at?: string | null;
   scopes_granted?: string;
   status: string;
   last_error?: string;
   created_at?: string;
   updated_at?: string;
+  has_access_token: boolean;
+  has_refresh_token: boolean;
 }
 
 export interface OutlookAccountView {
@@ -52,6 +53,8 @@ export interface OutlookAccountDetail extends OutlookAccountView {
 export interface OutlookAccountsListData {
   items: OutlookAccountView[];
   total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface BatchRefreshSummary {

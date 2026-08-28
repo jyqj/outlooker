@@ -5,7 +5,8 @@ import { ArrowLeft, RefreshCw, Shield, UserRound } from 'lucide-react';
 
 import api, { clearAuthTokens } from '@/lib/api';
 import { batchRefreshOutlookTokens } from '@/lib/api/outlook-accounts-api';
-import { useOutlookAccountsQuery } from '@/lib/hooks';
+import { useDebounce, useOutlookAccountsQuery } from '@/lib/hooks';
+import { queryKeys } from '@/lib/queryKeys';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -19,7 +20,14 @@ export default function OutlookAccountsPage() {
   const [accountType, setAccountType] = useState('');
   const [offset, setOffset] = useState(0);
   const limit = 20;
-  const { data, isLoading } = useOutlookAccountsQuery({ status, accountType, limit, offset });
+  const debouncedStatus = useDebounce(status.trim(), 250);
+  const debouncedAccountType = useDebounce(accountType.trim(), 250);
+  const { data, isLoading, isFetching, refetch } = useOutlookAccountsQuery({
+    status: debouncedStatus,
+    accountType: debouncedAccountType,
+    limit,
+    offset,
+  });
   const accounts = data?.data?.items ?? [];
   const total = data?.data?.total ?? 0;
   const [batchRefreshing, setBatchRefreshing] = useState(false);
@@ -33,11 +41,22 @@ export default function OutlookAccountsPage() {
     }
   };
 
+  const invalidateVisibleAssets = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.outlookAccountsBase() }),
+      ...accounts.map((item) =>
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.outlookAccountDetail(item.email),
+        })
+      ),
+    ]);
+  };
+
   const handleBatchRefresh = async () => {
     setBatchRefreshing(true);
     try {
       await batchRefreshOutlookTokens({ emails: accounts.map((item) => item.email) });
-      await queryClient.invalidateQueries();
+      await invalidateVisibleAssets();
     } finally {
       setBatchRefreshing(false);
     }
@@ -57,12 +76,15 @@ export default function OutlookAccountsPage() {
               <ArrowLeft className="w-4 h-4 mr-2" />
               返回后台
             </Button>
-            <Button onClick={() => queryClient.invalidateQueries()}>
-              <RefreshCw className="w-4 h-4 mr-2" />
-              刷新
+            <Button onClick={() => void refetch()} disabled={isFetching}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
+              {isFetching ? '刷新中...' : '刷新'}
             </Button>
-            <Button onClick={handleBatchRefresh} disabled={batchRefreshing || accounts.length === 0}>
-              <RefreshCw className="w-4 h-4 mr-2" />
+            <Button
+              onClick={handleBatchRefresh}
+              disabled={batchRefreshing || isFetching || accounts.length === 0}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${batchRefreshing ? 'animate-spin' : ''}`} />
               {batchRefreshing ? '批量刷新中...' : '批量刷新 Token'}
             </Button>
           </div>
@@ -75,17 +97,39 @@ export default function OutlookAccountsPage() {
           <CardContent className="flex flex-wrap items-end gap-4">
             <div className="w-48 space-y-2">
               <div className="text-sm text-muted-foreground">状态</div>
-              <Input value={status} onChange={(e) => { setStatus(e.target.value); setOffset(0); }} placeholder="active / suspended" />
+              <Input
+                value={status}
+                onChange={(event) => {
+                  setStatus(event.target.value);
+                  setOffset(0);
+                }}
+                placeholder="active / suspended"
+              />
             </div>
             <div className="w-48 space-y-2">
               <div className="text-sm text-muted-foreground">类型</div>
-              <Input value={accountType} onChange={(e) => { setAccountType(e.target.value); setOffset(0); }} placeholder="consumer / org" />
+              <Input
+                value={accountType}
+                onChange={(event) => {
+                  setAccountType(event.target.value);
+                  setOffset(0);
+                }}
+                placeholder="consumer / org"
+              />
             </div>
             <div className="ml-auto flex items-center gap-2">
-              <Button variant="outline" onClick={() => setOffset(Math.max(0, offset - limit))} disabled={offset === 0}>
+              <Button
+                variant="outline"
+                onClick={() => setOffset(Math.max(0, offset - limit))}
+                disabled={offset === 0}
+              >
                 上一页
               </Button>
-              <Button variant="outline" onClick={() => setOffset(offset + limit)} disabled={offset + limit >= total}>
+              <Button
+                variant="outline"
+                onClick={() => setOffset(offset + limit)}
+                disabled={offset + limit >= total}
+              >
                 下一页
               </Button>
               <Badge variant="outline">
@@ -100,6 +144,9 @@ export default function OutlookAccountsPage() {
             <CardTitle className="flex items-center gap-2">
               <UserRound className="w-5 h-5" />
               账户资产列表
+              {!isLoading && isFetching && (
+                <span className="text-xs font-normal text-muted-foreground">同步中</span>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -118,12 +165,15 @@ export default function OutlookAccountsPage() {
                     <div className="text-sm text-muted-foreground">
                       类型: {account.account_type} · 状态: {account.status}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <Badge variant={account.capabilities?.graph_ready ? 'default' : 'secondary'}>
                         <Shield className="w-3 h-3 mr-1" />
                         Graph {account.capabilities?.graph_ready ? 'Ready' : 'Off'}
                       </Badge>
                       <Badge variant="outline">Token: {account.token?.status ?? 'none'}</Badge>
+                      <Badge variant={account.token?.has_refresh_token ? 'success' : 'warning'}>
+                        Refresh {account.token?.has_refresh_token ? 'Ready' : 'Missing'}
+                      </Badge>
                     </div>
                   </div>
                   <Button

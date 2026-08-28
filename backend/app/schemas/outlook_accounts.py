@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
 from pydantic import BaseModel, Field
 
 
+BatchEmail = Annotated[str, Field(min_length=3, max_length=320)]
+
+
 class BatchRefreshRequest(BaseModel):
-    emails: list[str] = Field(default_factory=list)
-    limit: int = 100
-    offset: int = 0
-    concurrency: int = 5
+    emails: list[BatchEmail] = Field(default_factory=list, max_length=200)
+    limit: int = Field(default=100, ge=1, le=200)
+    offset: int = Field(default=0, ge=0)
+    concurrency: int = Field(default=5, ge=1, le=20)
 
 
 class ProfileUpdateRequest(BaseModel):

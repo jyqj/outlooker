@@ -18,6 +18,9 @@ DEFAULT_PUBLIC_SCOPES = (
     "openid profile email offline_access "
     "Mail.ReadWrite Mail.Send MailboxSettings.ReadWrite User.Read"
 )
+MAX_BATCH_REFRESH_ACCOUNTS = 200
+MAX_BATCH_REFRESH_CONCURRENCY = 20
+MAX_BATCH_EMAIL_LENGTH = 320
 
 _settings = get_settings()
 
@@ -121,7 +124,9 @@ def _parse_expires_at(value: str | None) -> datetime | None:
     return parsed.astimezone(UTC)
 
 
-async def _refresh_token_record(token: dict[str, Any], *, proxy_url: str | None = None) -> dict[str, Any]:
+async def _refresh_token_record(
+    token: dict[str, Any], *, proxy_url: str | None = None
+) -> dict[str, Any]:
     refresh_token = (token.get("refresh_token") or "").strip()
     if not refresh_token:
         await db_manager.update_oauth_token(
@@ -185,7 +190,9 @@ async def _refresh_token_record(token: dict[str, Any], *, proxy_url: str | None 
     return refreshed
 
 
-async def get_valid_token(email: str, *, channel_id: int | None = None) -> tuple[str, dict[str, Any]]:
+async def get_valid_token(
+    email: str, *, channel_id: int | None = None
+) -> tuple[str, dict[str, Any]]:
     """Load a valid Graph access token for an Outlook account."""
     token = await db_manager.get_latest_active_oauth_token(email)
     if not token:
@@ -203,7 +210,9 @@ async def get_valid_token(email: str, *, channel_id: int | None = None) -> tuple
     return refreshed["access_token"], refreshed
 
 
-async def refresh_account_token(email: str, *, channel_id: int | None = None) -> dict[str, Any]:
+async def refresh_account_token(
+    email: str, *, channel_id: int | None = None
+) -> dict[str, Any]:
     """Force-refresh the latest active token for a single Outlook account."""
     token = await db_manager.get_latest_active_oauth_token(email)
     if not token:
@@ -214,6 +223,22 @@ async def refresh_account_token(email: str, *, channel_id: int | None = None) ->
     return await _refresh_token_record(token, proxy_url=proxy_url)
 
 
+def _normalize_batch_emails(emails: list[str]) -> list[str]:
+    """Trim and case-insensitively deduplicate a bounded email batch."""
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for value in emails:
+        email = str(value or "").strip()
+        key = email.casefold()
+        if not email or len(email) > MAX_BATCH_EMAIL_LENGTH or key in seen:
+            continue
+        seen.add(key)
+        normalized.append(email)
+        if len(normalized) >= MAX_BATCH_REFRESH_ACCOUNTS:
+            break
+    return normalized
+
+
 async def batch_refresh_account_tokens(
     emails: list[str] | None = None,
     limit: int = 100,
@@ -221,43 +246,53 @@ async def batch_refresh_account_tokens(
     concurrency: int = 5,
     channel_id: int | None = None,
 ) -> dict[str, Any]:
-    """Batch-refresh Outlook account tokens and return an aggregated summary."""
-    if emails is None:
-        accounts = await db_manager.list_outlook_accounts(limit=limit, offset=offset)
-        emails = [account["email"] for account in accounts]
+    """Batch-refresh tokens with bounded concurrency and deterministic results."""
+    normalized_limit = max(1, min(MAX_BATCH_REFRESH_ACCOUNTS, int(limit or 100)))
+    normalized_offset = max(0, int(offset or 0))
+    normalized_concurrency = max(
+        1,
+        min(MAX_BATCH_REFRESH_CONCURRENCY, int(concurrency or 5)),
+    )
 
+    if emails is None:
+        accounts = await db_manager.list_outlook_accounts(
+            limit=normalized_limit,
+            offset=normalized_offset,
+        )
+        emails = [str(account["email"]) for account in accounts]
+
+    normalized_emails = _normalize_batch_emails(emails)
     summary: dict[str, Any] = {
-        "requested": len(emails),
+        "requested": len(normalized_emails),
         "refreshed": 0,
         "failed": 0,
         "details": [],
     }
-    if not emails:
+    if not normalized_emails:
         return summary
 
-    semaphore = asyncio.Semaphore(max(1, concurrency))
+    semaphore = asyncio.Semaphore(normalized_concurrency)
 
-    async def _refresh_one(email: str) -> None:
+    async def _refresh_one(email: str) -> dict[str, Any]:
         async with semaphore:
             try:
                 refreshed = await refresh_account_token(email, channel_id=channel_id)
-                summary["refreshed"] += 1
-                summary["details"].append(
-                    {
-                        "email": email,
-                        "status": "success",
-                        "expires_at": refreshed.get("expires_at"),
-                    }
-                )
+                return {
+                    "email": email,
+                    "status": "success",
+                    "expires_at": refreshed.get("expires_at"),
+                }
             except Exception as exc:  # noqa: BLE001
-                summary["failed"] += 1
-                summary["details"].append(
-                    {
-                        "email": email,
-                        "status": "failed",
-                        "error": str(exc),
-                    }
-                )
+                return {
+                    "email": email,
+                    "status": "failed",
+                    "error": str(exc)[:300],
+                }
 
-    await asyncio.gather(*[_refresh_one(email) for email in emails])
+    details = await asyncio.gather(
+        *[_refresh_one(email) for email in normalized_emails]
+    )
+    summary["details"] = details
+    summary["refreshed"] = sum(item["status"] == "success" for item in details)
+    summary["failed"] = len(details) - int(summary["refreshed"])
     return summary
