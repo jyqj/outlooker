@@ -12,9 +12,11 @@ import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
 from ..db import db_manager
 from ..settings import get_settings
+from .sliding_window_limiter import public_api_limiter as public_api_rate_limiter
+
+logger = logging.getLogger(__name__)
 
 # ============================================================================
 # 配置
@@ -179,7 +181,3 @@ def _append_audit_log_line(line: str) -> None:
 
 rate_limiter = LoginRateLimiter()
 auditor = LoginAuditor()
-
-# 公共 API 限流器：直接使用 SlidingWindowRateLimiter
-# 已移除废弃的 RequestRateLimiter 和代理类
-# 推荐使用 sliding_window_limiter 模块中的 public_api_limiter
