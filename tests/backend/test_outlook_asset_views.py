@@ -3,13 +3,12 @@ from __future__ import annotations
 from contextlib import closing
 from unittest.mock import AsyncMock
 
-from pydantic import ValidationError as PydanticValidationError
 import pytest
-
 from app.db.manager import DatabaseManager
 from app.schemas.outlook_accounts import BatchRefreshRequest
 from app.services.outlook import graph_token_service
 from app.services.outlook.token_views import to_public_oauth_token
+from pydantic import ValidationError as PydanticValidationError
 
 
 @pytest.fixture
