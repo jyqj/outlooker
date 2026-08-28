@@ -21,11 +21,30 @@ from .constants import SYSTEM_CONFIG_FILE as DEFAULT_SYSTEM_CONFIG_FILE
 
 logger = logging.getLogger(__name__)
 
-_system_config_lock = asyncio.Lock()
+_system_config_lock: asyncio.Lock | None = None
+_system_config_lock_loop: asyncio.AbstractEventLoop | None = None
 
 _config_cache: dict[str, Any] | None = None
 _config_cache_ts: float = 0.0
 _CONFIG_CACHE_TTL = 30.0
+
+
+def _get_system_config_lock() -> asyncio.Lock:
+    """Return a lock bound to the currently running event loop.
+
+    Test clients and embedded runtimes may create more than one event loop in
+    the same process. An asyncio primitive created at module import can become
+    permanently bound to a closed loop after its first contended use. Recreate
+    the lock when the active loop changes while keeping the normal single-loop
+    production path allocation-free after the first call.
+    """
+    global _system_config_lock, _system_config_lock_loop
+
+    current_loop = asyncio.get_running_loop()
+    if _system_config_lock is None or _system_config_lock_loop is not current_loop:
+        _system_config_lock = asyncio.Lock()
+        _system_config_lock_loop = current_loop
+    return _system_config_lock
 
 
 def _get_system_config_file() -> Path:
@@ -50,7 +69,7 @@ def _read_system_config_file() -> dict[str, Any]:
 
 async def _write_system_config_file(config: dict[str, Any]) -> None:
     config_path = _get_system_config_file()
-    async with _system_config_lock:
+    async with _get_system_config_lock():
         try:
             with config_path.open("w", encoding="utf-8") as fp:
                 json.dump(config, fp, ensure_ascii=False, indent=2)
@@ -90,7 +109,7 @@ async def load_system_config() -> dict[str, Any]:
     file_config = _read_system_config_file()
     config: dict[str, Any] = {}
 
-    async with _system_config_lock:
+    async with _get_system_config_lock():
         for key, default_value in SYSTEM_CONFIG_DEFAULTS.items():
             db_value = await db_manager.get_system_config(key)
             if db_value is not None:
