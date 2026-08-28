@@ -11,6 +11,7 @@ export const queryKeys = {
   emailMessages: (email: string, refreshCounter?: number, page?: number, pageSize?: number) =>
     ['email-messages', email, refreshCounter, page, pageSize] as const,
   emailMessagesBase: (email: string) => ['email-messages', email] as const,
+  outlookAccountsBase: () => ['outlook-accounts'] as const,
   outlookAccounts: (status?: string, accountType?: string, limit?: number, offset?: number) =>
     ['outlook-accounts', status, accountType, limit, offset] as const,
   outlookAccountDetail: (email: string) => ['outlook-account-detail', email] as const,

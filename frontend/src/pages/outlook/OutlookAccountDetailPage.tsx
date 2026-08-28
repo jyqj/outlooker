@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, KeyRound, RefreshCw, ShieldAlert, ShieldCheck, UserRound } from 'lucide-react';
 
 import api, { clearAuthTokens } from '@/lib/api';
@@ -20,6 +21,7 @@ import {
   useOutlookProfileQuery,
   useOutlookRegionalSettingsQuery,
 } from '@/lib/hooks';
+import { queryKeys } from '@/lib/queryKeys';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
@@ -36,6 +38,7 @@ export default function OutlookAccountDetailPage() {
   const { email = '' } = useParams();
   const decodedEmail = decodeURIComponent(email);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const detailQuery = useOutlookAccountDetailQuery(decodedEmail, !!decodedEmail);
   const profileQuery = useOutlookProfileQuery(decodedEmail, false, !!decodedEmail);
@@ -50,6 +53,7 @@ export default function OutlookAccountDetailPage() {
   const [newPassword, setNewPassword] = useState('');
   const [riskyUsers, setRiskyUsers] = useState<string>('{}');
   const [dismissUserId, setDismissUserId] = useState('');
+  const [refreshingToken, setRefreshingToken] = useState(false);
 
   useEffect(() => {
     if (profileQuery.data?.data) {
@@ -78,6 +82,19 @@ export default function OutlookAccountDetailPage() {
     }
   };
 
+  const handleRefreshToken = async () => {
+    setRefreshingToken(true);
+    try {
+      await refreshOutlookToken(decodedEmail);
+      await Promise.all([
+        detailQuery.refetch(),
+        queryClient.invalidateQueries({ queryKey: queryKeys.outlookAccountsBase() }),
+      ]);
+    } finally {
+      setRefreshingToken(false);
+    }
+  };
+
   const parseEditor = (value: string) => JSON.parse(value || '{}') as Record<string, unknown>;
 
   const account = detailQuery.data?.data;
@@ -97,9 +114,9 @@ export default function OutlookAccountDetailPage() {
               <ArrowLeft className="w-4 h-4 mr-2" />
               返回账户列表
             </Button>
-            <Button onClick={() => refreshOutlookToken(decodedEmail)}>
-              <RefreshCw className="w-4 h-4 mr-2" />
-              刷新 Token
+            <Button onClick={handleRefreshToken} disabled={refreshingToken}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${refreshingToken ? 'animate-spin' : ''}`} />
+              {refreshingToken ? '刷新中...' : '刷新 Token'}
             </Button>
           </div>
         </div>
@@ -125,9 +142,15 @@ export default function OutlookAccountDetailPage() {
                     Graph: {account.capabilities?.graph_ready ? 'Ready' : 'Off'}
                   </Badge>
                   <Badge variant="outline">Token: {account.token?.status ?? 'none'}</Badge>
+                  <Badge variant={account.token?.has_refresh_token ? 'success' : 'warning'}>
+                    Refresh: {account.token?.has_refresh_token ? 'Ready' : 'Missing'}
+                  </Badge>
                 </div>
                 <div className="text-sm text-muted-foreground">
                   最近同步: {account.last_synced_at || 'N/A'} · 来源账户: {account.source_account_email || 'N/A'}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Token 到期: {account.token?.expires_at || 'N/A'}
                 </div>
               </>
             )}

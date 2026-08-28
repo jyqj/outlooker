@@ -1,6 +1,7 @@
 import logging
+from typing import Annotated
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from ..core.decorators import handle_exceptions
 from ..core.exceptions import (
@@ -52,10 +53,16 @@ from ..services.outlook.graph_token_service import (
     batch_refresh_account_tokens,
     refresh_account_token,
 )
+from ..services.outlook.token_views import to_public_oauth_token
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Outlook账户管理"])
+
+StatusFilter = Annotated[str | None, Query(max_length=32)]
+AccountTypeFilter = Annotated[str | None, Query(max_length=32)]
+PageLimit = Annotated[int, Query(ge=1, le=200)]
+PageOffset = Annotated[int, Query(ge=0)]
 
 
 def _raise_graph_error(exc: GraphAPIError, email: str | None = None) -> None:
@@ -76,37 +83,24 @@ def _raise_graph_error(exc: GraphAPIError, email: str | None = None) -> None:
     raise ExternalServiceError(exc.message, service_name="Microsoft Graph")
 
 
-async def _build_account_view(db, account: dict) -> dict:
-    email = account["email"]
-    token = await db.get_latest_active_oauth_token(email)
-    capabilities = await db.get_account_capabilities(email)
-    return {
-        **account,
-        "token": token,
-        "capabilities": capabilities,
-    }
-
-
 @router.get("/api/outlook/accounts")
 @handle_exceptions("获取 Outlook 账户列表")
 async def list_outlook_accounts(
     admin: AdminUser,
     db: DbManager,
-    status: str | None = None,
-    account_type: str | None = None,
-    limit: int = 100,
-    offset: int = 0,
+    status: StatusFilter = None,
+    account_type: AccountTypeFilter = None,
+    limit: PageLimit = 100,
+    offset: PageOffset = 0,
 ) -> ApiResponse:
     ensure_graph_capability("", "graph")
-    accounts = await db.list_outlook_accounts(
+    page = await db.list_outlook_account_views(
         status=status,
         account_type=account_type,
         limit=limit,
         offset=offset,
     )
-    items = [await _build_account_view(db, account) for account in accounts]
-    total = await db.count_outlook_accounts(status=status, account_type=account_type)
-    return ApiResponse(success=True, data={"items": items, "total": total})
+    return ApiResponse(success=True, data=page)
 
 
 @router.post("/api/outlook/accounts/batch-refresh")
@@ -133,13 +127,13 @@ async def get_outlook_account_detail(
     db: DbManager,
 ) -> ApiResponse:
     ensure_graph_capability(email, "graph")
-    account = await db.get_outlook_account(email)
-    if not account:
-        raise ResourceNotFoundError("Outlook 账户不存在", resource_type="outlook_account", resource_id=email)
-    detail = await _build_account_view(db, account)
-    detail["profile_cache"] = await db.get_account_profile_cache(email)
-    detail["security_methods_snapshot"] = await db.list_account_security_method_snapshots(email)
-    detail["recent_operations"] = await db.list_account_operation_audits(email=email, limit=20)
+    detail = await db.get_outlook_account_detail_view(email, recent_operations_limit=20)
+    if not detail:
+        raise ResourceNotFoundError(
+            "Outlook 账户不存在",
+            resource_type="outlook_account",
+            resource_id=email,
+        )
     return ApiResponse(success=True, data=detail)
 
 
@@ -154,7 +148,11 @@ async def refresh_outlook_token(
         token = await refresh_account_token(email)
     except GraphAPIError as exc:
         _raise_graph_error(exc, email)
-    return ApiResponse(success=True, data=token, message="Token 刷新成功")
+    return ApiResponse(
+        success=True,
+        data=to_public_oauth_token(token),
+        message="Token 刷新成功",
+    )
 
 
 @router.get("/api/outlook/accounts/{email}/profile")

@@ -21,6 +21,7 @@ from .connection import ConnectionMixin
 from .email_cache import EmailCacheMixin
 from .oauth_tokens import OAuthTokensMixin
 from .outlook_accounts import OutlookAccountsMixin
+from .outlook_asset_views import OutlookAssetReadMixin
 from .protocol_tasks import ProtocolTasksMixin
 from .system_config import SystemConfigMixin
 from .tags import TagsMixin
@@ -44,6 +45,7 @@ class DatabaseManager(
     ConnectionMixin,
     AccountsMixin,
     OutlookAccountsMixin,
+    OutlookAssetReadMixin,
     OAuthTokensMixin,
     ChannelingMixin,
     ProtocolTasksMixin,
@@ -153,6 +155,47 @@ class DatabaseManager(
             # Keeping duplicates increases every write and the on-disk database size.
             cursor.execute("DROP INDEX IF EXISTS idx_accounts_email")
             cursor.execute("DROP INDEX IF EXISTS idx_email_cache_email_folder_message_id")
+
+            # Replace narrow indexes with workload-aligned covering indexes for
+            # Outlook asset list/detail projections.
+            cursor.execute("DROP INDEX IF EXISTS idx_outlook_accounts_status")
+            cursor.execute("DROP INDEX IF EXISTS idx_oauth_tokens_email_status")
+            cursor.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_outlook_accounts_updated_email
+                ON outlook_accounts(updated_at DESC, email ASC)
+                """
+            )
+            cursor.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_outlook_accounts_status_updated_email
+                ON outlook_accounts(status, updated_at DESC, email ASC)
+                """
+            )
+            cursor.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_outlook_accounts_type_updated_email
+                ON outlook_accounts(account_type, updated_at DESC, email ASC)
+                """
+            )
+            cursor.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_oauth_tokens_email_status_id
+                ON oauth_tokens(email, status, id DESC)
+                """
+            )
+            cursor.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_account_security_snapshot_email_type_id
+                ON account_security_methods_snapshot(email, method_type, id)
+                """
+            )
+            cursor.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_account_operation_audit_email_id
+                ON account_operation_audit(email, id DESC)
+                """
+            )
 
             # Create indexes after migrations so they always target the final schema.
             # account_tags only exists before the relational tags migration.

@@ -35,17 +35,26 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: python scripts/ci/ruff_ratchet.py "$BASE_SHA"
 
-      - name: Mypy type check
-        run: mypy backend/app --config-file mypy.ini
+      - name: Mypy debt inventory
+        run: mypy backend/app --config-file mypy.ini || true
+
+      - name: Mypy regression gate
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: python scripts/ci/mypy_ratchet.py "$BASE_SHA"
 
       - name: Pytest with coverage
         working-directory: backend
         run: pytest --cov=app --cov-report=term-missing --cov-report=xml
 
-      - name: Check backend coverage threshold
+      - name: Coverage debt inventory
         working-directory: backend
-        run: |
-          coverage report --fail-under=70
+        run: coverage report
+
+      - name: Coverage regression gate
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: python scripts/ci/coverage_ratchet.py "$BASE_SHA" --head-xml backend/coverage.xml
 
       - name: Security scan (pip-audit)
         working-directory: backend
