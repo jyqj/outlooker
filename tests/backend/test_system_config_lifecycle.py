@@ -18,7 +18,7 @@ def test_system_config_lock_rebinds_across_event_loops(monkeypatch):
         "set_system_config",
         AsyncMock(return_value=True),
     )
-    monkeypatch.setattr(system_config_service, "_read_system_config_file", lambda: {})
+    monkeypatch.setattr(system_config_service, "_read_system_config_file", dict)
 
     async def load_with_lock_identity():
         config = await system_config_service.load_system_config()
