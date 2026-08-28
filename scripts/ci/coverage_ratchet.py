@@ -5,6 +5,12 @@ The repository's historical coverage is below the former hard-coded 70% gate,
 which made the gate impossible to satisfy before any changed code was examined.
 This script measures the checked-out head, reproduces the base coverage in an
 isolated worktree, and rejects only a real coverage regression.
+
+A base commit can occasionally contain a broken compatibility re-export that
+prevents pytest from collecting the suite at all. In that case the isolated
+worktree receives the narrow, behavior-preserving re-export required to make
+the already-canonical implementation importable. The base branch itself is
+never modified, and no production logic is replaced for the measurement.
 """
 
 from __future__ import annotations
@@ -71,7 +77,39 @@ def _read_line_rate(path: Path) -> float:
         raise RuntimeError(f"Invalid coverage line-rate {raw_rate!r}: {path}") from exc
 
 
-def _measure_base(base_ref: str, output_path: Path) -> tuple[float, int]:
+def _apply_base_collection_compatibility(base_root: Path) -> list[str]:
+    """Apply narrowly scoped shims needed only to collect a historical base.
+
+    The PR base removed a compatibility proxy but left import sites expecting
+    ``public_api_rate_limiter``. The canonical sliding-window limiter already
+    exists in that same revision, so exporting it under the old name changes no
+    limiter behavior; it only restores the module contract required by tests.
+    """
+    applied: list[str] = []
+    rate_limiter_path = base_root / "backend/app/core/rate_limiter.py"
+    if not rate_limiter_path.exists():
+        return applied
+
+    content = rate_limiter_path.read_text(encoding="utf-8")
+    if "public_api_rate_limiter =" not in content:
+        compatibility_export = (
+            "\n\n# Baseline-only collection compatibility for coverage measurement.\n"
+            "from .sliding_window_limiter import (\n"
+            "    public_api_limiter as _coverage_public_api_limiter,\n"
+            ")\n"
+            "\n"
+            "public_api_rate_limiter = _coverage_public_api_limiter\n"
+        )
+        rate_limiter_path.write_text(
+            content.rstrip() + compatibility_export,
+            encoding="utf-8",
+        )
+        applied.append("core.rate_limiter.public_api_rate_limiter re-export")
+
+    return applied
+
+
+def _measure_base(base_ref: str, output_path: Path) -> tuple[float, int, list[str]]:
     with tempfile.TemporaryDirectory(prefix="outlooker-coverage-base-") as directory:
         base_root = Path(directory) / "repository"
         _run(
@@ -79,6 +117,7 @@ def _measure_base(base_ref: str, output_path: Path) -> tuple[float, int]:
             cwd=REPOSITORY_ROOT,
         )
         try:
+            compatibility_shims = _apply_base_collection_compatibility(base_root)
             result = _run(
                 [
                     sys.executable,
@@ -100,7 +139,7 @@ def _measure_base(base_ref: str, output_path: Path) -> tuple[float, int]:
                 raise RuntimeError(
                     f"Unable to measure base coverage; pytest exited {result.returncode}"
                 )
-            return _read_line_rate(output_path), result.returncode
+            return _read_line_rate(output_path), result.returncode, compatibility_shims
         finally:
             _run(
                 ["git", "worktree", "remove", "--force", str(base_root)],
@@ -119,7 +158,10 @@ def compare_with_base(
 
     with tempfile.TemporaryDirectory(prefix="outlooker-coverage-report-") as directory:
         base_xml = Path(directory) / "base-coverage.xml"
-        base_rate, base_test_status = _measure_base(base_ref, base_xml)
+        base_rate, base_test_status, compatibility_shims = _measure_base(
+            base_ref,
+            base_xml,
+        )
 
     delta = head_rate - base_rate
     print(
@@ -127,9 +169,11 @@ def compare_with_base(
         f"{base_rate * 100:.3f}% -> {head_rate * 100:.3f}% "
         f"(delta={delta * 100:+.3f} percentage points)"
     )
+    for shim in compatibility_shims:
+        print(f"Baseline measurement compatibility applied: {shim}")
     if base_test_status != 0:
         print(
-            "Base tests contain pre-existing failures; their generated coverage "
+            "Base tests contain pre-existing failures; their complete coverage "
             "snapshot was still usable for the regression comparison."
         )
 
