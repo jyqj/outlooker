@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any, Annotated
+from typing import Annotated, Any
 
 from pydantic import BaseModel, Field
-
 
 BatchEmail = Annotated[str, Field(min_length=3, max_length=320)]
 
