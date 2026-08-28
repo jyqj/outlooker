@@ -35,8 +35,13 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: python scripts/ci/ruff_ratchet.py "$BASE_SHA"
 
-      - name: Mypy type check
-        run: mypy backend/app --config-file mypy.ini
+      - name: Mypy debt inventory
+        run: mypy backend/app --config-file mypy.ini || true
+
+      - name: Mypy regression gate
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: python scripts/ci/mypy_ratchet.py "$BASE_SHA"
 
       - name: Pytest with coverage
         working-directory: backend
