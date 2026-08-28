@@ -47,10 +47,14 @@ jobs:
         working-directory: backend
         run: pytest --cov=app --cov-report=term-missing --cov-report=xml
 
-      - name: Check backend coverage threshold
+      - name: Coverage debt inventory
         working-directory: backend
-        run: |
-          coverage report --fail-under=70
+        run: coverage report
+
+      - name: Coverage regression gate
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: python scripts/ci/coverage_ratchet.py "$BASE_SHA" --head-xml backend/coverage.xml
 
       - name: Security scan (pip-audit)
         working-directory: backend
