@@ -14,7 +14,7 @@ from pathlib import Path
 
 from ..db import db_manager
 from ..settings import get_settings
-from .sliding_window_limiter import public_api_limiter as public_api_rate_limiter
+from .sliding_window_limiter import public_api_limiter
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +118,7 @@ class LoginRateLimiter:
 
 class LoginAuditor:
     """登录审计日志记录器
-    
+
     已重构为 AuditLogger 的适配器，保持向后兼容。
     新代码请直接使用 audit_logger.log_login()。
     """
@@ -135,9 +135,9 @@ class LoginAuditor:
         reason: str | None = None
     ) -> None:
         """记录登录尝试到审计日志
-        
+
         现已委托给 AuditLogger 统一处理。
-        
+
         Args:
             ip: 客户端 IP 地址
             username: 用户名
@@ -179,5 +179,7 @@ def _append_audit_log_line(line: str) -> None:
 # 全局实例
 # ============================================================================
 
+# Compatibility export used by core.__init__, dependency injection, and tests.
+public_api_rate_limiter = public_api_limiter
 rate_limiter = LoginRateLimiter()
 auditor = LoginAuditor()
