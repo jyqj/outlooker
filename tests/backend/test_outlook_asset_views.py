@@ -3,8 +3,8 @@ from __future__ import annotations
 from contextlib import closing
 from unittest.mock import AsyncMock
 
-import pytest
 from pydantic import ValidationError as PydanticValidationError
+import pytest
 
 from app.db.manager import DatabaseManager
 from app.schemas.outlook_accounts import BatchRefreshRequest
